@@ -1,0 +1,27 @@
+server:
+  port: 8080
+  mode: debug  # debug, release
+  read_timeout: 10s
+  write_timeout: 10s
+  idle_timeout: 60s
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: your_password
+  dbname: talkrealm
+  sslmode: disable
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+
+jwt:
+  secret: your-secret-key-change-this-in-production
+  expire_time: 24h
+
+log:
+  level: info  # debug, info, warn, error
