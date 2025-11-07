@@ -12,6 +12,10 @@ database:
   password: your_password
   dbname: talkrealm
   sslmode: disable
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 60  # 分鐘
+  log_mode: false  # true 為開啟 SQL 查詢日誌
 
 redis:
   host: localhost

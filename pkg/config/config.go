@@ -26,12 +26,16 @@ type ServerConfig struct {
 
 // DatabaseConfig 資料庫配置
 type DatabaseConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	DBName   string `mapstructure:"dbname"`
-	SSLMode  string `mapstructure:"sslmode"`
+	Host            string `mapstructure:"host"`
+	Port            int    `mapstructure:"port"`
+	User            string `mapstructure:"user"`
+	Password        string `mapstructure:"password"`
+	DBName          string `mapstructure:"dbname"`
+	SSLMode         string `mapstructure:"sslmode"`
+	MaxIdleConns    int    `mapstructure:"max_idle_conns"`
+	MaxOpenConns    int    `mapstructure:"max_open_conns"`
+	ConnMaxLifetime int    `mapstructure:"conn_max_lifetime"` // 分鐘
+	LogMode         bool   `mapstructure:"log_mode"`
 }
 
 // RedisConfig Redis 配置
@@ -97,6 +101,10 @@ func setDefaults() {
 	viper.SetDefault("database.password", "")
 	viper.SetDefault("database.dbname", "talkrealm")
 	viper.SetDefault("database.sslmode", "disable")
+	viper.SetDefault("database.max_idle_conns", 10)
+	viper.SetDefault("database.max_open_conns", 100)
+	viper.SetDefault("database.conn_max_lifetime", 60) // 60 分鐘
+	viper.SetDefault("database.log_mode", false)
 
 	// Redis 預設值
 	viper.SetDefault("redis.host", "localhost")

@@ -12,6 +12,7 @@ import (
 
 	"github.com/walnut-almonds/talkrealm/internal/server"
 	"github.com/walnut-almonds/talkrealm/pkg/config"
+	"github.com/walnut-almonds/talkrealm/pkg/database"
 	"github.com/walnut-almonds/talkrealm/pkg/logger"
 )
 
@@ -27,6 +28,17 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
+
+	// 初始化資料庫
+	if err := database.Init(&cfg.Database); err != nil {
+		logger.Fatal("Failed to initialize database", "error", err)
+	}
+	defer database.Close()
+
+	// 執行資料庫遷移（可選，建議在生產環境使用專門的遷移腳本）
+	if err := database.AutoMigrate(); err != nil {
+		logger.Fatal("Failed to migrate database", "error", err)
+	}
 
 	// 創建伺服器
 	srv, err := server.New(cfg)
