@@ -1,6 +1,7 @@
+# Docker 開發環境配置
 server:
   port: 8080
-  mode: debug  # debug, release
+  mode: debug
   read_timeout: 10s
   write_timeout: 10s
   idle_timeout: 60s
@@ -14,8 +15,8 @@ database:
   sslmode: disable
   max_idle_conns: 10
   max_open_conns: 100
-  conn_max_lifetime: 60  # 分鐘
-  log_mode: false  # true 為開啟 SQL 查詢日誌
+  conn_max_lifetime: 60
+  log_mode: true  # 開發模式顯示 SQL
 
 redis:
   host: localhost
@@ -24,8 +25,8 @@ redis:
   db: 0
 
 jwt:
-  secret: your-secret-key-change-this-in-production
+  secret: dev-secret-key-change-in-production
   expire_time: 24h
 
 log:
-  level: info  # debug, info, warn, error
+  level: debug

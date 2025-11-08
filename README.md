@@ -51,10 +51,50 @@ TalkRealm/
 ### 前置需求
 
 - Go 1.21 或更高版本
-- PostgreSQL 14+
-- Redis 6+
+- Docker & Docker Compose（推薦）或
+- PostgreSQL 14+ 和 Redis 6+（手動安裝）
 
-### 安裝步驟
+### 方法一：使用 Docker（推薦）⭐
+
+**最快速的開始方式！**
+
+1. 克隆專案
+```bash
+git clone https://github.com/walnut-almonds/TalkRealm.git
+cd TalkRealm
+```
+
+2. 啟動資料庫服務
+```powershell
+# Windows
+.\scripts\docker-up.ps1
+
+# Linux/macOS
+chmod +x scripts/*.sh
+./scripts/docker-up.sh
+```
+
+3. 準備配置並安裝依賴
+```bash
+cp configs/config.docker.yaml configs/config.yaml
+go mod download
+```
+
+4. 執行資料庫遷移
+```bash
+go run scripts/migrate.go
+```
+
+5. 啟動服務
+```bash
+go run cmd/server/main.go
+```
+
+伺服器將在 `http://localhost:8080` 啟動
+
+📖 **詳細說明**: 查看 [Docker 指南](docs/docker.md)
+
+### 方法二：手動安裝資料庫
 
 1. 克隆專案
 ```bash
