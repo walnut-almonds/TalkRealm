@@ -25,8 +25,8 @@ redis:
   db: 0
 
 jwt:
-  secret: dev-secret-key-change-in-production
-  expire_time: 24h
+  secret: dev-secret-key-change-in-production-please-use-strong-random-key
+  expiration_hours: 24
 
 log:
   level: debug

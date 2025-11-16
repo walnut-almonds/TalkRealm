@@ -1,9 +1,12 @@
 package middleware
 
 import (
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/walnut-almonds/talkrealm/pkg/auth"
 	"github.com/walnut-almonds/talkrealm/pkg/logger"
 )
 
@@ -49,7 +52,51 @@ func CORS() gin.HandlerFunc {
 	}
 }
 
-// Auth JWT 認證中介軟體
+// AuthMiddleware JWT 認證中間件
+func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 從 Authorization header 取得 token
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "missing authorization header",
+			})
+			c.Abort()
+			return
+		}
+
+		// 檢查 Bearer 前綴
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid authorization header format",
+			})
+			c.Abort()
+			return
+		}
+
+		tokenString := parts[1]
+
+		// 驗證 token
+		claims, err := jwtManager.ValidateToken(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+
+		// 將使用者資訊存入 context
+		c.Set("user_id", claims.UserID)
+		c.Set("username", claims.Username)
+		c.Set("email", claims.Email)
+
+		c.Next()
+	}
+}
+
+// Auth 舊版相容 - 使用預設配置
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// TODO: 實作 JWT 驗證邏輯
@@ -59,5 +106,6 @@ func Auth() gin.HandlerFunc {
 
 		// 目前先放行
 		c.Next()
+
 	}
 }

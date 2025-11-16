@@ -1,16 +1,24 @@
 package server
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/walnut-almonds/talkrealm/internal/handler"
 	"github.com/walnut-almonds/talkrealm/internal/middleware"
+	"github.com/walnut-almonds/talkrealm/internal/repository"
+	"github.com/walnut-almonds/talkrealm/internal/service"
+	"github.com/walnut-almonds/talkrealm/pkg/auth"
 	"github.com/walnut-almonds/talkrealm/pkg/config"
+	"github.com/walnut-almonds/talkrealm/pkg/database"
 )
 
 // Server 代表應用程式伺服器
 type Server struct {
-	config *config.Config
-	router *gin.Engine
+	config      *config.Config
+	router      *gin.Engine
+	jwtManager  *auth.JWTManager
+	userHandler *handler.UserHandler
 }
 
 // New 創建新的伺服器實例
@@ -27,9 +35,29 @@ func New(cfg *config.Config) (*Server, error) {
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
 
+	// 初始化 JWT 管理器
+	jwtManager := auth.NewJWTManager(
+		cfg.JWT.Secret,
+		time.Duration(cfg.JWT.ExpirationHours)*time.Hour,
+	)
+
+	// 獲取資料庫連接
+	db := database.GetDB()
+
+	// 初始化 Repository
+	userRepo := repository.NewUserRepository(db)
+
+	// 初始化 Service
+	userService := service.NewUserService(userRepo, jwtManager)
+
+	// 初始化 Handler
+	userHandler := handler.NewUserHandler(userService)
+
 	s := &Server{
-		config: cfg,
-		router: router,
+		config:      cfg,
+		router:      router,
+		jwtManager:  jwtManager,
+		userHandler: userHandler,
 	}
 
 	// 設定路由
@@ -47,22 +75,22 @@ func (s *Server) setupRoutes() {
 	// API v1 路由群組
 	v1 := s.router.Group("/api/v1")
 	{
-		// 公開路由
+		// 公開路由 - 認證相關
 		auth := v1.Group("/auth")
 		{
-			auth.POST("/register", handler.Register)
-			auth.POST("/login", handler.Login)
+			auth.POST("/register", s.userHandler.Register)
+			auth.POST("/login", s.userHandler.Login)
 		}
 
 		// 需要認證的路由
 		protected := v1.Group("")
-		protected.Use(middleware.Auth())
+		protected.Use(middleware.AuthMiddleware(s.jwtManager))
 		{
 			// 使用者相關
 			users := protected.Group("/users")
 			{
-				users.GET("/me", handler.GetCurrentUser)
-				users.PUT("/me", handler.UpdateCurrentUser)
+				users.GET("/me", s.userHandler.GetCurrentUser)
+				users.PATCH("/me", s.userHandler.UpdateCurrentUser)
 			}
 
 			// 伺服器/社群相關
