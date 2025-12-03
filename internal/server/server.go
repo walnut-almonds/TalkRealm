@@ -15,10 +15,11 @@ import (
 
 // Server 代表應用程式伺服器
 type Server struct {
-	config      *config.Config
-	router      *gin.Engine
-	jwtManager  *auth.JWTManager
-	userHandler *handler.UserHandler
+	config       *config.Config
+	router       *gin.Engine
+	jwtManager   *auth.JWTManager
+	userHandler  *handler.UserHandler
+	guildHandler *handler.GuildHandler
 }
 
 // New 創建新的伺服器實例
@@ -46,18 +47,24 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// 初始化 Repository
 	userRepo := repository.NewUserRepository(db)
+	guildRepo := repository.NewGuildRepository(db)
+	guildMemberRepo := repository.NewGuildMemberRepository(db)
 
 	// 初始化 Service
 	userService := service.NewUserService(userRepo, jwtManager)
+	guildService := service.NewGuildService(guildRepo, guildMemberRepo)
+	guildMemberService := service.NewGuildMemberService(guildRepo, guildMemberRepo)
 
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
+	guildHandler := handler.NewGuildHandler(guildService, guildMemberService)
 
 	s := &Server{
-		config:      cfg,
-		router:      router,
-		jwtManager:  jwtManager,
-		userHandler: userHandler,
+		config:       cfg,
+		router:       router,
+		jwtManager:   jwtManager,
+		userHandler:  userHandler,
+		guildHandler: guildHandler,
 	}
 
 	// 設定路由
@@ -96,24 +103,19 @@ func (s *Server) setupRoutes() {
 			// 伺服器/社群相關
 			guilds := protected.Group("/guilds")
 			{
-				guilds.POST("", handler.CreateGuild)
-				guilds.GET("", handler.ListGuilds)
-				guilds.GET("/:id", handler.GetGuild)
-				guilds.PUT("/:id", handler.UpdateGuild)
-				guilds.DELETE("/:id", handler.DeleteGuild)
-			}
+				guilds.POST("", s.guildHandler.CreateGuild)
+				guilds.GET("", s.guildHandler.ListUserGuilds)
+				guilds.GET("/:id", s.guildHandler.GetGuild)
+				guilds.PUT("/:id", s.guildHandler.UpdateGuild)
+				guilds.DELETE("/:id", s.guildHandler.DeleteGuild)
 
-			// 頻道相關
-			channels := protected.Group("/channels")
-			{
-				channels.POST("", handler.CreateChannel)
-				channels.GET("/:id", handler.GetChannel)
-				channels.PUT("/:id", handler.UpdateChannel)
-				channels.DELETE("/:id", handler.DeleteChannel)
+				// 社群成員操作
+				guilds.POST("/:id/join", s.guildHandler.JoinGuild)
+				guilds.POST("/:id/leave", s.guildHandler.LeaveGuild)
+				guilds.GET("/:id/members", s.guildHandler.ListGuildMembers)
+				guilds.DELETE("/:id/members/:userId", s.guildHandler.KickMember)
+				guilds.PUT("/:id/members/:userId/role", s.guildHandler.UpdateMemberRole)
 			}
-
-			// WebSocket 連線
-			protected.GET("/ws", handler.WebSocketHandler)
 		}
 	}
 }

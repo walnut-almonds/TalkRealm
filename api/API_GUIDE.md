@@ -13,6 +13,20 @@
 - 更新使用者資訊
 - 使用者狀態管理
 
+### ✅ 社群管理 (Guild)
+- 建立社群
+- 獲取社群詳情
+- 列出使用者社群
+- 更新社群資訊
+- 刪除社群
+
+### ✅ 社群成員管理
+- 加入社群
+- 離開社群
+- 列出社群成員
+- 踢出成員
+- 更新成員角色
+
 ---
 
 ## 📚 API 端點說明
@@ -319,6 +333,310 @@ go build -o bin\talkrealm.exe cmd\server\main.go
 4. `internal/middleware/middleware.go` - 認證中間件（已更新）
 
 ### 測試腳本
+1. `scripts/test-api.ps1` - 使用者 API 完整測試
+2. `scripts/quick-test.ps1` - 使用者 API 快速測試
+3. `scripts/test-guild.ps1` - Guild API 完整測試
+4. `scripts/quick-test-guild.ps1` - Guild API 快速測試
+
+---
+
+## 🏰 社群管理 API（需要認證）
+
+### 1. 建立社群
+建立一個新的社群，建立者自動成為擁有者。
+
+**請求**
+```http
+POST /api/v1/guilds
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "我的社群",
+  "description": "這是一個很棒的社群",
+  "icon": "https://example.com/icon.png"
+}
+```
+
+**回應** (201 Created)
+```json
+{
+  "id": 1,
+  "name": "我的社群",
+  "description": "這是一個很棒的社群",
+  "icon": "https://example.com/icon.png",
+  "owner_id": 1,
+  "created_at": "2024-12-03T15:30:00Z",
+  "updated_at": "2024-12-03T15:30:00Z"
+}
+```
+
+---
+
+### 2. 取得社群詳情
+獲取指定社群的詳細資訊。
+
+**請求**
+```http
+GET /api/v1/guilds/{id}
+Authorization: Bearer {token}
+```
+
+**回應** (200 OK)
+```json
+{
+  "id": 1,
+  "name": "我的社群",
+  "description": "這是一個很棒的社群",
+  "icon": "https://example.com/icon.png",
+  "owner_id": 1,
+  "created_at": "2024-12-03T15:30:00Z",
+  "updated_at": "2024-12-03T15:30:00Z"
+}
+```
+
+---
+
+### 3. 列出使用者的社群
+列出當前使用者所屬的所有社群。
+
+**請求**
+```http
+GET /api/v1/guilds
+Authorization: Bearer {token}
+```
+
+**回應** (200 OK)
+```json
+[
+  {
+    "id": 1,
+    "name": "我的社群",
+    "description": "這是一個很棒的社群",
+    "icon": "https://example.com/icon.png",
+    "owner_id": 1,
+    "created_at": "2024-12-03T15:30:00Z",
+    "updated_at": "2024-12-03T15:30:00Z"
+  }
+]
+```
+
+---
+
+### 4. 更新社群
+更新社群資訊（僅擁有者可操作）。
+
+**請求**
+```http
+PUT /api/v1/guilds/{id}
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "更新後的社群名稱",
+  "description": "更新後的描述",
+  "icon": "https://example.com/new-icon.png"
+}
+```
+
+**回應** (200 OK)
+```json
+{
+  "id": 1,
+  "name": "更新後的社群名稱",
+  "description": "更新後的描述",
+  "icon": "https://example.com/new-icon.png",
+  "owner_id": 1,
+  "created_at": "2024-12-03T15:30:00Z",
+  "updated_at": "2024-12-03T15:35:00Z"
+}
+```
+
+**錯誤回應** (403 Forbidden)
+```json
+{
+  "error": "only owner can update guild"
+}
+```
+
+---
+
+### 5. 刪除社群
+刪除社群（僅擁有者可操作）。
+
+**請求**
+```http
+DELETE /api/v1/guilds/{id}
+Authorization: Bearer {token}
+```
+
+**回應** (200 OK)
+```json
+{
+  "message": "guild deleted successfully"
+}
+```
+
+**錯誤回應** (403 Forbidden)
+```json
+{
+  "error": "only owner can delete guild"
+}
+```
+
+---
+
+## 👥 社群成員管理 API（需要認證）
+
+### 1. 加入社群
+使用者加入指定社群。
+
+**請求**
+```http
+POST /api/v1/guilds/{id}/join
+Authorization: Bearer {token}
+```
+
+**回應** (200 OK)
+```json
+{
+  "message": "joined guild successfully"
+}
+```
+
+**錯誤回應** (400 Bad Request)
+```json
+{
+  "error": "already in guild"
+}
+```
+
+---
+
+### 2. 離開社群
+使用者離開社群（擁有者需先轉移所有權）。
+
+**請求**
+```http
+POST /api/v1/guilds/{id}/leave
+Authorization: Bearer {token}
+```
+
+**回應** (200 OK)
+```json
+{
+  "message": "left guild successfully"
+}
+```
+
+**錯誤回應** (403 Forbidden)
+```json
+{
+  "error": "owner cannot leave, transfer ownership first"
+}
+```
+
+---
+
+### 3. 列出社群成員
+列出社群的所有成員。
+
+**請求**
+```http
+GET /api/v1/guilds/{id}/members
+Authorization: Bearer {token}
+```
+
+**回應** (200 OK)
+```json
+[
+  {
+    "id": 1,
+    "guild_id": 1,
+    "user_id": 1,
+    "nickname": "",
+    "role": "owner",
+    "joined_at": "2024-12-03T15:30:00Z",
+    "created_at": "2024-12-03T15:30:00Z",
+    "updated_at": "2024-12-03T15:30:00Z"
+  },
+  {
+    "id": 2,
+    "guild_id": 1,
+    "user_id": 2,
+    "nickname": "",
+    "role": "member",
+    "joined_at": "2024-12-03T15:32:00Z",
+    "created_at": "2024-12-03T15:32:00Z",
+    "updated_at": "2024-12-03T15:32:00Z"
+  }
+]
+```
+
+---
+
+### 4. 踢出成員
+擁有者踢出社群成員。
+
+**請求**
+```http
+DELETE /api/v1/guilds/{id}/members/{userId}
+Authorization: Bearer {token}
+```
+
+**回應** (200 OK)
+```json
+{
+  "message": "member kicked successfully"
+}
+```
+
+**錯誤回應** (403 Forbidden)
+```json
+{
+  "error": "only owner can kick members"
+}
+```
+
+---
+
+### 5. 更新成員角色
+擁有者更新成員角色。
+
+**請求**
+```http
+PUT /api/v1/guilds/{id}/members/{userId}/role
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "role": "moderator"
+}
+```
+
+**可用角色**
+- `owner` - 擁有者
+- `admin` - 管理員
+- `moderator` - 版主
+- `member` - 普通成員
+
+**回應** (200 OK)
+```json
+{
+  "message": "member role updated successfully"
+}
+```
+
+**錯誤回應** (403 Forbidden)
+```json
+{
+  "error": "only owner can update member roles"
+}
+```
+
+---
+
+### 測試腳本
 1. `scripts/test-api.ps1` - 完整 API 測試
 2. `scripts/quick-test.ps1` - 快速 API 測試
 
@@ -326,6 +644,7 @@ go build -o bin\talkrealm.exe cmd\server\main.go
 
 ## ✅ 測試結果
 
+### 使用者認證系統測試
 所有測試通過！✨
 
 - ✅ 健康檢查
@@ -337,19 +656,37 @@ go build -o bin\talkrealm.exe cmd\server\main.go
 - ✅ 更新使用者資訊
 - ✅ 安全性驗證（拒絕無效 Token）
 
+### 社群管理系統測試
+所有測試通過！✨
+
+- ✅ 建立社群
+- ✅ 取得社群詳情
+- ✅ 列出使用者社群
+- ✅ 更新社群資訊
+- ✅ 刪除社群
+- ✅ 加入社群
+- ✅ 離開社群
+- ✅ 列出社群成員
+- ✅ 踢出成員
+- ✅ 更新成員角色
+- ✅ 權限控制（非擁有者無法更新/刪除）
+- ✅ 擁有者無法離開社群驗證
+
 ---
 
 ## 🔜 下一步建議
 
-1. **社群功能 (Guild)**
-   - 建立社群 Service 和 Handler
-   - 社群成員管理
-   - 權限控制
-
-2. **頻道功能 (Channel)**
+1. **頻道功能 (Channel)**
+   - 建立/管理頻道
    - 文字頻道
    - 語音頻道
-   - 頻道訊息
+   - 頻道權限
+
+2. **訊息功能 (Message)**
+   - 發送訊息
+   - 訊息歷史
+   - 訊息編輯/刪除
+   - 訊息附件
 
 3. **WebSocket 即時通訊**
    - WebSocket 連接管理
