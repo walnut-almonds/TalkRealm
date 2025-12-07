@@ -15,11 +15,12 @@ import (
 
 // Server 代表應用程式伺服器
 type Server struct {
-	config       *config.Config
-	router       *gin.Engine
-	jwtManager   *auth.JWTManager
-	userHandler  *handler.UserHandler
-	guildHandler *handler.GuildHandler
+	config         *config.Config
+	router         *gin.Engine
+	jwtManager     *auth.JWTManager
+	userHandler    *handler.UserHandler
+	guildHandler   *handler.GuildHandler
+	channelHandler *handler.ChannelHandler
 }
 
 // New 創建新的伺服器實例
@@ -49,22 +50,26 @@ func New(cfg *config.Config) (*Server, error) {
 	userRepo := repository.NewUserRepository(db)
 	guildRepo := repository.NewGuildRepository(db)
 	guildMemberRepo := repository.NewGuildMemberRepository(db)
+	channelRepo := repository.NewChannelRepository(db)
 
 	// 初始化 Service
 	userService := service.NewUserService(userRepo, jwtManager)
 	guildService := service.NewGuildService(guildRepo, guildMemberRepo)
 	guildMemberService := service.NewGuildMemberService(guildRepo, guildMemberRepo)
+	channelService := service.NewChannelService(channelRepo, guildRepo, guildMemberRepo)
 
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
 	guildHandler := handler.NewGuildHandler(guildService, guildMemberService)
+	channelHandler := handler.NewChannelHandler(channelService)
 
 	s := &Server{
-		config:       cfg,
-		router:       router,
-		jwtManager:   jwtManager,
-		userHandler:  userHandler,
-		guildHandler: guildHandler,
+		config:         cfg,
+		router:         router,
+		jwtManager:     jwtManager,
+		userHandler:    userHandler,
+		guildHandler:   guildHandler,
+		channelHandler: channelHandler,
 	}
 
 	// 設定路由
@@ -116,11 +121,20 @@ func (s *Server) setupRoutes() {
 				guilds.DELETE("/:id/members/:userId", s.guildHandler.KickMember)
 				guilds.PUT("/:id/members/:userId/role", s.guildHandler.UpdateMemberRole)
 			}
+
+			// 頻道相關
+			channels := protected.Group("/channels")
+			{
+				channels.POST("", s.channelHandler.CreateChannel)
+				channels.GET("", s.channelHandler.ListGuildChannels)
+				channels.GET("/:id", s.channelHandler.GetChannel)
+				channels.PUT("/:id", s.channelHandler.UpdateChannel)
+				channels.DELETE("/:id", s.channelHandler.DeleteChannel)
+				channels.PUT("/:id/position", s.channelHandler.UpdateChannelPosition)
+			}
 		}
 	}
-}
-
-// Router 返回 gin 路由器
+} // Router 返回 gin 路由器
 func (s *Server) Router() *gin.Engine {
 	return s.router
 }
