@@ -21,6 +21,7 @@ type Server struct {
 	userHandler    *handler.UserHandler
 	guildHandler   *handler.GuildHandler
 	channelHandler *handler.ChannelHandler
+	messageHandler *handler.MessageHandler
 }
 
 // New 創建新的伺服器實例
@@ -51,17 +52,20 @@ func New(cfg *config.Config) (*Server, error) {
 	guildRepo := repository.NewGuildRepository(db)
 	guildMemberRepo := repository.NewGuildMemberRepository(db)
 	channelRepo := repository.NewChannelRepository(db)
+	messageRepo := repository.NewMessageRepository(db)
 
 	// 初始化 Service
 	userService := service.NewUserService(userRepo, jwtManager)
 	guildService := service.NewGuildService(guildRepo, guildMemberRepo)
 	guildMemberService := service.NewGuildMemberService(guildRepo, guildMemberRepo)
 	channelService := service.NewChannelService(channelRepo, guildRepo, guildMemberRepo)
+	messageService := service.NewMessageService(messageRepo, channelRepo, guildMemberRepo)
 
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
 	guildHandler := handler.NewGuildHandler(guildService, guildMemberService)
 	channelHandler := handler.NewChannelHandler(channelService)
+	messageHandler := handler.NewMessageHandler(messageService)
 
 	s := &Server{
 		config:         cfg,
@@ -70,6 +74,7 @@ func New(cfg *config.Config) (*Server, error) {
 		userHandler:    userHandler,
 		guildHandler:   guildHandler,
 		channelHandler: channelHandler,
+		messageHandler: messageHandler,
 	}
 
 	// 設定路由
@@ -131,6 +136,16 @@ func (s *Server) setupRoutes() {
 				channels.PUT("/:id", s.channelHandler.UpdateChannel)
 				channels.DELETE("/:id", s.channelHandler.DeleteChannel)
 				channels.PUT("/:id/position", s.channelHandler.UpdateChannelPosition)
+			}
+
+			// 訊息相關
+			messages := protected.Group("/messages")
+			{
+				messages.POST("", s.messageHandler.CreateMessage)
+				messages.GET("", s.messageHandler.ListChannelMessages)
+				messages.GET("/:id", s.messageHandler.GetMessage)
+				messages.PUT("/:id", s.messageHandler.UpdateMessage)
+				messages.DELETE("/:id", s.messageHandler.DeleteMessage)
 			}
 		}
 	}
