@@ -1,6 +1,6 @@
 MODULE_DIRS = .
 
-VERSION ?= g$(shell git rev-parse --short HEAD)
+VERSION ?= $(shell git rev-parse --short HEAD)
 
 .PHONY: gowork
 gowork:
@@ -16,6 +16,7 @@ install-asdf:
 
 .PHONY: install
 install: install-asdf tidy
+	go install github.com/swaggo/swag/cmd/swag@v1.16.6
 
 .PHONY: fmt
 fmt: install
@@ -33,8 +34,9 @@ lint: install
 test: install
 	go test -v -race -failfast ./...
 
-.PHONY: check
-check: fix lint test
+.PHONY: docs
+docs: install
+	swag init -g ./internal/server/server.go -o ./docs/openapi --outputTypes json,yaml
 
 .PHONY: build
 build:
@@ -42,3 +44,6 @@ build:
 	go build \
 		-ldflags "-X github.com/walnut-almonds/talkrealm/buildinfo.Version=$(VERSION)" \
 		-o ./bin/server ./cmd/server
+
+.PHONY: check
+check: fix lint test build docs
