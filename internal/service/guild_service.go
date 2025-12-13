@@ -18,16 +18,16 @@ var (
 
 // CreateGuildRequest 建立社群請求
 type CreateGuildRequest struct {
-	Name        string `json:"name" binding:"required,min=2,max=100"`
+	Name        string `json:"name"        binding:"required,min=2,max=100"`
 	Description string `json:"description" binding:"max=500"`
-	Icon        string `json:"icon" binding:"max=256"`
+	Icon        string `json:"icon"        binding:"max=256"`
 }
 
 // UpdateGuildRequest 更新社群請求
 type UpdateGuildRequest struct {
-	Name        string `json:"name" binding:"omitempty,min=2,max=100"`
+	Name        string `json:"name"        binding:"omitempty,min=2,max=100"`
 	Description string `json:"description" binding:"max=500"`
-	Icon        string `json:"icon" binding:"max=256"`
+	Icon        string `json:"icon"        binding:"max=256"`
 }
 
 // GuildService 社群服務介面
@@ -47,7 +47,10 @@ type guildService struct {
 }
 
 // NewGuildService 建立社群服務
-func NewGuildService(guildRepo repository.GuildRepository, guildMemberRepo repository.GuildMemberRepository) GuildService {
+func NewGuildService(
+	guildRepo repository.GuildRepository,
+	guildMemberRepo repository.GuildMemberRepository,
+) GuildService {
 	return &guildService{
 		guildRepo:       guildRepo,
 		guildMemberRepo: guildMemberRepo,
@@ -94,6 +97,7 @@ func (s *guildService) GetGuild(guildID uint) (*model.Guild, error) {
 	if err != nil {
 		return nil, ErrGuildNotFound
 	}
+
 	return guild, nil
 }
 
@@ -103,12 +107,16 @@ func (s *guildService) ListUserGuilds(userID uint) ([]*model.Guild, error) {
 }
 
 // UpdateGuild 更新社群資訊
-func (s *guildService) UpdateGuild(guildID, userID uint, req *UpdateGuildRequest) (*model.Guild, error) {
+func (s *guildService) UpdateGuild(
+	guildID, userID uint,
+	req *UpdateGuildRequest,
+) (*model.Guild, error) {
 	// 檢查是否為擁有者
 	isOwner, err := s.IsGuildOwner(guildID, userID)
 	if err != nil {
 		return nil, err
 	}
+
 	if !isOwner {
 		return nil, ErrNotGuildOwner
 	}
@@ -123,12 +131,15 @@ func (s *guildService) UpdateGuild(guildID, userID uint, req *UpdateGuildRequest
 	if req.Name != "" {
 		guild.Name = req.Name
 	}
+
 	if req.Description != "" {
 		guild.Description = req.Description
 	}
+
 	if req.Icon != "" {
 		guild.Icon = req.Icon
 	}
+
 	guild.UpdatedAt = time.Now()
 
 	if err := s.guildRepo.Update(guild); err != nil {
@@ -145,6 +156,7 @@ func (s *guildService) DeleteGuild(guildID, userID uint) error {
 	if err != nil {
 		return err
 	}
+
 	if !isOwner {
 		return ErrNotGuildOwner
 	}
@@ -159,6 +171,7 @@ func (s *guildService) IsGuildOwner(guildID, userID uint) (bool, error) {
 	if err != nil {
 		return false, ErrGuildNotFound
 	}
+
 	return guild.OwnerID == userID, nil
 }
 
@@ -166,8 +179,9 @@ func (s *guildService) IsGuildOwner(guildID, userID uint) (bool, error) {
 func (s *guildService) IsGuildMember(guildID, userID uint) (bool, error) {
 	member, err := s.guildMemberRepo.GetMember(guildID, userID)
 	if err != nil {
-		return false, nil
+		return false, nil //nolint:nilerr // 成員不存在不是錯誤
 	}
+
 	return member != nil, nil
 }
 
@@ -187,7 +201,10 @@ type guildMemberService struct {
 }
 
 // NewGuildMemberService 建立社群成員服務
-func NewGuildMemberService(guildRepo repository.GuildRepository, guildMemberRepo repository.GuildMemberRepository) GuildMemberService {
+func NewGuildMemberService(
+	guildRepo repository.GuildRepository,
+	guildMemberRepo repository.GuildMemberRepository,
+) GuildMemberService {
 	return &guildMemberService{
 		guildRepo:       guildRepo,
 		guildMemberRepo: guildMemberRepo,
@@ -286,11 +303,15 @@ func (s *guildMemberService) GetMember(guildID, userID uint) (*model.GuildMember
 	if err != nil || member == nil {
 		return nil, ErrNotGuildMember
 	}
+
 	return member, nil
 }
 
 // UpdateMemberRole 更新成員角色
-func (s *guildMemberService) UpdateMemberRole(guildID, targetUserID, operatorUserID uint, role string) error {
+func (s *guildMemberService) UpdateMemberRole(
+	guildID, targetUserID, operatorUserID uint,
+	role string,
+) error {
 	// 檢查操作者是否為擁有者
 	guild, err := s.guildRepo.GetByID(guildID)
 	if err != nil {

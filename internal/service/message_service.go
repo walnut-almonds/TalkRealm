@@ -47,7 +47,7 @@ func NewMessageService(
 // CreateMessageRequest 建立訊息請求
 type CreateMessageRequest struct {
 	ChannelID uint   `json:"channel_id" binding:"required"`
-	Content   string `json:"content" binding:"required"`
+	Content   string `json:"content"    binding:"required"`
 	Type      string `json:"type"` // text, image, file (預設: text)
 }
 
@@ -66,7 +66,10 @@ type MessageListResponse struct {
 }
 
 // CreateMessage 建立訊息
-func (s *messageService) CreateMessage(userID uint, req *CreateMessageRequest) (*model.Message, error) {
+func (s *messageService) CreateMessage(
+	userID uint,
+	req *CreateMessageRequest,
+) (*model.Message, error) {
 	// 驗證訊息內容
 	if req.Content == "" {
 		return nil, ErrEmptyMessageContent
@@ -77,6 +80,7 @@ func (s *messageService) CreateMessage(userID uint, req *CreateMessageRequest) (
 	if msgType == "" {
 		msgType = "text"
 	}
+
 	if msgType != "text" && msgType != "image" && msgType != "file" {
 		return nil, ErrInvalidMessageType
 	}
@@ -134,7 +138,10 @@ func (s *messageService) GetMessage(messageID, userID uint) (*model.Message, err
 }
 
 // ListChannelMessages 列出頻道的訊息
-func (s *messageService) ListChannelMessages(channelID, userID uint, page, pageSize int) (*MessageListResponse, error) {
+func (s *messageService) ListChannelMessages(
+	channelID, userID uint,
+	page, pageSize int,
+) (*MessageListResponse, error) {
 	// 檢查頻道是否存在
 	channel, err := s.channelRepo.GetByID(channelID)
 	if err != nil {
@@ -151,6 +158,7 @@ func (s *messageService) ListChannelMessages(channelID, userID uint, page, pageS
 	if page < 1 {
 		page = 1
 	}
+
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 50
 	}
@@ -181,7 +189,10 @@ func (s *messageService) ListChannelMessages(channelID, userID uint, page, pageS
 }
 
 // UpdateMessage 更新訊息
-func (s *messageService) UpdateMessage(messageID, userID uint, req *UpdateMessageRequest) (*model.Message, error) {
+func (s *messageService) UpdateMessage(
+	messageID, userID uint,
+	req *UpdateMessageRequest,
+) (*model.Message, error) {
 	// 驗證訊息內容
 	if req.Content == "" {
 		return nil, ErrEmptyMessageContent

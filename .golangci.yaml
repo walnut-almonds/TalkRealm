@@ -89,6 +89,19 @@ linters:
     govet:
       enable:
         - nilness
+    revive:
+      rules:
+        # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#exported
+        - name: exported
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+            - sayRepetitiveInsteadOfStutters
+            - disableChecksOnConstants
+            - disableChecksOnFunctions
+            - disableChecksOnMethods
+            - disableChecksOnTypes
+            - disableChecksOnVariables
 
   # exclusions:
   #   paths:
