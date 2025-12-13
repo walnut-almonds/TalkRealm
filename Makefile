@@ -1,5 +1,7 @@
 MODULE_DIRS = .
 
+SWAG ?= docker run --rm -v $(shell pwd):/code -w /code ghcr.io/swaggo/swag:v1.16.6
+
 gowork:
 	go work init .
 
@@ -23,4 +25,8 @@ lint: install
 test: install
 	go test -v -race -failfast ./...
 
-check: fix lint test
+.PHONY: docs
+docs:
+	$(SWAG) init -g ./internal/server/server.go -o ./docs/openapi --outputTypes json,yaml
+
+check: fix lint test docs

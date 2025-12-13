@@ -84,6 +84,15 @@ func New(cfg *config.Config) (*Server, error) {
 }
 
 // setupRoutes 設定所有路由
+//
+//	@title			TalkRealm API
+//	@version		1.0
+//	@description	TalkRealm 是一個即時通訊平台，類似 Discord，提供文字和語音聊天功能。
+//	@termsOfService	http://talkrealm.example.com/terms/
+//
+//	@contact.name	API Support
+//	@contact.url	http://www.talkrealm.example.com/support
+//	@contact.email	support@talkrealm.example.com
 func (s *Server) setupRoutes() {
 	// 健康檢查
 	s.router.GET("/health", handler.HealthCheck)
