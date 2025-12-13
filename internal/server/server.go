@@ -92,7 +92,7 @@ func New(cfg *config.Config) (*Server, error) {
 //
 //	@contact.name	API Support
 //	@contact.url	http://www.talkrealm.example.com/support
-//	@contact.email
+//	@contact.email	support@talkrealm.example.com
 func (s *Server) setupRoutes() {
 	// 健康檢查
 	s.router.GET("/health", handler.HealthCheck)
