@@ -10,6 +10,7 @@ var log *zap.Logger
 // Init 初始化日誌系統
 func Init(level string) error {
 	var zapLevel zapcore.Level
+
 	switch level {
 	case "debug":
 		zapLevel = zapcore.DebugLevel
@@ -33,6 +34,7 @@ func Init(level string) error {
 	}
 
 	var err error
+
 	log, err = config.Build()
 	if err != nil {
 		return err
@@ -49,26 +51,26 @@ func Sync() {
 }
 
 // Debug 除錯級別日誌
-func Debug(msg string, fields ...interface{}) {
+func Debug(msg string, fields ...any) {
 	log.Sugar().Debugw(msg, fields...)
 }
 
 // Info 資訊級別日誌
-func Info(msg string, fields ...interface{}) {
+func Info(msg string, fields ...any) {
 	log.Sugar().Infow(msg, fields...)
 }
 
 // Warn 警告級別日誌
-func Warn(msg string, fields ...interface{}) {
+func Warn(msg string, fields ...any) {
 	log.Sugar().Warnw(msg, fields...)
 }
 
 // Error 錯誤級別日誌
-func Error(msg string, fields ...interface{}) {
+func Error(msg string, fields ...any) {
 	log.Sugar().Errorw(msg, fields...)
 }
 
 // Fatal 致命錯誤級別日誌
-func Fatal(msg string, fields ...interface{}) {
+func Fatal(msg string, fields ...any) {
 	log.Sugar().Fatalw(msg, fields...)
 }

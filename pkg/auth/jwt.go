@@ -48,6 +48,7 @@ func (m *JWTManager) GenerateToken(userID uint, username, email string) (string,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
 	return token.SignedString([]byte(m.secretKey))
 }
 
@@ -56,19 +57,20 @@ func (m *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(
 		tokenString,
 		&Claims{},
-		func(token *jwt.Token) (interface{}, error) {
+		func(token *jwt.Token) (any, error) {
 			// 確認簽名方法
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, ErrInvalidToken
 			}
+
 			return []byte(m.secretKey), nil
 		},
 	)
-
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrExpiredToken
 		}
+
 		return nil, ErrInvalidToken
 	}
 

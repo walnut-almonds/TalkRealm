@@ -33,6 +33,7 @@ func Init(cfg *config.DatabaseConfig) error {
 	}
 
 	var err error
+
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormLogLevel),
 		NowFunc: func() time.Time {
@@ -73,6 +74,7 @@ func Close() error {
 	if err != nil {
 		return err
 	}
+
 	return sqlDB.Close()
 }
 
@@ -87,12 +89,12 @@ func AutoMigrate() error {
 		&model.Message{},
 		&model.GuildMember{},
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	logger.Info("Database migrations completed successfully")
+
 	return nil
 }
 
@@ -102,5 +104,6 @@ func HealthCheck() error {
 	if err != nil {
 		return err
 	}
+
 	return sqlDB.Ping()
 }

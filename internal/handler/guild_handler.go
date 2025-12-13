@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -13,7 +14,10 @@ type GuildHandler struct {
 	guildMemberService service.GuildMemberService
 }
 
-func NewGuildHandler(guildService service.GuildService, guildMemberService service.GuildMemberService) *GuildHandler {
+func NewGuildHandler(
+	guildService service.GuildService,
+	guildMemberService service.GuildMemberService,
+) *GuildHandler {
 	return &GuildHandler{
 		guildService:       guildService,
 		guildMemberService: guildMemberService,
@@ -21,16 +25,17 @@ func NewGuildHandler(guildService service.GuildService, guildMemberService servi
 }
 
 // CreateGuild 建立社群
-// @Summary 建立社群
-// @Description 建立一個新的社群，建立者自動成為擁有者
-// @Tags Guild
-// @Accept json
-// @Produce json
-// @Param request body service.CreateGuildRequest true "建立社群請求"
-// @Success 201 {object} model.Guild
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/guilds [post]
+//
+//	@Summary		建立社群
+//	@Description	建立一個新的社群，建立者自動成為擁有者
+//	@Tags			Guild
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		service.CreateGuildRequest	true	"建立社群請求"
+//	@Success		201		{object}	model.Guild
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Router			/api/v1/guilds [post]
 func (h *GuildHandler) CreateGuild(c *gin.Context) {
 	var req service.CreateGuildRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -39,6 +44,7 @@ func (h *GuildHandler) CreateGuild(c *gin.Context) {
 	}
 
 	userID := c.GetUint("userID")
+
 	guild, err := h.guildService.CreateGuild(userID, &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -49,16 +55,17 @@ func (h *GuildHandler) CreateGuild(c *gin.Context) {
 }
 
 // GetGuild 取得社群詳情
-// @Summary 取得社群詳情
-// @Description 取得指定社群的詳細資訊
-// @Tags Guild
-// @Accept json
-// @Produce json
-// @Param id path int true "社群 ID"
-// @Success 200 {object} model.Guild
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/guilds/{id} [get]
+//
+//	@Summary		取得社群詳情
+//	@Description	取得指定社群的詳細資訊
+//	@Tags			Guild
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"社群 ID"
+//	@Success		200	{object}	model.Guild
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id} [get]
 func (h *GuildHandler) GetGuild(c *gin.Context) {
 	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -68,11 +75,13 @@ func (h *GuildHandler) GetGuild(c *gin.Context) {
 
 	guild, err := h.guildService.GetGuild(uint(guildID))
 	if err != nil {
-		if err == service.ErrGuildNotFound {
+		if errors.Is(err, service.ErrGuildNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -80,14 +89,15 @@ func (h *GuildHandler) GetGuild(c *gin.Context) {
 }
 
 // ListUserGuilds 列出使用者的社群
-// @Summary 列出使用者的社群
-// @Description 列出當前使用者所屬的所有社群
-// @Tags Guild
-// @Accept json
-// @Produce json
-// @Success 200 {array} model.Guild
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/guilds [get]
+//
+//	@Summary		列出使用者的社群
+//	@Description	列出當前使用者所屬的所有社群
+//	@Tags			Guild
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{array}		model.Guild
+//	@Failure		401	{object}	ErrorResponse
+//	@Router			/api/v1/guilds [get]
 func (h *GuildHandler) ListUserGuilds(c *gin.Context) {
 	userID := c.GetUint("userID")
 
@@ -101,19 +111,20 @@ func (h *GuildHandler) ListUserGuilds(c *gin.Context) {
 }
 
 // UpdateGuild 更新社群
-// @Summary 更新社群
-// @Description 更新社群資訊（僅擁有者）
-// @Tags Guild
-// @Accept json
-// @Produce json
-// @Param id path int true "社群 ID"
-// @Param request body service.UpdateGuildRequest true "更新社群請求"
-// @Success 200 {object} model.Guild
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/guilds/{id} [put]
+//
+//	@Summary		更新社群
+//	@Description	更新社群資訊（僅擁有者）
+//	@Tags			Guild
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int							true	"社群 ID"
+//	@Param			request	body		service.UpdateGuildRequest	true	"更新社群請求"
+//	@Success		200		{object}	model.Guild
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id} [put]
 func (h *GuildHandler) UpdateGuild(c *gin.Context) {
 	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -128,17 +139,21 @@ func (h *GuildHandler) UpdateGuild(c *gin.Context) {
 	}
 
 	userID := c.GetUint("userID")
+
 	guild, err := h.guildService.UpdateGuild(uint(guildID), userID, &req)
 	if err != nil {
-		if err == service.ErrNotGuildOwner {
+		if errors.Is(err, service.ErrNotGuildOwner) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "only owner can update guild"})
 			return
 		}
-		if err == service.ErrGuildNotFound {
+
+		if errors.Is(err, service.ErrGuildNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -146,18 +161,19 @@ func (h *GuildHandler) UpdateGuild(c *gin.Context) {
 }
 
 // DeleteGuild 刪除社群
-// @Summary 刪除社群
-// @Description 刪除社群（僅擁有者）
-// @Tags Guild
-// @Accept json
-// @Produce json
-// @Param id path int true "社群 ID"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/guilds/{id} [delete]
+//
+//	@Summary		刪除社群
+//	@Description	刪除社群（僅擁有者）
+//	@Tags			Guild
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"社群 ID"
+//	@Success		200	{object}	SuccessResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id} [delete]
 func (h *GuildHandler) DeleteGuild(c *gin.Context) {
 	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -166,17 +182,21 @@ func (h *GuildHandler) DeleteGuild(c *gin.Context) {
 	}
 
 	userID := c.GetUint("userID")
+
 	err = h.guildService.DeleteGuild(uint(guildID), userID)
 	if err != nil {
-		if err == service.ErrNotGuildOwner {
+		if errors.Is(err, service.ErrNotGuildOwner) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "only owner can delete guild"})
 			return
 		}
-		if err == service.ErrGuildNotFound {
+
+		if errors.Is(err, service.ErrGuildNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -184,17 +204,18 @@ func (h *GuildHandler) DeleteGuild(c *gin.Context) {
 }
 
 // JoinGuild 加入社群
-// @Summary 加入社群
-// @Description 使用者加入指定社群
-// @Tags GuildMember
-// @Accept json
-// @Produce json
-// @Param id path int true "社群 ID"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/guilds/{id}/join [post]
+//
+//	@Summary		加入社群
+//	@Description	使用者加入指定社群
+//	@Tags			GuildMember
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"社群 ID"
+//	@Success		200	{object}	SuccessResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id}/join [post]
 func (h *GuildHandler) JoinGuild(c *gin.Context) {
 	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -203,17 +224,21 @@ func (h *GuildHandler) JoinGuild(c *gin.Context) {
 	}
 
 	userID := c.GetUint("userID")
+
 	err = h.guildMemberService.JoinGuild(uint(guildID), userID)
 	if err != nil {
-		if err == service.ErrGuildNotFound {
+		if errors.Is(err, service.ErrGuildNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
 			return
 		}
-		if err == service.ErrAlreadyInGuild {
+
+		if errors.Is(err, service.ErrAlreadyInGuild) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "already in guild"})
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -221,17 +246,18 @@ func (h *GuildHandler) JoinGuild(c *gin.Context) {
 }
 
 // LeaveGuild 離開社群
-// @Summary 離開社群
-// @Description 使用者離開社群（擁有者需先轉移所有權）
-// @Tags GuildMember
-// @Accept json
-// @Produce json
-// @Param id path int true "社群 ID"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Router /api/v1/guilds/{id}/leave [post]
+//
+//	@Summary		離開社群
+//	@Description	使用者離開社群（擁有者需先轉移所有權）
+//	@Tags			GuildMember
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"社群 ID"
+//	@Success		200	{object}	SuccessResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id}/leave [post]
 func (h *GuildHandler) LeaveGuild(c *gin.Context) {
 	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -240,17 +266,25 @@ func (h *GuildHandler) LeaveGuild(c *gin.Context) {
 	}
 
 	userID := c.GetUint("userID")
+
 	err = h.guildMemberService.LeaveGuild(uint(guildID), userID)
 	if err != nil {
-		if err == service.ErrCannotLeaveAsOwner {
-			c.JSON(http.StatusForbidden, gin.H{"error": "owner cannot leave, transfer ownership first"})
+		if errors.Is(err, service.ErrCannotLeaveAsOwner) {
+			c.JSON(
+				http.StatusForbidden,
+				gin.H{"error": "owner cannot leave, transfer ownership first"},
+			)
+
 			return
 		}
-		if err == service.ErrNotGuildMember {
+
+		if errors.Is(err, service.ErrNotGuildMember) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "not a member of this guild"})
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -258,18 +292,19 @@ func (h *GuildHandler) LeaveGuild(c *gin.Context) {
 }
 
 // KickMember 踢出成員
-// @Summary 踢出成員
-// @Description 擁有者踢出社群成員
-// @Tags GuildMember
-// @Accept json
-// @Produce json
-// @Param id path int true "社群 ID"
-// @Param userId path int true "使用者 ID"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Router /api/v1/guilds/{id}/members/{userId} [delete]
+//
+//	@Summary		踢出成員
+//	@Description	擁有者踢出社群成員
+//	@Tags			GuildMember
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int	true	"社群 ID"
+//	@Param			userId	path		int	true	"使用者 ID"
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id}/members/{userId} [delete]
 func (h *GuildHandler) KickMember(c *gin.Context) {
 	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -284,17 +319,21 @@ func (h *GuildHandler) KickMember(c *gin.Context) {
 	}
 
 	operatorUserID := c.GetUint("userID")
+
 	err = h.guildMemberService.KickMember(uint(guildID), uint(targetUserID), operatorUserID)
 	if err != nil {
-		if err == service.ErrNotGuildOwner {
+		if errors.Is(err, service.ErrNotGuildOwner) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "only owner can kick members"})
 			return
 		}
-		if err == service.ErrNotGuildMember {
+
+		if errors.Is(err, service.ErrNotGuildMember) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "user is not a member of this guild"})
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -302,17 +341,18 @@ func (h *GuildHandler) KickMember(c *gin.Context) {
 }
 
 // ListGuildMembers 列出社群成員
-// @Summary 列出社群成員
-// @Description 列出社群的所有成員
-// @Tags GuildMember
-// @Accept json
-// @Produce json
-// @Param id path int true "社群 ID"
-// @Success 200 {array} model.GuildMember
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/guilds/{id}/members [get]
+//
+//	@Summary		列出社群成員
+//	@Description	列出社群的所有成員
+//	@Tags			GuildMember
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"社群 ID"
+//	@Success		200	{array}		model.GuildMember
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id}/members [get]
 func (h *GuildHandler) ListGuildMembers(c *gin.Context) {
 	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -322,11 +362,13 @@ func (h *GuildHandler) ListGuildMembers(c *gin.Context) {
 
 	members, err := h.guildMemberService.ListGuildMembers(uint(guildID))
 	if err != nil {
-		if err == service.ErrGuildNotFound {
+		if errors.Is(err, service.ErrGuildNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -334,19 +376,20 @@ func (h *GuildHandler) ListGuildMembers(c *gin.Context) {
 }
 
 // UpdateMemberRole 更新成員角色
-// @Summary 更新成員角色
-// @Description 擁有者更新成員角色
-// @Tags GuildMember
-// @Accept json
-// @Produce json
-// @Param id path int true "社群 ID"
-// @Param userId path int true "使用者 ID"
-// @Param request body UpdateMemberRoleRequest true "更新角色請求"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Router /api/v1/guilds/{id}/members/{userId}/role [put]
+//
+//	@Summary		更新成員角色
+//	@Description	擁有者更新成員角色
+//	@Tags			GuildMember
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int						true	"社群 ID"
+//	@Param			userId	path		int						true	"使用者 ID"
+//	@Param			request	body		UpdateMemberRoleRequest	true	"更新角色請求"
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id}/members/{userId}/role [put]
 func (h *GuildHandler) UpdateMemberRole(c *gin.Context) {
 	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -367,17 +410,26 @@ func (h *GuildHandler) UpdateMemberRole(c *gin.Context) {
 	}
 
 	operatorUserID := c.GetUint("userID")
-	err = h.guildMemberService.UpdateMemberRole(uint(guildID), uint(targetUserID), operatorUserID, req.Role)
+
+	err = h.guildMemberService.UpdateMemberRole(
+		uint(guildID),
+		uint(targetUserID),
+		operatorUserID,
+		req.Role,
+	)
 	if err != nil {
-		if err == service.ErrNotGuildOwner {
+		if errors.Is(err, service.ErrNotGuildOwner) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "only owner can update member roles"})
 			return
 		}
-		if err == service.ErrNotGuildMember {
+
+		if errors.Is(err, service.ErrNotGuildMember) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "user is not a member of this guild"})
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 

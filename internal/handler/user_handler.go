@@ -21,19 +21,21 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 }
 
 // Register 使用者註冊
-// @Summary 使用者註冊
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body service.RegisterRequest true "註冊資訊"
-// @Success 201 {object} model.User
-// @Router /api/auth/register [post]
+//
+//	@Summary	使用者註冊
+//	@Tags		auth
+//	@Accept		json
+//	@Produce	json
+//	@Param		request	body		service.RegisterRequest	true	"註冊資訊"
+//	@Success	201		{object}	model.User
+//	@Router		/api/auth/register [post]
 func (h *UserHandler) Register(c *gin.Context) {
 	var req service.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid request body: " + err.Error(),
 		})
+
 		return
 	}
 
@@ -43,11 +45,14 @@ func (h *UserHandler) Register(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error": "user already exists",
 			})
+
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to register user: " + err.Error(),
 		})
+
 		return
 	}
 
@@ -58,19 +63,21 @@ func (h *UserHandler) Register(c *gin.Context) {
 }
 
 // Login 使用者登入
-// @Summary 使用者登入
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body service.LoginRequest true "登入資訊"
-// @Success 200 {object} service.LoginResponse
-// @Router /api/auth/login [post]
+//
+//	@Summary	使用者登入
+//	@Tags		auth
+//	@Accept		json
+//	@Produce	json
+//	@Param		request	body		service.LoginRequest	true	"登入資訊"
+//	@Success	200		{object}	service.LoginResponse
+//	@Router		/api/auth/login [post]
 func (h *UserHandler) Login(c *gin.Context) {
 	var req service.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid request body: " + err.Error(),
 		})
+
 		return
 	}
 
@@ -80,11 +87,14 @@ func (h *UserHandler) Login(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid email or password",
 			})
+
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to login: " + err.Error(),
 		})
+
 		return
 	}
 
@@ -96,12 +106,13 @@ func (h *UserHandler) Login(c *gin.Context) {
 }
 
 // GetCurrentUser 取得當前使用者資訊
-// @Summary 取得當前使用者資訊
-// @Tags users
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} model.User
-// @Router /api/users/me [get]
+//
+//	@Summary	取得當前使用者資訊
+//	@Tags		users
+//	@Produce	json
+//	@Security	BearerAuth
+//	@Success	200	{object}	model.User
+//	@Router		/api/users/me [get]
 func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	// 從 context 取得使用者 ID（由認證中間件設定）
 	userID, exists := c.Get("user_id")
@@ -109,6 +120,7 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "user not authenticated",
 		})
+
 		return
 	}
 
@@ -118,11 +130,14 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "user not found",
 			})
+
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to get user: " + err.Error(),
 		})
+
 		return
 	}
 
@@ -132,14 +147,15 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 }
 
 // UpdateCurrentUser 更新當前使用者資訊
-// @Summary 更新當前使用者資訊
-// @Tags users
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param request body service.UpdateUserRequest true "更新資訊"
-// @Success 200 {object} model.User
-// @Router /api/users/me [patch]
+//
+//	@Summary	更新當前使用者資訊
+//	@Tags		users
+//	@Accept		json
+//	@Produce	json
+//	@Security	BearerAuth
+//	@Param		request	body		service.UpdateUserRequest	true	"更新資訊"
+//	@Success	200		{object}	model.User
+//	@Router		/api/users/me [patch]
 func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 	// 從 context 取得使用者 ID
 	userID, exists := c.Get("user_id")
@@ -147,6 +163,7 @@ func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "user not authenticated",
 		})
+
 		return
 	}
 
@@ -155,6 +172,7 @@ func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid request body: " + err.Error(),
 		})
+
 		return
 	}
 
@@ -164,11 +182,14 @@ func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "user not found",
 			})
+
 			return
 		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to update user: " + err.Error(),
 		})
+
 		return
 	}
 

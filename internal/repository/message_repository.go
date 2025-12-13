@@ -34,13 +34,16 @@ func (r *messageRepository) Create(message *model.Message) error {
 // GetByID 透過 ID 取得訊息
 func (r *messageRepository) GetByID(id uint) (*model.Message, error) {
 	var message model.Message
+
 	err := r.db.Preload("User").Preload("Channel").First(&message, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("message not found")
 		}
+
 		return nil, err
 	}
+
 	return &message, nil
 }
 
@@ -55,8 +58,12 @@ func (r *messageRepository) Delete(id uint) error {
 }
 
 // GetByChannelID 取得頻道的訊息（分頁）
-func (r *messageRepository) GetByChannelID(channelID uint, offset, limit int) ([]*model.Message, error) {
+func (r *messageRepository) GetByChannelID(
+	channelID uint,
+	offset, limit int,
+) ([]*model.Message, error) {
 	var messages []*model.Message
+
 	err := r.db.
 		Preload("User").
 		Where("channel_id = ?", channelID).
@@ -64,12 +71,14 @@ func (r *messageRepository) GetByChannelID(channelID uint, offset, limit int) ([
 		Offset(offset).
 		Limit(limit).
 		Find(&messages).Error
+
 	return messages, err
 }
 
 // GetByUserID 取得使用者的訊息（分頁）
 func (r *messageRepository) GetByUserID(userID uint, offset, limit int) ([]*model.Message, error) {
 	var messages []*model.Message
+
 	err := r.db.
 		Preload("Channel").
 		Where("user_id = ?", userID).
@@ -77,5 +86,6 @@ func (r *messageRepository) GetByUserID(userID uint, offset, limit int) ([]*mode
 		Offset(offset).
 		Limit(limit).
 		Find(&messages).Error
+
 	return messages, err
 }

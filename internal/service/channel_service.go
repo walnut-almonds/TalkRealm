@@ -17,17 +17,17 @@ var (
 // CreateChannelRequest 建立頻道請求
 type CreateChannelRequest struct {
 	GuildID  uint   `json:"guild_id" binding:"required"`
-	Name     string `json:"name" binding:"required,min=1,max=100"`
-	Type     string `json:"type" binding:"required,oneof=text voice"`
-	Topic    string `json:"topic" binding:"max=1024"`
+	Name     string `json:"name"     binding:"required,min=1,max=100"`
+	Type     string `json:"type"     binding:"required,oneof=text voice"`
+	Topic    string `json:"topic"    binding:"max=1024"`
 	Position int    `json:"position"`
 }
 
 // UpdateChannelRequest 更新頻道請求
 type UpdateChannelRequest struct {
-	Name     string `json:"name" binding:"omitempty,min=1,max=100"`
-	Type     string `json:"type" binding:"omitempty,oneof=text voice"`
-	Topic    string `json:"topic" binding:"max=1024"`
+	Name     string `json:"name"     binding:"omitempty,min=1,max=100"`
+	Type     string `json:"type"     binding:"omitempty,oneof=text voice"`
+	Topic    string `json:"topic"    binding:"max=1024"`
 	Position *int   `json:"position"`
 }
 
@@ -61,7 +61,10 @@ func NewChannelService(
 }
 
 // CreateChannel 建立頻道
-func (s *channelService) CreateChannel(userID uint, req *CreateChannelRequest) (*model.Channel, error) {
+func (s *channelService) CreateChannel(
+	userID uint,
+	req *CreateChannelRequest,
+) (*model.Channel, error) {
 	// 檢查社群是否存在
 	guild, err := s.guildRepo.GetByID(req.GuildID)
 	if err != nil {
@@ -75,12 +78,15 @@ func (s *channelService) CreateChannel(userID uint, req *CreateChannelRequest) (
 		if err != nil || member == nil {
 			return nil, ErrNotGuildMemberCh
 		}
+
+		//nolint:goconst // 足夠清晰不需要 const
 		if member.Role != "admin" && member.Role != "owner" {
 			return nil, errors.New("only owner or admin can create channels")
 		}
 	}
 
 	// 驗證頻道類型
+	//nolint:goconst // 足夠清晰不需要 const
 	if req.Type != "text" && req.Type != "voice" {
 		return nil, ErrInvalidChannelType
 	}
@@ -145,7 +151,10 @@ func (s *channelService) ListGuildChannels(guildID, userID uint) ([]*model.Chann
 }
 
 // UpdateChannel 更新頻道資訊
-func (s *channelService) UpdateChannel(channelID, userID uint, req *UpdateChannelRequest) (*model.Channel, error) {
+func (s *channelService) UpdateChannel(
+	channelID, userID uint,
+	req *UpdateChannelRequest,
+) (*model.Channel, error) {
 	// 取得頻道
 	channel, err := s.channelRepo.GetByID(channelID)
 	if err != nil {
@@ -163,6 +172,7 @@ func (s *channelService) UpdateChannel(channelID, userID uint, req *UpdateChanne
 		if err != nil || member == nil {
 			return nil, ErrNotGuildMemberCh
 		}
+
 		if member.Role != "admin" && member.Role != "owner" {
 			return nil, errors.New("only owner or admin can update channels")
 		}
@@ -172,18 +182,23 @@ func (s *channelService) UpdateChannel(channelID, userID uint, req *UpdateChanne
 	if req.Name != "" {
 		channel.Name = req.Name
 	}
+
 	if req.Type != "" {
 		if req.Type != "text" && req.Type != "voice" {
 			return nil, ErrInvalidChannelType
 		}
+
 		channel.Type = req.Type
 	}
+
 	if req.Topic != "" {
 		channel.Topic = req.Topic
 	}
+
 	if req.Position != nil {
 		channel.Position = *req.Position
 	}
+
 	channel.UpdatedAt = time.Now()
 
 	if err := s.channelRepo.Update(channel); err != nil {
@@ -212,6 +227,7 @@ func (s *channelService) DeleteChannel(channelID, userID uint) error {
 		if err != nil || member == nil {
 			return ErrNotGuildMemberCh
 		}
+
 		if member.Role != "admin" && member.Role != "owner" {
 			return errors.New("only owner or admin can delete channels")
 		}
@@ -239,6 +255,7 @@ func (s *channelService) UpdateChannelPosition(channelID, userID uint, position 
 		if err != nil || member == nil {
 			return ErrNotGuildMemberCh
 		}
+
 		if member.Role != "admin" && member.Role != "owner" {
 			return errors.New("only owner or admin can update channel position")
 		}

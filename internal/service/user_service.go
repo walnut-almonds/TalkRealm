@@ -19,14 +19,14 @@ var (
 // RegisterRequest 註冊請求
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=32"`
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6,max=128"`
 	Nickname string `json:"nickname" binding:"max=64"`
 }
 
 // LoginRequest 登入請求
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -39,8 +39,8 @@ type LoginResponse struct {
 // UpdateUserRequest 更新使用者請求
 type UpdateUserRequest struct {
 	Nickname string `json:"nickname" binding:"max=64"`
-	Avatar   string `json:"avatar" binding:"max=256"`
-	Status   string `json:"status" binding:"omitempty,oneof=online offline busy away"`
+	Avatar   string `json:"avatar"   binding:"max=256"`
+	Status   string `json:"status"   binding:"omitempty,oneof=online offline busy away"`
 }
 
 // UserService 使用者服務介面
@@ -142,6 +142,7 @@ func (s *userService) GetByID(id uint) (*model.User, error) {
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
+
 	return user, nil
 }
 
@@ -156,9 +157,11 @@ func (s *userService) Update(id uint, req *UpdateUserRequest) (*model.User, erro
 	if req.Nickname != "" {
 		user.Nickname = req.Nickname
 	}
+
 	if req.Avatar != "" {
 		user.Avatar = req.Avatar
 	}
+
 	if req.Status != "" {
 		user.Status = req.Status
 	}
