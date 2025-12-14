@@ -60,7 +60,7 @@ TalkRealm/
 
 ### 前置需求
 
-- Go 1.24 或更高版本
+- Go 1.25.5 或更高版本
 - Docker & Docker Compose（推薦）或
 - PostgreSQL 14+ 和 Redis 6+（手動安裝）
 
