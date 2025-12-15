@@ -1,17 +1,10 @@
 #!/bin/bash
-# Docker 管理腳本 - 停止資料庫服務 (Linux/macOS)
-# Usage: ./scripts/docker-down.sh
+# 停止資料庫服務
 
-echo "🛑 Stopping TalkRealm database services..."
+set -e
 
+echo "⏸️  停止資料庫服務..."
 docker-compose down
-
-if [ $? -eq 0 ]; then
-    echo "✅ Services stopped successfully!"
-    echo ""
-    echo "💡 To remove all data volumes, run:"
-    echo "  docker-compose down -v"
-else
-    echo "❌ Failed to stop services"
-    exit 1
-fi
+echo "✅ 服務已停止"
+echo ""
+echo "💡 若要同時刪除資料: docker-compose down -v"
