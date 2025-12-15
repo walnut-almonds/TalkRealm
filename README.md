@@ -139,6 +139,7 @@ go run cmd/server/main.go
 
 啟動服務後，可以訪問以下端點查看 API 文件：
 - Swagger UI: `http://localhost:8080/swagger/index.html`
+- [線上預覽（OpenAPI Viewer）](https://min0625.github.io/openapi-viewer/?url=https://raw.githubusercontent.com/walnut-almonds/TalkRealm/main/docs/openapi/swagger.json)
 
 ## 開發
 
