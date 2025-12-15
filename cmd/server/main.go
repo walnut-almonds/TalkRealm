@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/walnut-almonds/talkrealm/buildinfo"
 	"github.com/walnut-almonds/talkrealm/internal/server"
 	"github.com/walnut-almonds/talkrealm/pkg/config"
 	"github.com/walnut-almonds/talkrealm/pkg/database"
@@ -29,11 +30,14 @@ func main() {
 	}
 	defer logger.Sync()
 
+	logger.Info("Starting TalkRealm", "version", buildinfo.Version)
+
 	// 初始化資料庫
 	if err := database.Init(&cfg.Database); err != nil {
 		logger.Fatal("Failed to initialize database", "error", err)
 	}
-	defer database.Close()
+
+	defer func() { _ = database.Close() }()
 
 	// 執行資料庫遷移（可選，建議在生產環境使用專門的遷移腳本）
 	if err := database.AutoMigrate(); err != nil {
@@ -58,6 +62,7 @@ func main() {
 	// 在 goroutine 中啟動伺服器
 	go func() {
 		logger.Info("Starting TalkRealm server", "port", cfg.Server.Port)
+
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", "error", err)
 		}
