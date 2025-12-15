@@ -6,7 +6,8 @@
         "termsOfService": "http://talkrealm.example.com/terms/",
         "contact": {
             "name": "API Support",
-            "url": "http://www.talkrealm.example.com/support"
+            "url": "http://www.talkrealm.example.com/support",
+            "email": "support@talkrealm.example.com"
         },
         "version": "1.0"
     },
