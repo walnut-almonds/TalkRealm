@@ -293,6 +293,7 @@ definitions:
     type: object
 info:
   contact:
+    email: support@talkrealm.example.com
     name: API Support
     url: http://www.talkrealm.example.com/support
   description: TalkRealm 是一個即時通訊平台，類似 Discord，提供文字和語音聊天功能。

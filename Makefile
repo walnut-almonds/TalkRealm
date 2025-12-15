@@ -15,8 +15,9 @@ install-asdf:
 	-asdf install
 
 .PHONY: install
-install: install-asdf tidy
+install: install-asdf
 	go install github.com/swaggo/swag/cmd/swag@v1.16.6
+	go mod download
 
 .PHONY: fmt
 fmt: install
@@ -39,11 +40,19 @@ docs: install
 	swag init -g ./internal/server/server.go -o ./docs/openapi --outputTypes json,yaml
 
 .PHONY: build
-build:
+build: install
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 	go build \
 		-ldflags "-X github.com/walnut-almonds/talkrealm/buildinfo.Version=$(VERSION)" \
 		-o ./bin/server ./cmd/server
 
+pack: build
+	docker buildx build \
+		--platform linux/amd64 \
+		--load \
+		-t talk-realm:$(VERSION) \
+		--build-arg APP=bin/server \
+		.
+
 .PHONY: check
-check: fix lint test build docs
+check: tidy fix lint test build docs
