@@ -16,7 +16,6 @@ install-asdf:
 
 .PHONY: install
 install: install-asdf
-	go install github.com/swaggo/swag/cmd/swag@v1.16.6
 	go mod download
 
 .PHONY: fmt
