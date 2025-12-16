@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -69,10 +71,12 @@ func Load() (*Config, error) {
 
 	// 讀取環境變數
 	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if err := viper.ReadInConfig(); err != nil {
 		// 如果找不到配置檔案，使用預設值
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) {
 			return nil, err
 		}
 	}
