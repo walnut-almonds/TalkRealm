@@ -6,10 +6,7 @@
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
     // Features to add to the dev container. More info: https://containers.dev/features.
     "features": {
-        "ghcr.io/devcontainers/features/go:1": {
-            "version": "1.25.5",
-            "golangciLintVersion": "2.5.0"
-        },
+        "ghcr.io/devcontainers/features/go:1": {},
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
             "moby": false
         },
