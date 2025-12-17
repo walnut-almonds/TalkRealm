@@ -10,6 +10,9 @@ dist/
 # Test binary, built with `go test -c`
 *.test
 
+# Output of the kustomize tool
+build/
+
 # Output of the go coverage tool
 *.out
 coverage.txt

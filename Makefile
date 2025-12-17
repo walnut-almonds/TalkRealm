@@ -12,10 +12,14 @@ tidy:
 
 .PHONY: install-asdf
 install-asdf:
-	-asdf install
+	./scripts/setup_asdf.sh
+
+.PHONY: install-kubectl
+install-kubectl: install-asdf
+	./scripts/setup_kubectl.sh
 
 .PHONY: install
-install: install-asdf
+install: install-asdf install-kubectl
 	go mod download
 
 .PHONY: fmt
@@ -50,8 +54,37 @@ pack: build
 		--platform linux/amd64 \
 		--load \
 		-t talk-realm:$(VERSION) \
+		-t talk-realm:latest \
 		--build-arg APP=bin/server \
 		.
 
+.PHONY: k8s-local
+k8s-local: install
+	mkdir -p ./build
+	kubectl kustomize ./deploy/k8s/overlays/local > ./build/local.yaml
+
+.PHONY: k8s-dev
+k8s-dev: install
+	mkdir -p ./build
+	kubectl kustomize ./deploy/k8s/overlays/dev > ./build/dev.yaml
+
+.PHONY: k8s-local-deploy
+k8s-local-deploy: pack k8s-local
+	kubectl apply -f ./build/local.yaml
+	kubectl rollout restart deployment/talk-realm -n talk-realm-local
+
+.PHONY: k8s-dev-deploy
+k8s-dev-deploy: pack k8s-dev
+	kubectl apply -f ./build/dev.yaml
+	kubectl rollout restart deployment/talk-realm -n talk-realm-dev
+
 .PHONY: check
 check: tidy fix lint test build docs
+
+.PHONY: port-forward-local
+port-forward-local:
+	kubectl port-forward svc/talk-realm 8080:8080 -n talk-realm-local
+
+.PHONY: port-forward-dev
+port-forward-dev:
+	kubectl port-forward svc/talk-realm 8080:8080 -n talk-realm-dev

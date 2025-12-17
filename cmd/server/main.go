@@ -30,6 +30,8 @@ func main() {
 	}
 	defer logger.Sync()
 
+	logger.Info("config", "config", cfg)
+
 	logger.Info("Starting TalkRealm", "version", buildinfo.Version)
 
 	// 初始化資料庫
