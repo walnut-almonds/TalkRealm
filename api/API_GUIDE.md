@@ -43,6 +43,16 @@
 - 刪除訊息
 - 權限控制 (擁有者、管理員)
 
+### ✅ WebSocket 即時通訊 🆕
+- WebSocket 連線管理
+- 頻道訂閱/取消訂閱
+- 即時訊息推送
+- 使用者狀態同步
+- 正在輸入提示
+- 心跳機制 (Ping/Pong)
+
+> 📖 詳細 WebSocket 使用說明請參考：[WebSocket 功能指南](../docs/WEBSOCKET_GUIDE.md)
+
 ---
 
 ## 📚 API 端點說明

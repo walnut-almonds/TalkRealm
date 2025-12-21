@@ -39,7 +39,7 @@ func (h *ChannelHandler) CreateChannel(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	channel, err := h.channelService.CreateChannel(userID, &req)
 	if err != nil {
@@ -95,7 +95,7 @@ func (h *ChannelHandler) GetChannel(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	channel, err := h.channelService.GetChannel(uint(channelID), userID)
 	if err != nil {
@@ -143,7 +143,7 @@ func (h *ChannelHandler) ListGuildChannels(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	channels, err := h.channelService.ListGuildChannels(uint(guildID), userID)
 	if err != nil {
@@ -193,7 +193,7 @@ func (h *ChannelHandler) UpdateChannel(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	channel, err := h.channelService.UpdateChannel(uint(channelID), userID, &req)
 	if err != nil {
@@ -245,7 +245,7 @@ func (h *ChannelHandler) DeleteChannel(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	err = h.channelService.DeleteChannel(uint(channelID), userID)
 	if err != nil {
@@ -295,7 +295,7 @@ func (h *ChannelHandler) UpdateChannelPosition(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	err = h.channelService.UpdateChannelPosition(uint(channelID), userID, req.Position)
 	if err != nil {

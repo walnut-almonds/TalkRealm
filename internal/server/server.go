@@ -8,6 +8,7 @@ import (
 	"github.com/walnut-almonds/talkrealm/internal/middleware"
 	"github.com/walnut-almonds/talkrealm/internal/repository"
 	"github.com/walnut-almonds/talkrealm/internal/service"
+	"github.com/walnut-almonds/talkrealm/internal/websocket"
 	"github.com/walnut-almonds/talkrealm/pkg/auth"
 	"github.com/walnut-almonds/talkrealm/pkg/config"
 	"github.com/walnut-almonds/talkrealm/pkg/database"
@@ -18,6 +19,7 @@ type Server struct {
 	config         *config.Config
 	router         *gin.Engine
 	jwtManager     *auth.JWTManager
+	wsManager      *websocket.Manager
 	userHandler    *handler.UserHandler
 	guildHandler   *handler.GuildHandler
 	channelHandler *handler.ChannelHandler
@@ -54,12 +56,19 @@ func New(cfg *config.Config) (*Server, error) {
 	channelRepo := repository.NewChannelRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
 
+	// 初始化 WebSocket 管理器
+	wsManager := websocket.NewManager()
+	go wsManager.Run() // 啟動 WebSocket 管理器
+
 	// 初始化 Service
 	userService := service.NewUserService(userRepo, jwtManager)
 	guildService := service.NewGuildService(guildRepo, guildMemberRepo)
 	guildMemberService := service.NewGuildMemberService(guildRepo, guildMemberRepo)
 	channelService := service.NewChannelService(channelRepo, guildRepo, guildMemberRepo)
 	messageService := service.NewMessageService(messageRepo, channelRepo, guildMemberRepo)
+
+	// 設定 WebSocket 管理器到 MessageService
+	messageService.SetWebSocketManager(wsManager)
 
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
@@ -71,6 +80,7 @@ func New(cfg *config.Config) (*Server, error) {
 		config:         cfg,
 		router:         router,
 		jwtManager:     jwtManager,
+		wsManager:      wsManager,
 		userHandler:    userHandler,
 		guildHandler:   guildHandler,
 		channelHandler: channelHandler,
@@ -156,6 +166,9 @@ func (s *Server) setupRoutes() {
 				messages.PUT("/:id", s.messageHandler.UpdateMessage)
 				messages.DELETE("/:id", s.messageHandler.DeleteMessage)
 			}
+
+			// WebSocket 連線（需要認證）
+			protected.GET("/ws", websocket.HandleWebSocket(s.wsManager))
 		}
 	}
 } // Router 返回 gin 路由器

@@ -16,6 +16,11 @@ var (
 	ErrInvalidMessageType  = errors.New("invalid message type")
 )
 
+// WebSocketManager 定義 WebSocket 管理器的介面（避免循環依賴）
+type WebSocketManager interface {
+	BroadcastToChannel(channelID uint, msgType string, data interface{})
+}
+
 // MessageService 訊息服務介面
 type MessageService interface {
 	CreateMessage(userID uint, req *CreateMessageRequest) (*model.Message, error)
@@ -23,12 +28,14 @@ type MessageService interface {
 	ListChannelMessages(channelID, userID uint, page, pageSize int) (*MessageListResponse, error)
 	UpdateMessage(messageID, userID uint, req *UpdateMessageRequest) (*model.Message, error)
 	DeleteMessage(messageID, userID uint) error
+	SetWebSocketManager(manager WebSocketManager)
 }
 
 type messageService struct {
 	messageRepo     repository.MessageRepository
 	channelRepo     repository.ChannelRepository
 	guildMemberRepo repository.GuildMemberRepository
+	wsManager       WebSocketManager
 }
 
 // NewMessageService 建立訊息服務實例
@@ -41,7 +48,13 @@ func NewMessageService(
 		messageRepo:     messageRepo,
 		channelRepo:     channelRepo,
 		guildMemberRepo: guildMemberRepo,
+		wsManager:       nil, // 稍後設定
 	}
+}
+
+// SetWebSocketManager 設定 WebSocket 管理器
+func (s *messageService) SetWebSocketManager(manager WebSocketManager) {
+	s.wsManager = manager
 }
 
 // CreateMessageRequest 建立訊息請求
@@ -112,7 +125,17 @@ func (s *messageService) CreateMessage(
 	}
 
 	// 重新取得訊息（包含關聯資料）
-	return s.messageRepo.GetByID(message.ID)
+	fullMessage, err := s.messageRepo.GetByID(message.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果有 WebSocket 管理器，即時推送新訊息
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToChannel(req.ChannelID, "new_message", fullMessage)
+	}
+
+	return fullMessage, nil
 }
 
 // GetMessage 取得訊息

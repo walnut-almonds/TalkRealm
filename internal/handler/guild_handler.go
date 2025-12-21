@@ -2,11 +2,13 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/walnut-almonds/talkrealm/internal/service"
+	"github.com/walnut-almonds/talkrealm/pkg/logger"
 )
 
 type GuildHandler struct {
@@ -43,10 +45,24 @@ func (h *GuildHandler) CreateGuild(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	// Get userID from context with detailed logging
+	userIDValue, exists := c.Get("user_id")
+	logger.Info("CreateGuild context check",
+		"user_id_exists", exists,
+		"user_id_value", userIDValue,
+		"user_id_type", fmt.Sprintf("%T", userIDValue))
+
+	userID := c.GetUint("user_id")
+	logger.Info("CreateGuild userID retrieved", "userID", userID)
+
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user ID not found in context"})
+		return
+	}
 
 	guild, err := h.guildService.CreateGuild(userID, &req)
 	if err != nil {
+		logger.Error("CreateGuild failed", "error", err, "userID", userID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -99,7 +115,7 @@ func (h *GuildHandler) GetGuild(c *gin.Context) {
 //	@Failure		401	{object}	ErrorResponse
 //	@Router			/api/v1/guilds [get]
 func (h *GuildHandler) ListUserGuilds(c *gin.Context) {
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	guilds, err := h.guildService.ListUserGuilds(userID)
 	if err != nil {
@@ -138,7 +154,7 @@ func (h *GuildHandler) UpdateGuild(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	guild, err := h.guildService.UpdateGuild(uint(guildID), userID, &req)
 	if err != nil {
@@ -181,7 +197,7 @@ func (h *GuildHandler) DeleteGuild(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	err = h.guildService.DeleteGuild(uint(guildID), userID)
 	if err != nil {
@@ -223,7 +239,7 @@ func (h *GuildHandler) JoinGuild(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	err = h.guildMemberService.JoinGuild(uint(guildID), userID)
 	if err != nil {
@@ -265,7 +281,7 @@ func (h *GuildHandler) LeaveGuild(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("userID")
+	userID := c.GetUint("user_id")
 
 	err = h.guildMemberService.LeaveGuild(uint(guildID), userID)
 	if err != nil {
@@ -318,7 +334,7 @@ func (h *GuildHandler) KickMember(c *gin.Context) {
 		return
 	}
 
-	operatorUserID := c.GetUint("userID")
+	operatorUserID := c.GetUint("user_id")
 
 	err = h.guildMemberService.KickMember(uint(guildID), uint(targetUserID), operatorUserID)
 	if err != nil {
@@ -409,7 +425,7 @@ func (h *GuildHandler) UpdateMemberRole(c *gin.Context) {
 		return
 	}
 
-	operatorUserID := c.GetUint("userID")
+	operatorUserID := c.GetUint("user_id")
 
 	err = h.guildMemberService.UpdateMemberRole(
 		uint(guildID),
