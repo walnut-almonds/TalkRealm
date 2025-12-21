@@ -11,3 +11,5 @@ sudo apt install -y iputils-ping
 
 # Install ASDF
 go install github.com/asdf-vm/asdf/cmd/asdf@v0.18.0
+
+make install
