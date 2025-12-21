@@ -3,7 +3,7 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
-  - ./talk-realm
+  - ./talkrealm
   - ./postgres
   - ./redis
 
