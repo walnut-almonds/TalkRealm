@@ -17,7 +17,7 @@ spec:
       containers:
       - name: talk-realm
         image: talk-realm:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
           name: http
@@ -30,14 +30,14 @@ spec:
         - name: DATABASE_PORT
           value: "5432"
         - name: DATABASE_USER
-          value: talkrealm
+          value: talk-realm
         - name: DATABASE_PASSWORD
           valueFrom:
             secretKeyRef:
               name: postgres-secret
               key: password
-        - name: DATABASE_NAME
-          value: talkrealm
+        - name: DATABASE_DBNAME
+          value: talk-realm
         - name: REDIS_HOST
           value: redis
         - name: REDIS_PORT

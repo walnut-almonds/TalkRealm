@@ -24,14 +24,14 @@ spec:
           protocol: TCP
         env:
         - name: POSTGRES_USER
-          value: talkrealm
+          value: talk-realm
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
               name: postgres-secret
               key: password
         - name: POSTGRES_DB
-          value: talkrealm
+          value: talk-realm
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
         volumeMounts:
@@ -42,9 +42,9 @@ spec:
             command:
             - pg_isready
             - -U
-            - talkrealm
+            - talk-realm
             - -d
-            - talkrealm
+            - talk-realm
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -54,9 +54,9 @@ spec:
             command:
             - pg_isready
             - -U
-            - talkrealm
+            - talk-realm
             - -d
-            - talkrealm
+            - talk-realm
           initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 3

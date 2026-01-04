@@ -18,6 +18,11 @@ install-asdf:
 install-kubectl: install-asdf
 	./scripts/setup_kubectl.sh
 
+.PHONY: reinstall-kubectl
+reinstall-kubectl:
+	rm -rf ~/.kube
+	$(MAKE) --no-print-directory install-kubectl
+
 .PHONY: install
 install: install-asdf install-kubectl
 	go mod download
@@ -67,6 +72,14 @@ k8s-local: install
 k8s-dev: install
 	mkdir -p ./build
 	kubectl kustomize ./deploy/k8s/overlays/dev > ./build/dev.yaml
+
+.PHONY: k8s-local-delete
+k8s-local-delete:
+	kubectl delete namespace talk-realm-local
+
+.PHONY: k8s-dev-delete
+k8s-dev-delete:
+	kubectl delete namespace talk-realm-dev
 
 .PHONY: k8s-local-deploy
 k8s-local-deploy: pack k8s-local
