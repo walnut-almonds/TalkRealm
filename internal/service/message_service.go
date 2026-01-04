@@ -18,7 +18,7 @@ var (
 
 // WebSocketManager 定義 WebSocket 管理器的介面（避免循環依賴）
 type WebSocketManager interface {
-	BroadcastToChannel(channelID uint, msgType string, data interface{})
+	BroadcastToChannel(channelID uint, msgType string, data any)
 }
 
 // MessageService 訊息服務介面
@@ -59,7 +59,7 @@ func (s *messageService) SetWebSocketManager(manager WebSocketManager) {
 
 // CreateMessageRequest 建立訊息請求
 type CreateMessageRequest struct {
-	ChannelID uint   `json:"channel_id" binding:"required"`
+	ChannelID uint   `json:"channel_id"`
 	Content   string `json:"content"    binding:"required"`
 	Type      string `json:"type"` // text, image, file (預設: text)
 }

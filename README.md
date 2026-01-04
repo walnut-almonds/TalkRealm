@@ -16,12 +16,21 @@ TalkRealm 是一個開源的即時通訊解決方案，提供以下核心功能�
 
 ## 技術棧
 
+### 後端
 - **後端框架**: [Gin](https://github.com/gin-gonic/gin) - 高效能 HTTP Web 框架
 - **WebSocket**: [Gorilla WebSocket](https://github.com/gorilla/websocket) - 即時雙向通訊
 - **資料庫**: PostgreSQL + Redis
 - **身份驗證**: JWT (JSON Web Tokens)
 - **語音處理**: WebRTC
 - **日誌**: Zap - 高效能結構化日誌
+
+### 前端
+- **框架**: Vanilla JavaScript (ES6+) - 無框架依賴
+- **架構**: 單頁應用程式 (SPA)
+- **樣式**: CSS3 (Dark Theme)
+- **即時通訊**: WebSocket API
+- **狀態管理**: 集中式狀態管理
+- **UI設計**: Discord-like 介面
 
 ## 📐 系統架構
 
@@ -52,7 +61,12 @@ TalkRealm/
 ├── api/                # API 定義檔案 (OpenAPI/Swagger)
 ├── configs/            # 配置檔案
 ├── scripts/            # 建置和部署腳本
-├── web/                # 前端靜態資源 (可選)
+├── web/                # 前端應用程式
+│   ├── index.html     # 主頁面（SPA）
+│   ├── test.html      # API 測試頁面
+│   ├── css/           # 樣式檔案
+│   ├── js/            # JavaScript 模組
+│   └── docs/          # 前端文件
 ├── go.mod              # Go 模組定義
 └── README.md           # 專案說明文件
 ```
@@ -65,9 +79,27 @@ TalkRealm/
 - Docker & Docker Compose（推薦）或
 - PostgreSQL 14+ 和 Redis 6+（手動安裝）
 
-### 方法一：使用 Docker（推薦）⭐
+### 方法一：快速啟動（推薦）⭐
 
-**最快速的開始方式！**
+**使用一鍵啟動腳本！**
+
+```bash
+# 克隆專案
+git clone https://github.com/walnut-almonds/TalkRealm.git
+cd TalkRealm
+
+# 賦予執行權限（Linux/macOS）
+chmod +x scripts/*.sh
+
+# 啟動所有服務（資料庫 + 後端 + 前端）
+./scripts/start.sh
+```
+
+訪問 `http://localhost:8080` 開始使用！
+
+### 方法二：使用 Docker
+
+**適合完整的容器化部署**
 
 1. 克隆專案
 ```bash
@@ -105,7 +137,7 @@ go run cmd/server/main.go
 
 📖 **詳細說明**: 查看 [Docker 指南](docs/docker.md)
 
-### 方法二：手動安裝資料庫
+### 方法三：手動安裝資料庫
 
 1. 克隆專案
 ```bash
@@ -139,8 +171,24 @@ go run cmd/server/main.go
 ## API 文件
 
 啟動服務後，可以訪問以下端點查看 API 文件：
-- Swagger UI: `http://localhost:8080/swagger/index.html`
+- **前端應用**: `http://localhost:8080`
+- **API 測試**: `http://localhost:8080/static/test.html`
+- **Swagger UI**: `http://localhost:8080/swagger/index.html`
 - [線上預覽（OpenAPI Viewer）](https://min0625.github.io/openapi-viewer/?url=https://raw.githubusercontent.com/walnut-almonds/TalkRealm/main/docs/openapi/swagger.json)
+
+## 📚 文件
+
+### 後端文件
+- [架構文件](docs/architecture.md) - 系統設計與架構
+- [資料庫設計](docs/database.md) - 資料模型與關係
+- [API 指南](api/API_GUIDE.md) - API 使用說明
+- [Docker 指南](docs/docker.md) - Docker 部署說明
+
+### 實現細節
+- [Guild 實現](docs/implementation/GUILD_IMPLEMENTATION.md)
+- [Channel 實現](docs/implementation/CHANNEL_IMPLEMENTATION.md)
+- [Message 實現](docs/implementation/MESSAGE_IMPLEMENTATION.md)
+- [實現總結](docs/implementation/IMPLEMENTATION_SUMMARY.md)
 
 ## 開發
 

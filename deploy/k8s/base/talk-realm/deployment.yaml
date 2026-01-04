@@ -47,6 +47,8 @@ spec:
             secretKeyRef:
               name: redis-secret
               key: password
+        - name: JWT_EXPIRATION_HOURS
+          value: "168"
         livenessProbe:
           httpGet:
             path: /health

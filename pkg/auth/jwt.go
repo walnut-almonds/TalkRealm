@@ -36,14 +36,15 @@ func NewJWTManager(secretKey string, tokenDuration time.Duration) *JWTManager {
 
 // GenerateToken 生成 JWT token
 func (m *JWTManager) GenerateToken(userID uint, username, email string) (string, error) {
+	nowTime := time.Now()
 	claims := &Claims{
 		UserID:   userID,
 		Username: username,
 		Email:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.tokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(nowTime.Add(m.tokenDuration)),
+			IssuedAt:  jwt.NewNumericDate(nowTime),
+			NotBefore: jwt.NewNumericDate(nowTime),
 		},
 	}
 

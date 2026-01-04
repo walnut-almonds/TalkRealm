@@ -16,7 +16,7 @@ var (
 
 // CreateChannelRequest 建立頻道請求
 type CreateChannelRequest struct {
-	GuildID  uint   `json:"guild_id" binding:"required"`
+	GuildID  uint   `json:"guild_id"`
 	Name     string `json:"name"     binding:"required,min=1,max=100"`
 	Type     string `json:"type"     binding:"required,oneof=text voice"`
 	Topic    string `json:"topic"    binding:"max=1024"`
