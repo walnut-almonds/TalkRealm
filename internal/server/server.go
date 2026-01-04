@@ -104,6 +104,10 @@ func New(cfg *config.Config) (*Server, error) {
 //	@contact.url	http://www.talkrealm.example.com/support
 //	@contact.email	support@talkrealm.example.com
 func (s *Server) setupRoutes() {
+	// 提供靜態檔案 (前端)
+	// s.router.Static("/static", "./web")
+	// s.router.StaticFile("/", "./web/index.html")
+
 	// 健康檢查
 	s.router.GET("/health", handler.HealthCheck)
 	s.router.GET("/ping", handler.Ping)
@@ -133,9 +137,10 @@ func (s *Server) setupRoutes() {
 			guilds := protected.Group("/guilds")
 			{
 				guilds.POST("", s.guildHandler.CreateGuild)
-				guilds.GET("", s.guildHandler.ListUserGuilds)
+				guilds.GET("/me", s.guildHandler.ListUserGuilds)
 				guilds.GET("/:id", s.guildHandler.GetGuild)
 				guilds.PUT("/:id", s.guildHandler.UpdateGuild)
+				guilds.PATCH("/:id", s.guildHandler.UpdateGuild)
 				guilds.DELETE("/:id", s.guildHandler.DeleteGuild)
 
 				// 社群成員操作
@@ -144,26 +149,32 @@ func (s *Server) setupRoutes() {
 				guilds.GET("/:id/members", s.guildHandler.ListGuildMembers)
 				guilds.DELETE("/:id/members/:userId", s.guildHandler.KickMember)
 				guilds.PUT("/:id/members/:userId/role", s.guildHandler.UpdateMemberRole)
+
+				// 社群頻道
+				guilds.GET("/:id/channels", s.channelHandler.ListGuildChannels)
+				guilds.POST("/:id/channels", s.channelHandler.CreateChannel)
 			}
 
 			// 頻道相關
 			channels := protected.Group("/channels")
 			{
-				channels.POST("", s.channelHandler.CreateChannel)
-				channels.GET("", s.channelHandler.ListGuildChannels)
 				channels.GET("/:id", s.channelHandler.GetChannel)
 				channels.PUT("/:id", s.channelHandler.UpdateChannel)
+				channels.PATCH("/:id", s.channelHandler.UpdateChannel)
 				channels.DELETE("/:id", s.channelHandler.DeleteChannel)
 				channels.PUT("/:id/position", s.channelHandler.UpdateChannelPosition)
+
+				// 頻道訊息
+				channels.GET("/:id/messages", s.messageHandler.ListChannelMessages)
+				channels.POST("/:id/messages", s.messageHandler.CreateMessage)
 			}
 
 			// 訊息相關
 			messages := protected.Group("/messages")
 			{
-				messages.POST("", s.messageHandler.CreateMessage)
-				messages.GET("", s.messageHandler.ListChannelMessages)
 				messages.GET("/:id", s.messageHandler.GetMessage)
 				messages.PUT("/:id", s.messageHandler.UpdateMessage)
+				messages.PATCH("/:id", s.messageHandler.UpdateMessage)
 				messages.DELETE("/:id", s.messageHandler.DeleteMessage)
 			}
 

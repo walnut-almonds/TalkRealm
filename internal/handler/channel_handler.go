@@ -26,18 +26,35 @@ func NewChannelHandler(channelService service.ChannelService) *ChannelHandler {
 //	@Tags			Channel
 //	@Accept			json
 //	@Produce		json
+//	@Param			id		path		int								true	"社群 ID"
 //	@Param			request	body		service.CreateChannelRequest	true	"建立頻道請求"
 //	@Success		201		{object}	model.Channel
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
-//	@Router			/api/v1/channels [post]
+//	@Router			/api/v1/guilds/{id}/channels [post]
 func (h *ChannelHandler) CreateChannel(c *gin.Context) {
+	// 從 URL 參數獲取 guild_id
+	guildIDStr := c.Param("id")
+	if guildIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "guild_id is required"})
+		return
+	}
+
+	guildID, err := strconv.ParseUint(guildIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
 	var req service.CreateChannelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 設置 guild_id 從 URL 參數
+	req.GuildID = uint(guildID)
 
 	userID := c.GetUint("user_id")
 
@@ -124,14 +141,14 @@ func (h *ChannelHandler) GetChannel(c *gin.Context) {
 //	@Tags			Channel
 //	@Accept			json
 //	@Produce		json
-//	@Param			guild_id	query		int	true	"社群 ID"
-//	@Success		200			{array}		model.Channel
-//	@Failure		400			{object}	ErrorResponse
-//	@Failure		403			{object}	ErrorResponse
-//	@Failure		404			{object}	ErrorResponse
-//	@Router			/api/v1/channels [get]
+//	@Param			id	path		int	true	"社群 ID"
+//	@Success		200	{array}		model.Channel
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id}/channels [get]
 func (h *ChannelHandler) ListGuildChannels(c *gin.Context) {
-	guildIDStr := c.Query("guild_id")
+	guildIDStr := c.Param("id")
 	if guildIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "guild_id is required"})
 		return

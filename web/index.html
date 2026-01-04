@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalkRealm - 即時通訊平台</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- 登入/註冊頁面 -->
+    <div id="auth-page" class="auth-container">
+        <div class="auth-box">
+            <div class="auth-logo">
+                <i class="fas fa-comments"></i>
+                <h1>TalkRealm</h1>
+            </div>
+            
+            <!-- 登入表單 -->
+            <div id="login-form" class="auth-form active">
+                <h2>歡迎回來！</h2>
+                <p class="auth-subtitle">我們很高興再次見到您！</p>
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label>電子郵件</label>
+                        <input type="email" id="login-email" placeholder="name@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>密碼</label>
+                        <input type="password" id="login-password" placeholder="請輸入密碼" required>
+                    </div>
+                    <button type="submit" class="btn-primary">登入</button>
+                    <div class="auth-switch">
+                        還沒有帳號？ <a href="#" onclick="switchToRegister()">立即註冊</a>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 註冊表單 -->
+            <div id="register-form" class="auth-form">
+                <h2>建立帳號</h2>
+                <p class="auth-subtitle">加入 TalkRealm 社群</p>
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label>電子郵件</label>
+                        <input type="email" id="register-email" placeholder="name@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>使用者名稱</label>
+                        <input type="text" id="register-username" placeholder="請輸入使用者名稱" required minlength="3" maxlength="32">
+                    </div>
+                    <div class="form-group">
+                        <label>暱稱</label>
+                        <input type="text" id="register-nickname" placeholder="請輸入暱稱（選填）" maxlength="64">
+                    </div>
+                    <div class="form-group">
+                        <label>密碼</label>
+                        <input type="password" id="register-password" placeholder="請輸入密碼" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn-primary">註冊</button>
+                    <div class="auth-switch">
+                        已有帳號？ <a href="#" onclick="switchToLogin()">立即登入</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主應用程式頁面 -->
+    <div id="app-page" class="app-container hidden">
+        <!-- 側邊欄 - 社群列表 -->
+        <div class="guilds-sidebar">
+            <div class="guild-item home" onclick="showHomeView()" title="首頁">
+                <i class="fas fa-home"></i>
+            </div>
+            <div class="guilds-separator"></div>
+            <div id="guilds-list" class="guilds-list">
+                <!-- 社群列表將動態載入 -->
+            </div>
+            <div class="guild-item add-guild" onclick="showCreateGuildModal()" title="建立社群">
+                <i class="fas fa-plus"></i>
+            </div>
+        </div>
+
+        <!-- 頻道側邊欄 -->
+        <div class="channels-sidebar">
+            <div class="guild-header" id="guild-header">
+                <h2 id="guild-name">選擇一個社群</h2>
+                <div class="guild-actions">
+                    <i class="fas fa-cog" onclick="showGuildSettings()" title="社群設定"></i>
+                </div>
+            </div>
+            
+            <div class="channels-container">
+                <!-- 文字頻道 -->
+                <div class="channel-category">
+                    <div class="category-header">
+                        <i class="fas fa-chevron-down"></i>
+                        <span>文字頻道</span>
+                        <i class="fas fa-plus" onclick="showCreateChannelModal('text')" title="建立頻道"></i>
+                    </div>
+                    <div id="text-channels-list" class="channels-list">
+                        <!-- 文字頻道列表 -->
+                    </div>
+                </div>
+
+                <!-- 語音頻道 -->
+                <div class="channel-category">
+                    <div class="category-header">
+                        <i class="fas fa-chevron-down"></i>
+                        <span>語音頻道</span>
+                        <i class="fas fa-plus" onclick="showCreateChannelModal('voice')" title="建立頻道"></i>
+                    </div>
+                    <div id="voice-channels-list" class="channels-list">
+                        <!-- 語音頻道列表 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 使用者資訊 -->
+            <div class="user-panel">
+                <div class="user-info">
+                    <div class="user-avatar" id="user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name" id="user-name">使用者</div>
+                        <div class="user-status" id="user-status">
+                            <span class="status-indicator online"></span>
+                            <span>線上</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-actions">
+                    <i class="fas fa-cog" onclick="showUserSettings()" title="使用者設定"></i>
+                    <i class="fas fa-sign-out-alt" onclick="handleLogout()" title="登出"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主要內容區 -->
+        <div class="main-content">
+            <!-- 頻道標題 -->
+            <div class="channel-header">
+                <div class="channel-info">
+                    <i class="fas fa-hashtag" id="channel-icon"></i>
+                    <h3 id="channel-name">歡迎</h3>
+                    <span class="channel-topic" id="channel-topic"></span>
+                </div>
+                <div class="channel-actions">
+                    <i class="fas fa-bell"></i>
+                    <i class="fas fa-thumbtack"></i>
+                    <i class="fas fa-users" onclick="toggleMembersList()"></i>
+                    <i class="fas fa-search"></i>
+                </div>
+            </div>
+
+            <!-- 訊息區域 -->
+            <div class="messages-container" id="messages-container">
+                <div class="welcome-message">
+                    <h1>歡迎來到 TalkRealm！</h1>
+                    <p>選擇一個頻道開始聊天，或建立一個新的社群。</p>
+                </div>
+            </div>
+
+            <!-- 訊息輸入區 -->
+            <div class="message-input-container">
+                <div class="message-input">
+                    <button class="btn-icon" title="上傳檔案">
+                        <i class="fas fa-plus-circle"></i>
+                    </button>
+                    <input 
+                        type="text" 
+                        id="message-input" 
+                        placeholder="在此輸入訊息..."
+                        onkeypress="handleMessageKeyPress(event)"
+                    >
+                    <button class="btn-icon" title="表情符號">
+                        <i class="fas fa-smile"></i>
+                    </button>
+                    <button class="btn-icon" onclick="sendMessage()" title="發送訊息">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 成員列表側邊欄 -->
+        <div class="members-sidebar" id="members-sidebar">
+            <div class="members-header">
+                <h3>成員</h3>
+            </div>
+            <div class="members-list" id="members-list">
+                <!-- 成員列表將動態載入 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 模態視窗 -->
+    <!-- 建立社群模態視窗 -->
+    <div id="create-guild-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>建立社群</h2>
+                <span class="close" onclick="closeModal('create-guild-modal')">&times;</span>
+            </div>
+            <form onsubmit="handleCreateGuild(event)">
+                <div class="form-group">
+                    <label>社群名稱</label>
+                    <input type="text" id="guild-name-input" placeholder="我的社群" required>
+                </div>
+                <div class="form-group">
+                    <label>社群描述</label>
+                    <textarea id="guild-description-input" placeholder="描述您的社群（選填）" rows="3"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('create-guild-modal')">取消</button>
+                    <button type="submit" class="btn-primary">建立</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 建立頻道模態視窗 -->
+    <div id="create-channel-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>建立頻道</h2>
+                <span class="close" onclick="closeModal('create-channel-modal')">&times;</span>
+            </div>
+            <form onsubmit="handleCreateChannel(event)">
+                <div class="form-group">
+                    <label>頻道類型</label>
+                    <select id="channel-type-input">
+                        <option value="text">文字頻道</option>
+                        <option value="voice">語音頻道</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>頻道名稱</label>
+                    <input type="text" id="channel-name-input" placeholder="一般" required>
+                </div>
+                <div class="form-group">
+                    <label>頻道描述</label>
+                    <textarea id="channel-description-input" placeholder="描述此頻道（選填）" rows="3"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('create-channel-modal')">取消</button>
+                    <button type="submit" class="btn-primary">建立</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 使用者設定模態視窗 -->
+    <div id="user-settings-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>使用者設定</h2>
+                <span class="close" onclick="closeModal('user-settings-modal')">&times;</span>
+            </div>
+            <form onsubmit="handleUpdateUser(event)">
+                <div class="form-group">
+                    <label>暱稱</label>
+                    <input type="text" id="user-nickname-input" placeholder="暱稱">
+                </div>
+                <div class="form-group">
+                    <label>頭像 URL</label>
+                    <input type="url" id="user-avatar-input" placeholder="https://example.com/avatar.jpg">
+                </div>
+                <div class="form-group">
+                    <label>狀態</label>
+                    <select id="user-status-input">
+                        <option value="online">線上</option>
+                        <option value="away">離開</option>
+                        <option value="busy">忙碌</option>
+                        <option value="offline">離線</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('user-settings-modal')">取消</button>
+                    <button type="submit" class="btn-primary">儲存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 通知提示 -->
+    <div id="notification" class="notification"></div>
+
+    <!-- 載入指示器 -->
+    <div id="loading-spinner" class="loading-spinner hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

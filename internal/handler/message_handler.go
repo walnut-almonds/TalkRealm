@@ -28,17 +28,25 @@ func NewMessageHandler(messageService service.MessageService) *MessageHandler {
 //	@Tags			messages
 //	@Accept			json
 //	@Produce		json
+//	@Param			id		path		int								true	"頻道 ID"
 //	@Param			request	body		service.CreateMessageRequest	true	"建立訊息請求"
 //	@Success		201		{object}	model.Message
 //	@Failure		400		{object}	map[string]string
 //	@Failure		403		{object}	map[string]string
 //	@Failure		500		{object}	map[string]string
-//	@Router			/api/v1/messages [post]
+//	@Router			/api/v1/channels/{id}/messages [post]
 func (h *MessageHandler) CreateMessage(c *gin.Context) {
 	// 從 context 取得使用者 ID
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	// 從 URL 路徑參數取得頻道 ID
+	channelID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid channel id"})
 		return
 	}
 
@@ -47,6 +55,9 @@ func (h *MessageHandler) CreateMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 設定從 URL 取得的 channelID
+	req.ChannelID = uint(channelID)
 
 	message, err := h.messageService.CreateMessage(userID.(uint), &req)
 	if err != nil {
@@ -83,7 +94,7 @@ func (h *MessageHandler) CreateMessage(c *gin.Context) {
 //	@Router			/api/v1/messages/{id} [get]
 func (h *MessageHandler) GetMessage(c *gin.Context) {
 	// 從 context 取得使用者 ID
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
@@ -122,31 +133,25 @@ func (h *MessageHandler) GetMessage(c *gin.Context) {
 //	@Description	列出指定頻道的所有訊息（分頁）
 //	@Tags			messages
 //	@Produce		json
-//	@Param			channel_id	query		int	true	"頻道 ID"
+//	@Param			id			path		int	true	"頻道 ID"
 //	@Param			page		query		int	false	"頁碼"	default(1)
 //	@Param			page_size	query		int	false	"每頁數量"	default(50)
 //	@Success		200			{object}	service.MessageListResponse
 //	@Failure		400			{object}	map[string]string
 //	@Failure		403			{object}	map[string]string
-//	@Router			/api/v1/messages [get]
+//	@Router			/api/v1/channels/{id}/messages [get]
 func (h *MessageHandler) ListChannelMessages(c *gin.Context) {
 	// 從 context 取得使用者 ID
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	// 取得頻道 ID
-	channelIDStr := c.Query("channel_id")
-	if channelIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "channel_id is required"})
-		return
-	}
-
-	channelID, err := strconv.ParseUint(channelIDStr, 10, 32)
+	channelID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid channel_id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid channel ID"})
 		return
 	}
 
@@ -206,7 +211,7 @@ func (h *MessageHandler) ListChannelMessages(c *gin.Context) {
 //	@Router			/api/v1/messages/{id} [put]
 func (h *MessageHandler) UpdateMessage(c *gin.Context) {
 	// 從 context 取得使用者 ID
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
@@ -256,7 +261,7 @@ func (h *MessageHandler) UpdateMessage(c *gin.Context) {
 //	@Router			/api/v1/messages/{id} [delete]
 func (h *MessageHandler) DeleteMessage(c *gin.Context) {
 	// 從 context 取得使用者 ID
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return

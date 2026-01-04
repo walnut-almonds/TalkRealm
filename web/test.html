@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalkRealm - API 測試</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            width: 200px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 TalkRealm API 測試頁面</h1>
+        <p class="subtitle">測試後端 API 和前端連接</p>
+        
+        <div class="test-section">
+            <h2>📡 伺服器狀態</h2>
+            <span id="server-status" class="status offline">離線</span>
+            <br>
+            <button onclick="checkHealth()">檢查健康狀態</button>
+            <div id="health-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🔐 使用者認證</h2>
+            
+            <div class="input-group">
+                <label>測試帳號註冊</label>
+                <input type="email" id="test-email" placeholder="email@example.com" value="test@talkrealm.com">
+                <input type="text" id="test-username" placeholder="使用者名稱" value="testuser">
+                <input type="password" id="test-password" placeholder="密碼" value="test123456">
+                <br>
+                <button onclick="testRegister()">註冊測試帳號</button>
+            </div>
+            
+            <div class="input-group">
+                <label>測試登入</label>
+                <input type="email" id="login-email" placeholder="email@example.com" value="test@talkrealm.com">
+                <input type="password" id="login-password" placeholder="密碼" value="test123456">
+                <br>
+                <button onclick="testLogin()">登入</button>
+            </div>
+            
+            <button onclick="testGetUser()" id="get-user-btn" disabled>取得使用者資訊</button>
+            <div id="auth-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🏰 社群功能</h2>
+            <button onclick="testCreateGuild()" id="create-guild-btn" disabled>建立測試社群</button>
+            <button onclick="testGetGuilds()" id="get-guilds-btn" disabled>取得社群列表</button>
+            <div id="guild-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🔌 WebSocket 連接</h2>
+            <button onclick="testWebSocket()" id="ws-btn" disabled>測試 WebSocket</button>
+            <button onclick="disconnectWebSocket()" id="ws-disconnect-btn" disabled>斷開連接</button>
+            <div id="ws-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🌐 前端頁面</h2>
+            <button onclick="openFrontend()">開啟前端介面</button>
+            <p style="margin-top: 10px; color: #666; font-size: 14px;">
+                點擊按鈕將在新分頁開啟完整的 TalkRealm 前端介面
+            </p>
+        </div>
+    </div>
+    
+    <script>
+        let token = null;
+        let ws = null;
+        const API_BASE = 'http://localhost:8080';
+        const WS_BASE = 'ws://localhost:8080';
+        
+        // 檢查伺服器健康狀態
+        async function checkHealth() {
+            const resultDiv = document.getElementById('health-result');
+            const statusDiv = document.getElementById('server-status');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在檢查...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `<span class="success">✓ 伺服器運行中</span>\n${JSON.stringify(data, null, 2)}`;
+                statusDiv.className = 'status online';
+                statusDiv.textContent = '線上';
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ 連接失敗</span>\n${error.message}`;
+                statusDiv.className = 'status offline';
+                statusDiv.textContent = '離線';
+            }
+        }
+        
+        // 測試註冊
+        async function testRegister() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在註冊...';
+            
+            const email = document.getElementById('test-email').value;
+            const username = document.getElementById('test-username').value;
+            const password = document.getElementById('test-password').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email,
+                        username,
+                        password,
+                        nickname: username
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<span class="success">✓ 註冊成功</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">✗ 註冊失敗</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ 錯誤</span>\n${error.message}`;
+            }
+        }
+        
+        // 測試登入
+        async function testLogin() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在登入...';
+            
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email,
+                        password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    token = data.token;
+                    resultDiv.innerHTML = `<span class="success">✓ 登入成功</span>\nToken: ${token.substring(0, 50)}...\n\n使用者資訊:\n${JSON.stringify(data.user, null, 2)}`;
+                    
+                    // 啟用需要認證的按鈕
+                    document.getElementById('get-user-btn').disabled = false;
+                    document.getElementById('create-guild-btn').disabled = false;
+                    document.getElementById('get-guilds-btn').disabled = false;
+                    document.getElementById('ws-btn').disabled = false;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">✗ 登入失敗</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ 錯誤</span>\n${error.message}`;
+            }
+        }
+        
+        // 測試取得使用者資訊
+        async function testGetUser() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在取得使用者資訊...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/users/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<span class="success">✓ 取得成功</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">✗ 取得失敗</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ 錯誤</span>\n${error.message}`;
+            }
+        }
+        
+        // 測試建立社群
+        async function testCreateGuild() {
+            const resultDiv = document.getElementById('guild-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在建立社群...';
+            
+            const guildName = `測試社群 ${Date.now()}`;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/guilds`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        name: guildName,
+                        description: '這是一個測試社群'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<span class="success">✓ 建立成功</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">✗ 建立失敗</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ 錯誤</span>\n${error.message}`;
+            }
+        }
+        
+        // 測試取得社群列表
+        async function testGetGuilds() {
+            const resultDiv = document.getElementById('guild-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在取得社群列表...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/guilds/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<span class="success">✓ 取得成功 (共 ${data.guilds?.length || 0} 個社群)</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">✗ 取得失敗</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ 錯誤</span>\n${error.message}`;
+            }
+        }
+        
+        // 測試 WebSocket
+        function testWebSocket() {
+            const resultDiv = document.getElementById('ws-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在連接 WebSocket...\n';
+            
+            try {
+                ws = new WebSocket(`${WS_BASE}/ws?token=${token}`);
+                
+                ws.onopen = () => {
+                    resultDiv.innerHTML += '<span class="success">✓ WebSocket 連接成功</span>\n';
+                    document.getElementById('ws-disconnect-btn').disabled = false;
+                    
+                    // 發送 ping
+                    setTimeout(() => {
+                        const pingMsg = JSON.stringify({
+                            type: 'ping',
+                            timestamp: Date.now()
+                        });
+                        ws.send(pingMsg);
+                        resultDiv.innerHTML += `\n發送: ${pingMsg}\n`;
+                    }, 1000);
+                };
+                
+                ws.onmessage = (event) => {
+                    resultDiv.innerHTML += `\n接收: ${event.data}\n`;
+                };
+                
+                ws.onerror = (error) => {
+                    resultDiv.innerHTML += `\n<span class="error">✗ WebSocket 錯誤</span>\n`;
+                };
+                
+                ws.onclose = () => {
+                    resultDiv.innerHTML += '\nWebSocket 連接已關閉\n';
+                    document.getElementById('ws-disconnect-btn').disabled = true;
+                };
+            } catch (error) {
+                resultDiv.innerHTML += `<span class="error">✗ 錯誤: ${error.message}</span>\n`;
+            }
+        }
+        
+        // 斷開 WebSocket
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        // 開啟前端介面
+        function openFrontend() {
+            window.open('/', '_blank');
+        }
+        
+        // 頁面載入時檢查伺服器
+        window.onload = () => {
+            checkHealth();
+        };
+    </script>
+</body>
+</html>

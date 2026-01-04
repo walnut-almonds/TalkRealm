@@ -70,8 +70,8 @@ func Load() (*Config, error) {
 	setDefaults()
 
 	// 讀取環境變數
-	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
 		// 如果找不到配置檔案，使用預設值
@@ -118,7 +118,7 @@ func setDefaults() {
 
 	// JWT 預設值
 	viper.SetDefault("jwt.secret", "your-secret-key-change-this-in-production")
-	viper.SetDefault("jwt.expire_time", 24*time.Hour)
+	viper.SetDefault("jwt.expiration_hours", 24*time.Hour)
 
 	// Log 預設值
 	viper.SetDefault("log.level", "info")
