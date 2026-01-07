@@ -8,3 +8,8 @@ resources:
   - ./redis
 
 namespace: talk-realm-dev
+
+commonLabels:
+  app.kubernetes.io/name: talkrealm
+  app.kubernetes.io/namespace: talk-realm-dev
+  prunable: "true"

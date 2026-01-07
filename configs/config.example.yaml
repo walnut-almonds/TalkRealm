@@ -8,9 +8,9 @@ server:
 database:
   host: localhost
   port: 5432
-  user: talkrealm
-  password: talkrealm_password
-  dbname: talkrealm
+  user: talk-realm
+  password: local_talk-realm_password
+  dbname: talk-realm
   sslmode: disable
   max_idle_conns: 10
   max_open_conns: 100
@@ -20,12 +20,12 @@ database:
 redis:
   host: localhost
   port: 6379
-  password: talkrealm_redis_password
+  password: local_talk-realm_redis_password
   db: 0
 
 jwt:
   secret: your-secret-key-change-this-in-production
-  expire_time: 24h
+  expiration_hours: 168
 
 log:
-  level: info  # debug, info, warn, error
+  level: debug  # debug, info, warn, error
