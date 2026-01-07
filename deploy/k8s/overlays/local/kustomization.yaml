@@ -8,3 +8,9 @@ resources:
   - ./redis
 
 namespace: talk-realm-local
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: talkrealm
+      app.kubernetes.io/namespace: talk-realm-local
+      prunable: "true"

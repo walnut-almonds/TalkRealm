@@ -25,7 +25,6 @@ vendor/
 go.work
 
 # IDEs and editors
-.vscode/
 .idea/
 *.swp
 *.swo

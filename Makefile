@@ -83,12 +83,12 @@ k8s-dev-delete:
 
 .PHONY: k8s-local-deploy
 k8s-local-deploy: pack k8s-local
-	kubectl apply -f ./build/local.yaml
+	kubectl apply --prune -l app.kubernetes.io/namespace=talk-realm-local,app.kubernetes.io/name=talkrealm,prunable=true -f ./build/local.yaml
 	kubectl rollout restart deployment/talk-realm -n talk-realm-local
 
 .PHONY: k8s-dev-deploy
 k8s-dev-deploy: pack k8s-dev
-	kubectl apply -f ./build/dev.yaml
+	kubectl apply --prune -l app.kubernetes.io/namespace=talk-realm-dev,app.kubernetes.io/name=talkrealm,prunable=true -f ./build/dev.yaml
 	kubectl rollout restart deployment/talk-realm -n talk-realm-dev
 
 .PHONY: check
@@ -101,3 +101,11 @@ port-forward-local:
 .PHONY: port-forward-dev
 port-forward-dev:
 	kubectl port-forward svc/talk-realm 8080:8080 -n talk-realm-dev
+
+.PHONY: port-forward-redis-local
+port-forward-redis-local:
+	kubectl port-forward svc/redis 6379:6379 -n talk-realm-local
+
+.PHONY: port-forward-postgres-local
+port-forward-postgres-local:
+	kubectl port-forward svc/postgres 5432:5432 -n talk-realm-local
