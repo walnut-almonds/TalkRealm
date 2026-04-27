@@ -97,7 +97,7 @@ func New(cfg *config.Config) (*Server, error) {
 //
 //	@title			TalkRealm API
 //	@version		1.0
-//	@description	TalkRealm 是一個即時通訊平台，類似 Discord，提供文字和語音聊天功能。
+//	@description	TalkRealm 是一個即時通訊平台，提供文字和語音聊天功能。
 //	@termsOfService	http://talkrealm.example.com/terms/
 //
 //	@contact.name	API Support

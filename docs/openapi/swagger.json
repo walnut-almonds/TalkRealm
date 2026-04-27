@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "TalkRealm 是一個即時通訊平台，類似 Discord，提供文字和語音聊天功能。",
+        "description": "TalkRealm 是一個即時通訊平台，提供文字和語音聊天功能。",
         "title": "TalkRealm API",
         "termsOfService": "http://talkrealm.example.com/terms/",
         "contact": {
