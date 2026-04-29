@@ -9,18 +9,37 @@ import (
 )
 
 const (
-	// 允許等待的寫入時間
+	// writeWait 允許等待的寫入時間
 	writeWait = 10 * time.Second
 
-	// 允許從對等方讀取下一個 pong 消息的時間
+	// pongWait 允許從對等方讀取下一個 pong 消息的時間
 	pongWait = 60 * time.Second
 
-	// 在此期間向對等方發送 ping。必須小於 pongWait
+	// pingPeriod 在此期間向對等方發送 ping，必須小於 pongWait
 	pingPeriod = (pongWait * 9) / 10
 
-	// 對等方允許的最大消息大小
+	// maxMessageSize 對等方允許的最大消息大小
 	maxMessageSize = 512 * 1024 // 512KB
+
+	// heartbeatInterval 應用層心跳間隔（毫秒）
+	heartbeatInterval = 30_000
 )
+
+// IncomingMessage 從 client 接收的訊息
+type IncomingMessage struct {
+	Op   string          `json:"op"`
+	Data json.RawMessage `json:"d,omitempty"`
+}
+
+// OutgoingMessage 發送給 client 的訊息
+type OutgoingMessage struct {
+	Op        string `json:"op"`
+	Data      any    `json:"d,omitempty"`
+	Timestamp int64  `json:"t"`
+}
+
+// Message 為向後相容保留的型別別名
+type Message = OutgoingMessage
 
 // Client 代表單個 WebSocket 客戶端連接
 type Client struct {
@@ -30,55 +49,48 @@ type Client struct {
 	// 管理器引用
 	manager *Manager
 
-	// 使用者 ID
+	// 使用者 ID（identify 後設定）
 	userID uint
 
-	// 使用者名稱
+	// 使用者名稱（identify 後設定）
 	username string
 
-	// 訂閱的頻道 ID 列表
+	// 是否已通過 identify 認證
+	identified bool
+
+	// 訂閱的頻道 ID 集合
 	channels map[uint]bool
 
 	// 緩衝通道，用於發送消息
 	send chan []byte
 }
 
-// Message 代表 WebSocket 消息
-type Message struct {
-	Type      string `json:"type"`
-	ChannelID uint   `json:"channel_id,omitempty"`
-	Data      any    `json:"data"`
-	Timestamp int64  `json:"timestamp"`
-}
-
-// NewClient 創建新的客戶端
-func NewClient(conn *websocket.Conn, manager *Manager, userID uint, username string) *Client {
+// NewClient 創建新的客戶端（連線建立時不需傳入使用者資訊，待 identify 後設定）
+func NewClient(conn *websocket.Conn, manager *Manager) *Client {
 	return &Client{
 		conn:     conn,
 		manager:  manager,
-		userID:   userID,
-		username: username,
 		channels: make(map[uint]bool),
 		send:     make(chan []byte, 256),
 	}
 }
 
-// readPump 從 WebSocket 連接讀取消息並發送到管理器
+// readPump 從 WebSocket 連接讀取消息
 func (c *Client) readPump() {
 	defer func() {
 		c.manager.unregister <- c
 		c.conn.Close()
 	}()
 
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetReadLimit(maxMessageSize)
+	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
 
 	for {
-		_, message, err := c.conn.ReadMessage()
+		_, raw, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(
 				err,
@@ -90,14 +102,12 @@ func (c *Client) readPump() {
 			break
 		}
 
-		// 解析消息
-		var msg Message
-		if err := json.Unmarshal(message, &msg); err != nil {
-			log.Printf("error unmarshaling message: %v", err)
+		var msg IncomingMessage
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			log.Printf("error parsing incoming message: %v", err)
 			continue
 		}
 
-		// 處理客戶端消息（例如訂閱/取消訂閱頻道）
 		c.handleMessage(&msg)
 	}
 }
@@ -115,7 +125,6 @@ func (c *Client) writePump() {
 		case message, ok := <-c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// 管理器關閉了通道
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -126,7 +135,7 @@ func (c *Client) writePump() {
 			}
 			w.Write(message)
 
-			// 將排隊的消息添加到當前 WebSocket 消息中
+			// 批量寫入排隊中的消息
 			n := len(c.send)
 			for i := 0; i < n; i++ {
 				w.Write([]byte{'\n'})
@@ -146,44 +155,156 @@ func (c *Client) writePump() {
 	}
 }
 
-// handleMessage 處理從客戶端接收的消息
-func (c *Client) handleMessage(msg *Message) {
-	switch msg.Type {
+// handleMessage 處理從客戶端接收的訊息
+func (c *Client) handleMessage(msg *IncomingMessage) {
+	// identify 和 heartbeat 在認證前均可處理
+	switch msg.Op {
+	case "identify":
+		c.handleIdentify(msg.Data)
+		return
+	case "heartbeat":
+		c.sendJSON(OutgoingMessage{
+			Op:        "heartbeat_ack",
+			Data:      map[string]int64{"timestamp": time.Now().UnixMilli()},
+			Timestamp: time.Now().UnixMilli(),
+		})
+		return
+	}
+
+	// 未 identify 的 client 不允許其他操作
+	if !c.identified {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "not identified"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+		return
+	}
+
+	switch msg.Op {
 	case "subscribe":
-		// 訂閱頻道
-		if msg.ChannelID > 0 {
-			c.channels[msg.ChannelID] = true
-			log.Printf("User %s subscribed to channel %d", c.username, msg.ChannelID)
+		var payload struct {
+			ChannelID uint `json:"channel_id"`
 		}
+		if err := json.Unmarshal(msg.Data, &payload); err != nil || payload.ChannelID == 0 {
+			log.Printf("invalid subscribe payload from user %s", c.username)
+			return
+		}
+		c.manager.SubscribeToChannel(c, payload.ChannelID)
 
 	case "unsubscribe":
-		// 取消訂閱頻道
-		if msg.ChannelID > 0 {
-			delete(c.channels, msg.ChannelID)
-			log.Printf("User %s unsubscribed from channel %d", c.username, msg.ChannelID)
+		var payload struct {
+			ChannelID uint `json:"channel_id"`
 		}
+		if err := json.Unmarshal(msg.Data, &payload); err != nil || payload.ChannelID == 0 {
+			return
+		}
+		c.manager.UnsubscribeFromChannel(c, payload.ChannelID)
 
-	case "ping":
-		// 回應 pong
-		response := Message{
-			Type:      "pong",
-			Timestamp: time.Now().Unix(),
+	case "typing_start":
+		var payload struct {
+			ChannelID uint `json:"channel_id"`
 		}
-		if data, err := json.Marshal(response); err == nil {
-			c.send <- data
+		if err := json.Unmarshal(msg.Data, &payload); err != nil || payload.ChannelID == 0 {
+			return
 		}
+		c.manager.BroadcastToChannelExcept(c, payload.ChannelID, "typing_start", map[string]any{
+			"channel_id": payload.ChannelID,
+			"user_id":    c.userID,
+			"username":   c.username,
+		})
 
 	default:
-		log.Printf("Unknown message type: %s", msg.Type)
+		log.Printf("unknown op '%s' from user %s", msg.Op, c.username)
 	}
 }
 
-// SendMessage 發送消息給客戶端
+// handleIdentify 處理 identify op：驗證 JWT 並回應 ready
+func (c *Client) handleIdentify(raw json.RawMessage) {
+	if c.identified {
+		return // 防止重複 identify
+	}
+
+	var payload struct {
+		Token    string `json:"token"`
+		Channels []uint `json:"channels,omitempty"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil || payload.Token == "" {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "invalid identify payload"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+		return
+	}
+
+	claims, err := c.manager.jwtManager.ValidateToken(payload.Token)
+	if err != nil {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "invalid or expired token"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+		return
+	}
+
+	// 設定 client 身份
+	c.userID = claims.UserID
+	c.username = claims.Username
+	c.identified = true
+
+	log.Printf("Client identified: User %s (ID: %d)", c.username, c.userID)
+
+	// 訂閱初始頻道列表
+	for _, channelID := range payload.Channels {
+		c.manager.SubscribeToChannel(c, channelID)
+	}
+
+	// 回應 ready
+	c.sendJSON(OutgoingMessage{
+		Op: "ready",
+		Data: map[string]any{
+			"user_id":  claims.UserID,
+			"username": claims.Username,
+			"email":    claims.Email,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
+
+	// 廣播上線狀態
+	c.manager.broadcastPresenceUpdate(c.userID, c.username, "online")
+}
+
+// sendHello 向剛連線的 client 發送 hello 訊息
+func (c *Client) sendHello() {
+	c.sendJSON(OutgoingMessage{
+		Op: "hello",
+		Data: map[string]any{
+			"heartbeat_interval": heartbeatInterval,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
+}
+
+// sendJSON 序列化並發送 OutgoingMessage
+func (c *Client) sendJSON(msg OutgoingMessage) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("error marshaling outgoing message: %v", err)
+		return
+	}
+	select {
+	case c.send <- data:
+	default:
+		log.Printf("send buffer full for client %s, dropping message", c.username)
+	}
+}
+
+// SendMessage 發送原始位元組給客戶端
 func (c *Client) SendMessage(data []byte) {
 	select {
 	case c.send <- data:
 	default:
-		// 如果發送緩衝區已滿，關閉客戶端
 		close(c.send)
 		c.manager.unregister <- c
 	}

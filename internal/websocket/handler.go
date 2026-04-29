@@ -20,20 +20,9 @@ var upgrader = websocket.Upgrader{
 }
 
 // HandleWebSocket 處理 WebSocket 連接請求
+// 注意：此端點不需要 JWT 中間件，認證由 WS identify op 處理
 func HandleWebSocket(manager *Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 從上下文中獲取使用者資訊（由認證中介軟體設置）
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "未授權"})
-			return
-		}
-
-		username, exists := c.Get("username")
-		if !exists {
-			username = "unknown"
-		}
-
 		// 升級 HTTP 連接到 WebSocket
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
@@ -41,13 +30,13 @@ func HandleWebSocket(manager *Manager) gin.HandlerFunc {
 			return
 		}
 
-		// 創建新客戶端
-		client := NewClient(conn, manager, userID.(uint), username.(string))
+		// 創建新客戶端（未認證，等待 identify op）
+		client := NewClient(conn, manager)
 
-		// 註冊客戶端
+		// 註冊客戶端（會觸發發送 hello）
 		manager.RegisterClient(client)
 
-		log.Printf("WebSocket connection established for user %s (ID: %d)", username, userID)
+		log.Printf("WebSocket connection established (pending identify)")
 	}
 }
 

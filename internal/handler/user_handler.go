@@ -99,9 +99,11 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "login successful",
-		"token":   resp.Token,
-		"user":    resp.User,
+		"message":      "login successful",
+		"access_token": resp.AccessToken,
+		"token_type":   resp.TokenType,
+		"expires_in":   resp.ExpiresIn,
+		"user":         resp.User,
 	})
 }
 

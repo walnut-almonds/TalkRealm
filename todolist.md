@@ -7,11 +7,11 @@
 ## 🔴 Phase 1 — 強化現有 Monolith（高優先）
 
 ### WebSocket 改善
-- [ ] **WS Channel Index**：Manager 加入 `channelSubscriptions map[uint][]*Client`，只推訊息給訂閱該頻道的 client，移除全域廣播
-- [ ] **WS Identify Op**：連線後先發 `identify`（帶 JWT），server 回 `hello` + `ready`，並訂閱初始頻道列表
-- [ ] **Typing Indicator**：實作 `typing_start` op（WS Client → Server → 同頻道廣播）
-- [ ] **Presence 系統**：連線時設 `user:{id}:server`（Redis），斷線時清除，廣播 `presence_update` event
-- [ ] **WS Heartbeat / Reconnect**：標準化 `heartbeat` / `heartbeat_ack`，前端自動重連邏輯
+- [x] **WS Channel Index**：Manager 加入 `channelSubscriptions map[uint]map[*Client]bool`，只推訊息給訂閱該頻道的 client，O(1) 查找
+- [x] **WS Identify Op**：連線後 server 發 `hello`（帶 heartbeat_interval），client 發 `identify`（帶 JWT），server 回 `ready`，並訂閱初始頻道列表
+- [x] **Typing Indicator**：實作 `typing_start` op（WS Client → Server → 同頻道廣播，排除發送者）
+- [x] **Presence 系統**：identify 後廣播 `presence_update` online，斷線後廣播 offline（Redis 版本留待 Redis 整合後補充）
+- [x] **WS Heartbeat / Reconnect**：標準化 `heartbeat` / `heartbeat_ack`，前端自動重連邏輯
 
 ### Redis 整合
 - [ ] **引入 Redis Client**：在 `pkg/redis/` 封裝連線，config 加入 Redis 設定

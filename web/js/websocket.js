@@ -19,16 +19,16 @@ class WebSocketManager {
         }
 
         const wsUrl = `${API_CONFIG.WS_URL}${API_CONFIG.ENDPOINTS.WS}?token=${token}`;
-        
+
         try {
             this.ws = new WebSocket(wsUrl);
-            
+
             this.ws.onopen = () => {
                 console.log('WebSocket connected');
                 this.isConnected = true;
                 this.reconnectAttempts = 0;
                 this.startHeartbeat();
-                
+
                 // 重新訂閱之前的頻道
                 this.subscribedChannels.forEach(channelId => {
                     this.subscribeToChannel(channelId);
@@ -80,9 +80,9 @@ class WebSocketManager {
 
         this.reconnectAttempts++;
         const delay = this.reconnectDelay * this.reconnectAttempts;
-        
+
         console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
-        
+
         setTimeout(() => {
             this.connect(token);
         }, delay);
@@ -127,7 +127,7 @@ class WebSocketManager {
     // 發送正在輸入狀態
     sendTyping(channelId) {
         return this.send({
-            type: 'typing',
+            type: 'typing_start',
             channel_id: channelId,
             timestamp: Date.now()
         });
@@ -161,53 +161,53 @@ class WebSocketManager {
             case 'pong':
                 // 心跳回應
                 break;
-                
-            case 'message':
+
+            case 'message_create':
                 // 新訊息
                 this.notifyHandlers('message', message.data);
                 break;
-                
+
             case 'message_update':
                 // 訊息更新
                 this.notifyHandlers('message_update', message.data);
                 break;
-                
+
             case 'message_delete':
                 // 訊息刪除
                 this.notifyHandlers('message_delete', message.data);
                 break;
-                
-            case 'typing':
+
+            case 'typing_start':
                 // 使用者正在輸入
                 this.notifyHandlers('typing', message.data);
                 break;
-                
-            case 'user_status':
+
+            case 'presence_update':
                 // 使用者狀態更新
                 this.notifyHandlers('user_status', message.data);
                 break;
-                
+
             case 'channel_create':
                 // 頻道建立
                 this.notifyHandlers('channel_create', message.data);
                 break;
-                
+
             case 'channel_update':
                 // 頻道更新
                 this.notifyHandlers('channel_update', message.data);
                 break;
-                
+
             case 'channel_delete':
                 // 頻道刪除
                 this.notifyHandlers('channel_delete', message.data);
                 break;
-                
+
             case 'error':
                 // 錯誤訊息
                 console.error('WebSocket error:', message.data);
                 showNotification(message.data.message || '發生錯誤', 'error');
                 break;
-                
+
             default:
                 console.log('Unknown message type:', message.type);
         }

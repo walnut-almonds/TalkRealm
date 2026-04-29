@@ -127,6 +127,7 @@ Voice:
 
 // Response 200
 {
+  "message": "login successful",
   "access_token": "<JWT>",
   "token_type": "Bearer",
   "expires_in": 86400,
@@ -158,7 +159,7 @@ Voice:
   "id": 1,
   "username": "alice",
   "email": "alice@example.com",
-  "avatar_url": "https://cdn.talkrealm.com/avatars/1.png",
+  "avatar": "https://cdn.talkrealm.com/avatars/1.png",
   "status": "online",
   "created_at": "2026-04-30T00:00:00Z"
 }
@@ -167,14 +168,14 @@ Voice:
 #### PATCH /api/v1/users/me
 ```json
 // Request
-{ "username": "alice2", "avatar_url": "https://..." }
+{ "nickname": "Alice2", "avatar": "https://...", "status": "busy" }
 // Response 200 — 回傳更新後 User 物件
 ```
 
 #### GET /api/v1/users/{id}
 ```json
 // Response 200 — 公開資料（不含 email）
-{ "id": 2, "username": "bob", "avatar_url": null, "status": "offline" }
+{ "id": 2, "username": "bob", "avatar": null, "status": "offline" }
 ```
 
 ---
@@ -184,13 +185,13 @@ Voice:
 #### POST /api/v1/guilds
 ```json
 // Request
-{ "name": "My Server", "description": "Hello", "icon_url": null }
+{ "name": "My Server", "description": "Hello", "icon": null }
 // Response 201
 {
   "id": 10,
   "name": "My Server",
   "owner_id": 1,
-  "icon_url": null,
+  "icon": null,
   "created_at": "..."
 }
 ```
@@ -198,7 +199,7 @@ Voice:
 #### GET /api/v1/guilds/me
 ```json
 // Response 200 — 當前使用者加入的所有 guild
-{ "guilds": [ { "id": 10, "name": "My Server", "icon_url": null, "role": "owner" } ] }
+{ "guilds": [ { "id": 10, "name": "My Server", "icon": null, "role": "owner" } ] }
 ```
 
 #### GET /api/v1/guilds/{id}
@@ -216,7 +217,7 @@ Voice:
 #### PATCH /api/v1/guilds/{id}
 ```json
 // Request（需 owner 或 admin 權限）
-{ "name": "New Name", "description": "...", "icon_url": "..." }
+{ "name": "New Name", "description": "...", "icon": "..." }
 // Response 200
 ```
 
@@ -346,13 +347,13 @@ Voice:
     {
       "id": 100,
       "channel_id": 1,
-      "author": { "id": 1, "username": "alice" },
+      "user_id": 1,
+      "user": { "id": 1, "username": "alice" },
       "content": "Hello!",
       "type": "text",
-      "attachments": [],
+      "is_edited": false,
       "created_at": "...",
-      "updated_at": null,
-      "is_edited": false
+      "updated_at": "..."
     }
   ],
   "has_more": true
@@ -603,6 +604,9 @@ created_at TIMESTAMPTZ
 | Rate Limiting | ❌ 無 | Redis counter | 🟠 低 |
 | RBAC 權限系統 | ❌ 只有 role 欄位 | 完整 role permission check | 🟡 中 |
 | Cursor-based pagination | ❌ offset pagination | before/after message_id | 🟡 中 |
+| **WS message format** | ⚠️ `type`/`data` 格式 | `op`/`d` Discord-like 格式 | 🟡 中 |
+| **訊息建立頃道** | ⚠️ REST POST 建立，WS 僅廣播 | WS-first：client 透過 WS `send_message` op 直接建立 | 🟡 中 |
+| **`is_edited` 欄位** | ✅ 已新增至 Message model | 須加 DB migration | 🔴 高 |
 
 ---
 

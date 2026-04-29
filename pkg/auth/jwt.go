@@ -26,6 +26,11 @@ type JWTManager struct {
 	tokenDuration time.Duration
 }
 
+// TokenDuration 回傳 token 有效期
+func (m *JWTManager) TokenDuration() time.Duration {
+	return m.tokenDuration
+}
+
 // NewJWTManager 建立 JWT 管理器
 func NewJWTManager(secretKey string, tokenDuration time.Duration) *JWTManager {
 	return &JWTManager{

@@ -25,7 +25,7 @@ type WebSocketManager interface {
 type MessageService interface {
 	CreateMessage(userID uint, req *CreateMessageRequest) (*model.Message, error)
 	GetMessage(messageID, userID uint) (*model.Message, error)
-	ListChannelMessages(channelID, userID uint, page, pageSize int) (*MessageListResponse, error)
+	ListChannelMessages(channelID, userID uint, limit int, before uint) (*MessageListResponse, error)
 	UpdateMessage(messageID, userID uint, req *UpdateMessageRequest) (*model.Message, error)
 	DeleteMessage(messageID, userID uint) error
 	SetWebSocketManager(manager WebSocketManager)
@@ -71,11 +71,8 @@ type UpdateMessageRequest struct {
 
 // MessageListResponse 訊息列表回應
 type MessageListResponse struct {
-	Messages   []*model.Message `json:"messages"`
-	Total      int              `json:"total"`
-	Page       int              `json:"page"`
-	PageSize   int              `json:"page_size"`
-	TotalPages int              `json:"total_pages"`
+	Messages []*model.Message `json:"messages"`
+	HasMore  bool             `json:"has_more"`
 }
 
 // CreateMessage 建立訊息
@@ -132,7 +129,7 @@ func (s *messageService) CreateMessage(
 
 	// 如果有 WebSocket 管理器，即時推送新訊息
 	if s.wsManager != nil {
-		s.wsManager.BroadcastToChannel(req.ChannelID, "new_message", fullMessage)
+		s.wsManager.BroadcastToChannel(req.ChannelID, "message_create", fullMessage)
 	}
 
 	return fullMessage, nil
@@ -160,10 +157,11 @@ func (s *messageService) GetMessage(messageID, userID uint) (*model.Message, err
 	return message, nil
 }
 
-// ListChannelMessages 列出頻道的訊息
+// ListChannelMessages 列出頻道的訊息（cursor-based 分頁）
 func (s *messageService) ListChannelMessages(
 	channelID, userID uint,
-	page, pageSize int,
+	limit int,
+	before uint,
 ) (*MessageListResponse, error) {
 	// 檢查頻道是否存在
 	channel, err := s.channelRepo.GetByID(channelID)
@@ -177,37 +175,24 @@ func (s *messageService) ListChannelMessages(
 		return nil, ErrNotChannelMemberMsg
 	}
 
-	// 設定預設分頁參數
-	if page < 1 {
-		page = 1
+	if limit < 1 || limit > 100 {
+		limit = 50
 	}
 
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 50
-	}
-
-	// 計算偏移量
-	offset := (page - 1) * pageSize
-
-	// 取得訊息列表
-	messages, err := s.messageRepo.GetByChannelID(channelID, offset, pageSize)
+	// 多取一筆用於判斷 has_more
+	messages, err := s.messageRepo.GetByChannelIDCursor(channelID, before, limit+1)
 	if err != nil {
 		return nil, err
 	}
 
-	// 計算總頁數（這裡簡化處理，實際應該查詢總數）
-	// TODO: 新增 CountByChannelID 方法到 repository
-	totalPages := 1
-	if len(messages) == pageSize {
-		totalPages = page + 1 // 如果有完整一頁，假設還有下一頁
+	hasMore := len(messages) > limit
+	if hasMore {
+		messages = messages[:limit]
 	}
 
 	return &MessageListResponse{
-		Messages:   messages,
-		Total:      len(messages),
-		Page:       page,
-		PageSize:   pageSize,
-		TotalPages: totalPages,
+		Messages: messages,
+		HasMore:  hasMore,
 	}, nil
 }
 
@@ -234,6 +219,7 @@ func (s *messageService) UpdateMessage(
 
 	// 更新訊息
 	message.Content = req.Content
+	message.IsEdited = true
 	message.UpdatedAt = time.Now()
 
 	if err := s.messageRepo.Update(message); err != nil {
@@ -241,7 +227,17 @@ func (s *messageService) UpdateMessage(
 	}
 
 	// 重新取得訊息（包含關聯資料）
-	return s.messageRepo.GetByID(message.ID)
+	updated, err := s.messageRepo.GetByID(message.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 廣播訊息更新事件
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToChannel(message.ChannelID, "message_update", updated)
+	}
+
+	return updated, nil
 }
 
 // DeleteMessage 刪除訊息
@@ -272,5 +268,17 @@ func (s *messageService) DeleteMessage(messageID, userID uint) error {
 	}
 
 	// 刪除訊息
-	return s.messageRepo.Delete(messageID)
+	if err := s.messageRepo.Delete(messageID); err != nil {
+		return err
+	}
+
+	// 廣播訊息刪除事件
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToChannel(message.ChannelID, "message_delete", map[string]any{
+			"message_id": messageID,
+			"channel_id": message.ChannelID,
+		})
+	}
+
+	return nil
 }

@@ -50,7 +50,8 @@ type Message struct {
 	UserID    uint      `gorm:"not null"             json:"user_id"`
 	User      User      `gorm:"foreignKey:UserID"    json:"user"`
 	Content   string    `gorm:"not null"             json:"content"`
-	Type      string    `gorm:"default:'text'"       json:"type"` // text, image, file
+	Type      string    `gorm:"default:'text'"       json:"type"`      // text, image, file
+	IsEdited  bool      `gorm:"default:false"        json:"is_edited"` // 是否被編輯過
 	CreatedAt time.Time `                            json:"created_at"`
 	UpdatedAt time.Time `                            json:"updated_at"`
 }

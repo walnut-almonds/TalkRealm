@@ -56,8 +56,8 @@ func New(cfg *config.Config) (*Server, error) {
 	channelRepo := repository.NewChannelRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
 
-	// 初始化 WebSocket 管理器
-	wsManager := websocket.NewManager()
+	// 初始化 WebSocket 管理器（傳入 jwtManager，用於 identify op 驗證）
+	wsManager := websocket.NewManager(jwtManager)
 	go wsManager.Run() // 啟動 WebSocket 管理器
 
 	// 初始化 Service
@@ -177,10 +177,10 @@ func (s *Server) setupRoutes() {
 				messages.PATCH("/:id", s.messageHandler.UpdateMessage)
 				messages.DELETE("/:id", s.messageHandler.DeleteMessage)
 			}
-
-			// WebSocket 連線（需要認證）
-			protected.GET("/ws", websocket.HandleWebSocket(s.wsManager))
 		}
+
+		// WebSocket 連線（不需要 JWT 中間件，認證由 identify op 處理）
+		v1.GET("/ws", websocket.HandleWebSocket(s.wsManager))
 	}
 } // Router 返回 gin 路由器
 func (s *Server) Router() *gin.Engine {

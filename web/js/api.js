@@ -20,11 +20,11 @@ class API {
         const headers = {
             'Content-Type': 'application/json'
         };
-        
+
         if (includeAuth && this.token) {
             headers['Authorization'] = `Bearer ${this.token}`;
         }
-        
+
         return headers;
     }
 
@@ -94,11 +94,11 @@ class API {
             email,
             password
         }, false);
-        
-        if (data.token) {
-            this.setToken(data.token);
+
+        if (data.access_token) {
+            this.setToken(data.access_token);
         }
-        
+
         return data;
     }
 
@@ -185,7 +185,7 @@ class API {
     async sendMessage(channelId, content, messageType = 'text') {
         return this.post(API_CONFIG.ENDPOINTS.CHANNEL_MESSAGES(channelId), {
             content,
-            message_type: messageType
+            type: messageType
         });
     }
 

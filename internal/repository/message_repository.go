@@ -14,6 +14,7 @@ type MessageRepository interface {
 	Update(message *model.Message) error
 	Delete(id uint) error
 	GetByChannelID(channelID uint, offset, limit int) ([]*model.Message, error)
+	GetByChannelIDCursor(channelID uint, before uint, limit int) ([]*model.Message, error)
 	GetByUserID(userID uint, offset, limit int) ([]*model.Message, error)
 }
 
@@ -72,6 +73,28 @@ func (r *messageRepository) GetByChannelID(
 		Limit(limit).
 		Find(&messages).Error
 
+	return messages, err
+}
+
+// GetByChannelIDCursor 取得頻道的訊息（cursor-based 分頁，從 before_id 往前取）
+func (r *messageRepository) GetByChannelIDCursor(
+	channelID uint,
+	before uint,
+	limit int,
+) ([]*model.Message, error) {
+	var messages []*model.Message
+
+	q := r.db.
+		Preload("User").
+		Where("channel_id = ?", channelID).
+		Order("id DESC").
+		Limit(limit)
+
+	if before > 0 {
+		q = q.Where("id < ?", before)
+	}
+
+	err := q.Find(&messages).Error
 	return messages, err
 }
 

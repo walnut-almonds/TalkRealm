@@ -32,8 +32,10 @@ type LoginRequest struct {
 
 // LoginResponse 登入回應
 type LoginResponse struct {
-	Token string      `json:"token"`
-	User  *model.User `json:"user"`
+	AccessToken string      `json:"access_token"`
+	TokenType   string      `json:"token_type"`
+	ExpiresIn   int         `json:"expires_in"` // 秒數
+	User        *model.User `json:"user"`
 }
 
 // UpdateUserRequest 更新使用者請求
@@ -131,8 +133,10 @@ func (s *userService) Login(req *LoginRequest) (*LoginResponse, error) {
 	_ = s.repo.UpdateStatus(user.ID, "online")
 
 	return &LoginResponse{
-		Token: token,
-		User:  user,
+		AccessToken: token,
+		TokenType:   "Bearer",
+		ExpiresIn:   int(s.jwtManager.TokenDuration().Seconds()),
+		User:        user,
 	}, nil
 }
 

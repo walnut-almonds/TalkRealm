@@ -130,15 +130,15 @@ func (h *MessageHandler) GetMessage(c *gin.Context) {
 // ListChannelMessages 列出頻道訊息
 //
 //	@Summary		列出頻道訊息
-//	@Description	列出指定頻道的所有訊息（分頁）
+//	@Description	列出指定頻道的訊息（cursor-based 分頁）
 //	@Tags			messages
 //	@Produce		json
-//	@Param			id			path		int	true	"頻道 ID"
-//	@Param			page		query		int	false	"頁碼"	default(1)
-//	@Param			page_size	query		int	false	"每頁數量"	default(50)
-//	@Success		200			{object}	service.MessageListResponse
-//	@Failure		400			{object}	map[string]string
-//	@Failure		403			{object}	map[string]string
+//	@Param			id		path		int	true	"頻道 ID"
+//	@Param			before	query		int	false	"訊息 ID，取得此 ID 之前的訊息"
+//	@Param			limit	query		int	false	"每次取得數量 (1-100)"	default(50)
+//	@Success		200		{object}	service.MessageListResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
 //	@Router			/api/v1/channels/{id}/messages [get]
 func (h *MessageHandler) ListChannelMessages(c *gin.Context) {
 	// 從 context 取得使用者 ID
@@ -155,28 +155,26 @@ func (h *MessageHandler) ListChannelMessages(c *gin.Context) {
 		return
 	}
 
-	// 取得分頁參數
-	page := 1
-
-	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
+	// cursor: before message ID
+	var before uint
+	if beforeStr := c.Query("before"); beforeStr != "" {
+		if b, err := strconv.ParseUint(beforeStr, 10, 32); err == nil {
+			before = uint(b)
 		}
 	}
 
-	pageSize := 50
-
-	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
-			pageSize = ps
+	limit := 50
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
 		}
 	}
 
 	response, err := h.messageService.ListChannelMessages(
 		uint(channelID),
 		userID.(uint),
-		page,
-		pageSize,
+		limit,
+		before,
 	)
 	if err != nil {
 		switch {
