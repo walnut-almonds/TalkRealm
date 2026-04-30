@@ -1,5 +1,6 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
+
 <body>
     <!-- 登入/註冊頁面 -->
     <div id="auth-page" class="auth-container">
@@ -15,7 +17,7 @@
                 <i class="fas fa-comments"></i>
                 <h1>TalkRealm</h1>
             </div>
-            
+
             <!-- 登入表單 -->
             <div id="login-form" class="auth-form active">
                 <h2>歡迎回來！</h2>
@@ -47,7 +49,8 @@
                     </div>
                     <div class="form-group">
                         <label>使用者名稱</label>
-                        <input type="text" id="register-username" placeholder="請輸入使用者名稱" required minlength="3" maxlength="32">
+                        <input type="text" id="register-username" placeholder="請輸入使用者名稱" required minlength="3"
+                            maxlength="32">
                     </div>
                     <div class="form-group">
                         <label>暱稱</label>
@@ -80,6 +83,9 @@
             <div class="guild-item add-guild" onclick="showCreateGuildModal()" title="建立社群">
                 <i class="fas fa-plus"></i>
             </div>
+            <div class="guild-item join-guild" onclick="showJoinByInviteModal()" title="透過邀請碼加入">
+                <i class="fas fa-link"></i>
+            </div>
         </div>
 
         <!-- 頻道側邊欄 -->
@@ -90,7 +96,7 @@
                     <i class="fas fa-cog" onclick="showGuildSettings()" title="社群設定"></i>
                 </div>
             </div>
-            
+
             <div class="channels-container">
                 <!-- 文字頻道 -->
                 <div class="channel-category">
@@ -169,12 +175,8 @@
                     <button class="btn-icon" title="上傳檔案">
                         <i class="fas fa-plus-circle"></i>
                     </button>
-                    <input 
-                        type="text" 
-                        id="message-input" 
-                        placeholder="在此輸入訊息..."
-                        onkeypress="handleMessageKeyPress(event)"
-                    >
+                    <input type="text" id="message-input" placeholder="在此輸入訊息..."
+                        onkeypress="handleMessageKeyPress(event)">
                     <button class="btn-icon" title="表情符號">
                         <i class="fas fa-smile"></i>
                     </button>
@@ -241,8 +243,8 @@
                     <input type="text" id="channel-name-input" placeholder="一般" required>
                 </div>
                 <div class="form-group">
-                    <label>頻道描述</label>
-                    <textarea id="channel-description-input" placeholder="描述此頻道（選填）" rows="3"></textarea>
+                    <label>頻道主題</label>
+                    <textarea id="channel-description-input" placeholder="此頻道的主題（選填）" rows="3"></textarea>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" onclick="closeModal('create-channel-modal')">取消</button>
@@ -285,6 +287,73 @@
         </div>
     </div>
 
+    <!-- 社群設定模態視窗 -->
+    <div id="guild-settings-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>社群設定</h2>
+                <span class="close" onclick="closeModal('guild-settings-modal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- 基本設定 -->
+                <section class="settings-section">
+                    <h3 class="settings-section-title">基本資訊</h3>
+                    <form onsubmit="handleUpdateGuild(event)">
+                        <div class="form-group">
+                            <label>社群名稱</label>
+                            <input type="text" id="guild-edit-name" placeholder="社群名稱" required>
+                        </div>
+                        <div class="form-group">
+                            <label>社群描述</label>
+                            <textarea id="guild-edit-description" placeholder="描述您的社群（選填）" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary">儲存變更</button>
+                    </form>
+                </section>
+
+                <!-- 邀請碼 -->
+                <section class="settings-section">
+                    <h3 class="settings-section-title">邀請連結</h3>
+                    <p class="settings-section-desc">建立邀請碼讓其他人加入此社群（7天有效）。</p>
+                    <div id="invite-code-display" class="invite-code-box hidden">
+                        <code id="invite-code-value"></code>
+                        <button class="btn-secondary btn-sm" onclick="copyInviteCode()"><i class="fas fa-copy"></i>
+                            複製</button>
+                    </div>
+                    <button class="btn-secondary" onclick="handleCreateInvite()"><i class="fas fa-plus"></i>
+                        建立邀請碼</button>
+                </section>
+
+                <!-- 危險區域 -->
+                <section class="settings-section settings-danger">
+                    <h3 class="settings-section-title danger">危險區域</h3>
+                    <p class="settings-section-desc">刪除社群後無法復原，所有資料將永久消失。</p>
+                    <button class="btn-danger" onclick="handleDeleteGuild()"><i class="fas fa-trash"></i> 刪除社群</button>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- 透過邀請碼加入社群模態視窗 -->
+    <div id="join-invite-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>透過邀請碼加入</h2>
+                <span class="close" onclick="closeModal('join-invite-modal')">&times;</span>
+            </div>
+            <form onsubmit="handleJoinByInvite(event)">
+                <div class="form-group">
+                    <label>邀請碼</label>
+                    <input type="text" id="invite-code-input" placeholder="請輸入邀請碼" required autocomplete="off">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('join-invite-modal')">取消</button>
+                    <button type="submit" class="btn-primary">加入社群</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 通知提示 -->
     <div id="notification" class="notification"></div>
 
@@ -299,4 +368,5 @@
     <script src="js/websocket.js"></script>
     <script src="js/app.js"></script>
 </body>
+
 </html>

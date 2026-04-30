@@ -15,6 +15,19 @@ class API {
         }
     }
 
+    // 設定 refresh token
+    setRefreshToken(token) {
+        if (token) {
+            localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+        } else {
+            localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        }
+    }
+
+    getRefreshToken() {
+        return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+    }
+
     // 獲取 headers
     getHeaders(includeAuth = true) {
         const headers = {
@@ -29,7 +42,7 @@ class API {
     }
 
     // 通用請求方法
-    async request(url, options = {}) {
+    async request(url, options = {}, _isRetry = false) {
         const config = {
             ...options,
             headers: this.getHeaders(options.auth !== false)
@@ -38,6 +51,23 @@ class API {
         try {
             const response = await fetch(`${this.baseURL}${url}`, config);
             const data = await response.json().catch(() => ({}));
+
+            // 嘗試自動換發 access token（一次）
+            if (response.status === 401 && !_isRetry && options.auth !== false) {
+                const refreshToken = this.getRefreshToken();
+                if (refreshToken) {
+                    try {
+                        const refreshed = await this.refreshToken(refreshToken);
+                        this.setToken(refreshed.access_token);
+                        this.setRefreshToken(refreshed.refresh_token);
+                        return this.request(url, options, true);
+                    } catch (_) {
+                        // refresh 失敗，清除 token 並拋出錯誤
+                        this.setToken(null);
+                        this.setRefreshToken(null);
+                    }
+                }
+            }
 
             if (!response.ok) {
                 throw new Error(data.error || data.message || '請求失敗');
@@ -98,8 +128,24 @@ class API {
         if (data.access_token) {
             this.setToken(data.access_token);
         }
+        if (data.refresh_token) {
+            this.setRefreshToken(data.refresh_token);
+        }
 
         return data;
+    }
+
+    async refreshToken(refreshToken) {
+        return this.post(API_CONFIG.ENDPOINTS.REFRESH, { refresh_token: refreshToken }, false);
+    }
+
+    async logout(refreshToken) {
+        const rt = refreshToken || this.getRefreshToken();
+        if (rt) {
+            await this.post(API_CONFIG.ENDPOINTS.LOGOUT, { refresh_token: rt }).catch(() => { });
+        }
+        this.setToken(null);
+        this.setRefreshToken(null);
     }
 
     // 使用者 API
@@ -109,6 +155,10 @@ class API {
 
     async updateCurrentUser(updates) {
         return this.patch(API_CONFIG.ENDPOINTS.UPDATE_ME, updates);
+    }
+
+    async getPublicUser(userId) {
+        return this.get(API_CONFIG.ENDPOINTS.PUBLIC_USER(userId));
     }
 
     // 社群 API
@@ -157,11 +207,11 @@ class API {
         return this.get(API_CONFIG.ENDPOINTS.CHANNEL(channelId));
     }
 
-    async createChannel(guildId, name, type, description) {
+    async createChannel(guildId, name, type, topic) {
         return this.post(API_CONFIG.ENDPOINTS.GUILD_CHANNELS(guildId), {
             name,
             type,
-            description
+            topic
         });
     }
 
@@ -197,6 +247,31 @@ class API {
 
     async deleteMessage(messageId) {
         return this.delete(API_CONFIG.ENDPOINTS.MESSAGE(messageId));
+    }
+
+    // 成員管理 API
+    async kickMember(guildId, userId) {
+        return this.delete(API_CONFIG.ENDPOINTS.KICK_MEMBER(guildId, userId));
+    }
+
+    async updateMemberRole(guildId, userId, role) {
+        return this.request(API_CONFIG.ENDPOINTS.UPDATE_MEMBER_ROLE(guildId, userId), {
+            method: 'PUT',
+            body: JSON.stringify({ role })
+        });
+    }
+
+    // 邀請碼 API
+    async createInvite(guildId) {
+        return this.post(API_CONFIG.ENDPOINTS.CREATE_INVITE(guildId), {});
+    }
+
+    async getInvite(code) {
+        return this.get(API_CONFIG.ENDPOINTS.GET_INVITE(code), false);
+    }
+
+    async joinByInvite(code) {
+        return this.post(API_CONFIG.ENDPOINTS.JOIN_BY_INVITE, { code });
     }
 }
 

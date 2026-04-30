@@ -5,19 +5,19 @@
     --success-color: #3BA55D;
     --danger-color: #ED4245;
     --warning-color: #FEE75C;
-    
+
     --bg-primary: #36393F;
     --bg-secondary: #2F3136;
     --bg-tertiary: #202225;
     --bg-modal: #36393F;
-    
+
     --text-primary: #FFFFFF;
     --text-secondary: #B9BBBE;
     --text-muted: #72767D;
-    
+
     --border-color: #202225;
     --hover-bg: #393C43;
-    
+
     --online: #3BA55D;
     --idle: #FEE75C;
     --busy: #ED4245;
@@ -717,6 +717,179 @@ body {
     color: var(--text-primary);
 }
 
+/* 小型圖示按鈕（用於成員操作等） */
+.btn-icon-sm {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 12px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.btn-icon-sm:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.btn-icon-sm.danger:hover {
+    background-color: rgba(237, 66, 69, 0.15);
+    color: var(--danger-color);
+}
+
+/* 危險按鈕 */
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.btn-danger:hover {
+    background-color: #c03a3c;
+}
+
+/* 小型次要按鈕 */
+.btn-sm {
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+}
+
+/* 角色 badge */
+.role-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-left: 4px;
+    text-transform: uppercase;
+}
+
+.role-owner {
+    background-color: rgba(254, 231, 92, 0.2);
+    color: var(--warning-color);
+    border: 1px solid rgba(254, 231, 92, 0.4);
+}
+
+.role-admin {
+    background-color: rgba(237, 66, 69, 0.2);
+    color: var(--danger-color);
+    border: 1px solid rgba(237, 66, 69, 0.4);
+}
+
+.role-moderator {
+    background-color: rgba(88, 101, 242, 0.2);
+    color: #8b9cf9;
+    border: 1px solid rgba(88, 101, 242, 0.4);
+}
+
+/* 成員操作按鈕組 */
+.member-actions {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+}
+
+.member-item:hover .member-actions {
+    display: flex;
+}
+
+.member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 邀請碼顯示框 */
+.invite-code-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: var(--bg-tertiary);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.invite-code-box code {
+    font-size: 16px;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+    flex: 1;
+    user-select: all;
+}
+
+/* 社群設定 modal sections */
+.modal-body {
+    padding: 24px;
+}
+
+.settings-section {
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.settings-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+}
+
+.settings-section-title.danger {
+    color: var(--danger-color);
+}
+
+.settings-section-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.settings-danger {
+    background-color: rgba(237, 66, 69, 0.05);
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 8px;
+}
+
+/* 加入社群按鈕樣式 */
+.guild-item.join-guild {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+
+.guild-item.join-guild:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 16px;
+}
+
 /* 成員列表 */
 .members-sidebar {
     width: 240px;
@@ -808,8 +981,13 @@ body {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .modal.active {
@@ -833,6 +1011,7 @@ body {
         transform: translateY(20px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -900,6 +1079,7 @@ body {
         transform: translateX(400px);
         opacity: 0;
     }
+
     to {
         transform: translateX(0);
         opacity: 1;
@@ -946,8 +1126,13 @@ body {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* 響應式設計 */

@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // 檢查認證狀態
 function checkAuth() {
     const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-    
+
     if (token) {
         api.setToken(token);
         loadUserData();
@@ -34,23 +34,23 @@ async function loadUserData() {
         showLoading(true);
         const response = await api.getCurrentUser();
         appState.user = response.user;
-        
+
         // 連接 WebSocket
         wsManager.connect(api.token);
-        
+
         // 載入社群
         await loadGuilds();
-        
+
         showAppPage();
         updateUserPanel();
-        
+
         // 嘗試恢復上次的社群和頻道
         const lastGuildId = localStorage.getItem(STORAGE_KEYS.LAST_GUILD);
         if (lastGuildId) {
             const guild = appState.guilds.find(g => g.id === parseInt(lastGuildId));
             if (guild) {
                 await selectGuild(guild.id);
-                
+
                 const lastChannelId = localStorage.getItem(STORAGE_KEYS.LAST_CHANNEL);
                 if (lastChannelId) {
                     const channel = appState.channels.find(c => c.id === parseInt(lastChannelId));
@@ -86,27 +86,27 @@ async function loadGuilds() {
 async function selectGuild(guildId) {
     try {
         showLoading(true);
-        
+
         // 獲取社群詳情
         const guild = await api.getGuild(guildId);
         appState.currentGuild = guild;
-        
+
         // 獲取頻道列表
         const channels = await api.getGuildChannels(guildId);
         appState.channels = Array.isArray(channels) ? channels : (channels.channels || []);
-        
+
         // 獲取成員列表
         const members = await api.getGuildMembers(guildId);
         appState.members = Array.isArray(members) ? members : (members.members || []);
-        
+
         // 更新 UI
         updateGuildHeader();
         renderChannels();
         renderMembers();
-        
+
         // 儲存到本地
         localStorage.setItem(STORAGE_KEYS.LAST_GUILD, guildId);
-        
+
         // 更新社群按鈕狀態
         document.querySelectorAll('.guild-item').forEach(item => {
             item.classList.remove('active');
@@ -127,29 +127,29 @@ async function selectGuild(guildId) {
 async function selectChannel(channelId) {
     try {
         showLoading(true);
-        
+
         // 取消訂閱舊頻道
         if (appState.currentChannel) {
             wsManager.unsubscribeFromChannel(appState.currentChannel.id);
         }
-        
+
         // 獲取頻道詳情
         const channel = await api.getChannel(channelId);
         appState.currentChannel = channel;
-        
+
         // 訂閱新頻道
         wsManager.subscribeToChannel(channelId);
-        
+
         // 載入訊息
         await loadMessages(channelId);
-        
+
         // 更新 UI
         updateChannelHeader();
         renderMessages();
-        
+
         // 儲存到本地
         localStorage.setItem(STORAGE_KEYS.LAST_CHANNEL, channelId);
-        
+
         // 更新頻道按鈕狀態
         document.querySelectorAll('.channel-item').forEach(item => {
             item.classList.remove('active');
@@ -158,7 +158,7 @@ async function selectChannel(channelId) {
         if (channelElement) {
             channelElement.classList.add('active');
         }
-        
+
         // 聚焦輸入框
         document.getElementById('message-input').focus();
     } catch (error) {
@@ -173,10 +173,10 @@ async function selectChannel(channelId) {
 async function loadMessages(channelId, before = null) {
     try {
         const response = await api.getChannelMessages(channelId, 50, before);
-        
+
         // 後端返回 response 物件，包含 messages 陣列
         const messages = response.messages || [];
-        
+
         if (before) {
             // 載入更多訊息（往前）
             appState.messages = [...messages, ...appState.messages];
@@ -184,7 +184,7 @@ async function loadMessages(channelId, before = null) {
             // 首次載入
             appState.messages = messages;
         }
-        
+
         return messages;
     } catch (error) {
         console.error('Failed to load messages:', error);
@@ -197,17 +197,17 @@ async function loadMessages(channelId, before = null) {
 async function sendMessage() {
     const input = document.getElementById('message-input');
     const content = input.value.trim();
-    
+
     if (!content || !appState.currentChannel) {
         return;
     }
-    
+
     try {
         input.value = '';
         input.disabled = true;
-        
+
         await api.sendMessage(appState.currentChannel.id, content);
-        
+
         // 訊息會通過 WebSocket 接收，不需要手動添加
     } catch (error) {
         console.error('Failed to send message:', error);
@@ -317,7 +317,7 @@ function handleChannelUpdate(channel) {
     if (index !== -1) {
         appState.channels[index] = channel;
         renderChannels();
-        
+
         if (appState.currentChannel && appState.currentChannel.id === channel.id) {
             appState.currentChannel = channel;
             updateChannelHeader();
@@ -331,7 +331,7 @@ function handleChannelDelete(data) {
     if (index !== -1) {
         appState.channels.splice(index, 1);
         renderChannels();
-        
+
         if (appState.currentChannel && appState.currentChannel.id === data.channel_id) {
             appState.currentChannel = null;
             appState.messages = [];
@@ -345,21 +345,21 @@ function handleChannelDelete(data) {
 function renderGuilds() {
     const container = document.getElementById('guilds-list');
     container.innerHTML = '';
-    
+
     appState.guilds.forEach(guild => {
         const guildElement = document.createElement('div');
         guildElement.className = 'guild-item';
         guildElement.setAttribute('data-guild-id', guild.id);
         guildElement.title = guild.name;
         guildElement.onclick = () => selectGuild(guild.id);
-        
+
         if (guild.icon) {
             guildElement.innerHTML = `<img src="${guild.icon}" alt="${guild.name}">`;
         } else {
             // 使用社群名稱的首字母
             guildElement.textContent = guild.name.charAt(0).toUpperCase();
         }
-        
+
         container.appendChild(guildElement);
     });
 }
@@ -368,7 +368,7 @@ function renderGuilds() {
 function renderChannels() {
     const textChannels = appState.channels.filter(c => c.type === 'text');
     const voiceChannels = appState.channels.filter(c => c.type === 'voice');
-    
+
     renderChannelList('text-channels-list', textChannels, 'hashtag');
     renderChannelList('voice-channels-list', voiceChannels, 'volume-up');
 }
@@ -377,43 +377,76 @@ function renderChannels() {
 function renderChannelList(containerId, channels, iconClass) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
-    
+
     channels.forEach(channel => {
         const channelElement = document.createElement('div');
         channelElement.className = 'channel-item';
         channelElement.setAttribute('data-channel-id', channel.id);
         channelElement.onclick = () => selectChannel(channel.id);
-        
+
         channelElement.innerHTML = `
             <i class="fas fa-${iconClass}"></i>
             <span>${channel.name}</span>
         `;
-        
+
         container.appendChild(channelElement);
     });
 }
+
+// 取得目前使用者在社群中的角色
+function getCurrentUserRole() {
+    if (!appState.user || !appState.members.length) return null;
+    const me = appState.members.find(m => m.user_id === appState.user.id);
+    return me ? me.role : null;
+}
+
+// 角色階層
+const ROLE_LEVEL = { owner: 4, admin: 3, moderator: 2, member: 1 };
 
 // 渲染成員列表
 function renderMembers() {
     const container = document.getElementById('members-list');
     container.innerHTML = '';
-    
+
+    const myRole = getCurrentUserRole();
+    const myLevel = ROLE_LEVEL[myRole] || 0;
+
     appState.members.forEach(member => {
         const memberElement = document.createElement('div');
         memberElement.className = 'member-item';
-        
+
         const user = member.user || {};
         const status = user.status || 'offline';
         const nickname = user.nickname || user.username || 'Unknown';
-        
+        const role = member.role || 'member';
+        const memberLevel = ROLE_LEVEL[role] || 0;
+
+        const roleLabel = { owner: '擁有者', admin: '管理員', moderator: '版主', member: '' }[role] || '';
+        const roleBadge = roleLabel ? `<span class="role-badge role-${role}">${roleLabel}</span>` : '';
+
+        // admin/owner 可管理低階成員
+        const canManage = myLevel >= ROLE_LEVEL.admin && memberLevel < myLevel && appState.user && member.user_id !== appState.user.id;
+        const adminActions = canManage ? `
+            <div class="member-actions">
+                <button class="btn-icon-sm" title="更改角色" onclick="handleUpdateMemberRole(${appState.currentGuild.id}, ${member.user_id}, '${escapeHtml(nickname)}', '${role}')">
+                    <i class="fas fa-user-shield"></i>
+                </button>
+                <button class="btn-icon-sm danger" title="移出社群" onclick="handleKickMember(${appState.currentGuild.id}, ${member.user_id}, '${escapeHtml(nickname)}')">
+                    <i class="fas fa-user-times"></i>
+                </button>
+            </div>` : '';
+
         memberElement.innerHTML = `
             <div class="member-avatar">
                 ${user.avatar ? `<img src="${user.avatar}" alt="${nickname}">` : '<i class="fas fa-user"></i>'}
                 <span class="status-indicator ${status}"></span>
             </div>
-            <div class="member-name">${nickname}</div>
+            <div class="member-info">
+                <div class="member-name">${escapeHtml(nickname)} ${roleBadge}</div>
+            </div>
+            ${adminActions}
         `;
-        
+
         container.appendChild(memberElement);
     });
 }
@@ -421,7 +454,7 @@ function renderMembers() {
 // 渲染訊息列表
 function renderMessages() {
     const container = document.getElementById('messages-container');
-    
+
     if (!appState.currentChannel) {
         container.innerHTML = `
             <div class="welcome-message">
@@ -431,7 +464,7 @@ function renderMessages() {
         `;
         return;
     }
-    
+
     if (appState.messages.length === 0) {
         container.innerHTML = `
             <div class="welcome-message">
@@ -441,24 +474,24 @@ function renderMessages() {
         `;
         return;
     }
-    
+
     container.innerHTML = '';
-    
+
     appState.messages.forEach((message, index) => {
         const prevMessage = index > 0 ? appState.messages[index - 1] : null;
-        const isGrouped = prevMessage && 
-                         prevMessage.user_id === message.user_id &&
-                         (new Date(message.created_at) - new Date(prevMessage.created_at)) < 300000; // 5分鐘內
-        
+        const isGrouped = prevMessage &&
+            prevMessage.user_id === message.user_id &&
+            (new Date(message.created_at) - new Date(prevMessage.created_at)) < 300000; // 5分鐘內
+
         const messageElement = document.createElement('div');
         messageElement.className = 'message';
         messageElement.setAttribute('data-message-id', message.id);
-        
+
         const user = message.user || {};
         const nickname = user.nickname || user.username || 'Unknown';
         const avatar = user.avatar;
         const timestamp = formatTimestamp(message.created_at);
-        
+
         if (isGrouped) {
             messageElement.innerHTML = `
                 <div class="message-avatar"></div>
@@ -480,7 +513,7 @@ function renderMessages() {
                 </div>
             `;
         }
-        
+
         container.appendChild(messageElement);
     });
 }
@@ -488,7 +521,7 @@ function renderMessages() {
 // 更新社群標題
 function updateGuildHeader() {
     const guildName = document.getElementById('guild-name');
-    
+
     if (appState.currentGuild) {
         guildName.textContent = appState.currentGuild.name;
     } else {
@@ -501,11 +534,11 @@ function updateChannelHeader() {
     const channelIcon = document.getElementById('channel-icon');
     const channelName = document.getElementById('channel-name');
     const channelTopic = document.getElementById('channel-topic');
-    
+
     if (appState.currentChannel) {
         channelIcon.className = appState.currentChannel.type === 'voice' ? 'fas fa-volume-up' : 'fas fa-hashtag';
         channelName.textContent = appState.currentChannel.name;
-        channelTopic.textContent = appState.currentChannel.description || '';
+        channelTopic.textContent = appState.currentChannel.topic || '';
     } else {
         channelIcon.className = 'fas fa-hashtag';
         channelName.textContent = '歡迎';
@@ -516,19 +549,19 @@ function updateChannelHeader() {
 // 更新使用者面板
 function updateUserPanel() {
     if (!appState.user) return;
-    
+
     const userName = document.getElementById('user-name');
     const userStatus = document.getElementById('user-status');
     const userAvatar = document.getElementById('user-avatar');
-    
+
     userName.textContent = appState.user.nickname || appState.user.username;
-    
+
     const status = appState.user.status || 'online';
     userStatus.innerHTML = `
         <span class="status-indicator ${status}"></span>
         <span>${getStatusText(status)}</span>
     `;
-    
+
     if (appState.user.avatar) {
         userAvatar.innerHTML = `<img src="${appState.user.avatar}" alt="${appState.user.username}">`;
     }
@@ -537,17 +570,17 @@ function updateUserPanel() {
 // 登入處理
 async function handleLogin(event) {
     event.preventDefault();
-    
+
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-    
+
     try {
         showLoading(true);
         const response = await api.login(email, password);
-        
+
         appState.user = response.user;
         showNotification('登入成功！', 'success');
-        
+
         // 延遲一下再載入，讓通知顯示
         setTimeout(() => {
             loadUserData();
@@ -563,18 +596,18 @@ async function handleLogin(event) {
 // 註冊處理
 async function handleRegister(event) {
     event.preventDefault();
-    
+
     const username = document.getElementById('register-username').value;
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
     const nickname = document.getElementById('register-nickname').value;
-    
+
     try {
         showLoading(true);
         await api.register(username, email, password, nickname);
-        
+
         showNotification('註冊成功！正在登入...', 'success');
-        
+
         // 自動登入
         setTimeout(async () => {
             try {
@@ -595,10 +628,13 @@ async function handleRegister(event) {
 }
 
 // 登出處理
-function handleLogout() {
+async function handleLogout() {
+    // 呼叫後端撤銷 refresh token
+    await api.logout().catch(() => { });
+
     // 斷開 WebSocket
     wsManager.disconnect();
-    
+
     // 清除狀態
     appState.user = null;
     appState.currentGuild = null;
@@ -607,12 +643,12 @@ function handleLogout() {
     appState.channels = [];
     appState.members = [];
     appState.messages = [];
-    
+
     // 清除本地儲存
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER);
-    api.setToken(null);
-    
+
     showAuthPage();
     showNotification('已登出', 'info');
 }
@@ -620,22 +656,22 @@ function handleLogout() {
 // 建立社群
 async function handleCreateGuild(event) {
     event.preventDefault();
-    
+
     const name = document.getElementById('guild-name-input').value;
     const description = document.getElementById('guild-description-input').value;
-    
+
     try {
         showLoading(true);
         const guild = await api.createGuild(name, description);
-        
+
         showNotification('社群建立成功！', 'success');
         closeModal('create-guild-modal');
-        
+
         // 後端直接返回 guild 物件，手動添加到列表並渲染
         if (guild && guild.id) {
             appState.guilds.push(guild);
             renderGuilds();
-            
+
             // 自動選擇新建立的社群
             selectGuild(guild.id);
         }
@@ -647,31 +683,170 @@ async function handleCreateGuild(event) {
     }
 }
 
+// 更新社群
+async function handleUpdateGuild(event) {
+    event.preventDefault();
+    if (!appState.currentGuild) return;
+
+    const name = document.getElementById('guild-edit-name').value;
+    const description = document.getElementById('guild-edit-description').value;
+
+    try {
+        showLoading(true);
+        const guild = await api.updateGuild(appState.currentGuild.id, { name, description });
+        appState.currentGuild = guild;
+        // 更新社群列表中的名稱
+        const idx = appState.guilds.findIndex(g => g.id === guild.id);
+        if (idx !== -1) appState.guilds[idx] = guild;
+        renderGuilds();
+        updateGuildHeader();
+        showNotification('社群資訊已更新', 'success');
+    } catch (error) {
+        showNotification(error.message || '更新失敗', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 刪除社群
+async function handleDeleteGuild() {
+    if (!appState.currentGuild) return;
+    if (!confirm(`確定要刪除「${appState.currentGuild.name}」？此操作無法復原。`)) return;
+
+    try {
+        showLoading(true);
+        await api.deleteGuild(appState.currentGuild.id);
+        closeModal('guild-settings-modal');
+        appState.guilds = appState.guilds.filter(g => g.id !== appState.currentGuild.id);
+        showNotification('社群已刪除', 'success');
+        showHomeView();
+        renderGuilds();
+    } catch (error) {
+        showNotification(error.message || '刪除失敗', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 建立邀請碼
+async function handleCreateInvite() {
+    if (!appState.currentGuild) return;
+    try {
+        showLoading(true);
+        const invite = await api.createInvite(appState.currentGuild.id);
+        const code = invite.code || invite.invite_code || invite;
+        document.getElementById('invite-code-value').textContent = code;
+        document.getElementById('invite-code-display').classList.remove('hidden');
+        showNotification('邀請碼已建立', 'success');
+    } catch (error) {
+        showNotification(error.message || '建立邀請碼失敗', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 複製邀請碼
+function copyInviteCode() {
+    const code = document.getElementById('invite-code-value').textContent;
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => {
+        showNotification('邀請碼已複製', 'success');
+    }).catch(() => {
+        // 降級方案
+        const el = document.getElementById('invite-code-value');
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        showNotification('請手動複製選取的文字', 'info');
+    });
+}
+
+// 透過邀請碼加入社群
+async function handleJoinByInvite(event) {
+    event.preventDefault();
+    const code = document.getElementById('invite-code-input').value.trim();
+    if (!code) return;
+
+    try {
+        showLoading(true);
+        await api.joinByInvite(code);
+        closeModal('join-invite-modal');
+        showNotification('加入社群成功！', 'success');
+        // 重新載入社群列表
+        await loadGuilds();
+    } catch (error) {
+        showNotification(error.message || '加入失敗，請檢查邀請碼', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 踢除成員
+async function handleKickMember(guildId, userId, username) {
+    if (!confirm(`確定要將「${username}」移出社群？`)) return;
+    try {
+        showLoading(true);
+        await api.kickMember(guildId, userId);
+        appState.members = appState.members.filter(m => m.user_id !== userId);
+        renderMembers();
+        showNotification(`已移除成員 ${username}`, 'success');
+    } catch (error) {
+        showNotification(error.message || '移除失敗', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 更新成員角色
+async function handleUpdateMemberRole(guildId, userId, username, currentRole) {
+    const roleOptions = currentRole === 'member'
+        ? { '角色模版人': 'moderator' }
+        : { '一般成員': 'member' };
+    // 簡單切換：moderator <-> member
+    const newRole = currentRole === 'member' ? 'moderator' : 'member';
+    const label = newRole === 'moderator' ? '角色模版人' : '一般成員';
+    if (!confirm(`將「${username}」的角色變更為 ${label}？`)) return;
+
+    try {
+        showLoading(true);
+        await api.updateMemberRole(guildId, userId, newRole);
+        const member = appState.members.find(m => m.user_id === userId);
+        if (member) member.role = newRole;
+        renderMembers();
+        showNotification(`已更新 ${username} 的角色`, 'success');
+    } catch (error) {
+        showNotification(error.message || '更新角色失敗', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
 // 建立頻道
 async function handleCreateChannel(event) {
     event.preventDefault();
-    
+
     if (!appState.currentGuild) {
         showNotification('請先選擇一個社群', 'error');
         return;
     }
-    
+
     const name = document.getElementById('channel-name-input').value;
     const type = document.getElementById('channel-type-input').value;
     const description = document.getElementById('channel-description-input').value;
-    
+
     try {
         showLoading(true);
-        const channel = await api.createChannel(appState.currentGuild.id, name, type, description);
-        
+        const channel = await api.createChannel(appState.currentGuild.id, name, type, description); // description 傳給後端 topic 欄位（api.js 內部已對應）
+
         showNotification('頻道建立成功！', 'success');
         closeModal('create-channel-modal');
-        
+
         // 後端直接返回 channel 物件，手動添加到列表
         if (channel && channel.id) {
             appState.channels.push(channel);
             renderChannels();
-            
+
             // 自動選擇新建立的頻道
             selectChannel(channel.id);
         }
@@ -686,23 +861,23 @@ async function handleCreateChannel(event) {
 // 更新使用者資訊
 async function handleUpdateUser(event) {
     event.preventDefault();
-    
+
     const nickname = document.getElementById('user-nickname-input').value;
     const avatar = document.getElementById('user-avatar-input').value;
     const status = document.getElementById('user-status-input').value;
-    
+
     const updates = {};
     if (nickname) updates.nickname = nickname;
     if (avatar) updates.avatar = avatar;
     if (status) updates.status = status;
-    
+
     try {
         showLoading(true);
         const response = await api.updateCurrentUser(updates);
-        
+
         appState.user = response.user;
         updateUserPanel();
-        
+
         showNotification('使用者資訊更新成功！', 'success');
         closeModal('user-settings-modal');
     } catch (error) {
@@ -749,7 +924,7 @@ function showCreateChannelModal(type) {
 
 function showUserSettings() {
     if (!appState.user) return;
-    
+
     document.getElementById('user-settings-modal').classList.add('active');
     document.getElementById('user-nickname-input').value = appState.user.nickname || '';
     document.getElementById('user-avatar-input').value = appState.user.avatar || '';
@@ -757,8 +932,19 @@ function showUserSettings() {
 }
 
 function showGuildSettings() {
-    // TODO: 實現社群設定
-    showNotification('社群設定功能開發中...', 'info');
+    if (!appState.currentGuild) return;
+
+    document.getElementById('guild-settings-modal').classList.add('active');
+    document.getElementById('guild-edit-name').value = appState.currentGuild.name || '';
+    document.getElementById('guild-edit-description').value = appState.currentGuild.description || '';
+    // 清除上次的邀請碼
+    document.getElementById('invite-code-display').classList.add('hidden');
+    document.getElementById('invite-code-value').textContent = '';
+}
+
+function showJoinByInviteModal() {
+    document.getElementById('join-invite-modal').classList.add('active');
+    document.getElementById('invite-code-input').value = '';
 }
 
 function showHomeView() {
@@ -767,13 +953,13 @@ function showHomeView() {
     appState.channels = [];
     appState.members = [];
     appState.messages = [];
-    
+
     updateGuildHeader();
     updateChannelHeader();
     renderChannels();
     renderMembers();
     renderMessages();
-    
+
     document.querySelectorAll('.guild-item').forEach(item => {
         item.classList.remove('active');
     });
@@ -802,7 +988,7 @@ function showNotification(message, type = 'info') {
     const notification = document.getElementById('notification');
     notification.textContent = message;
     notification.className = `notification ${type} show`;
-    
+
     setTimeout(() => {
         notification.classList.remove('show');
     }, 3000);
@@ -819,16 +1005,16 @@ function formatTimestamp(timestamp) {
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
-    
+
     if (diffMins < 1) return '剛剛';
     if (diffMins < 60) return `${diffMins} 分鐘前`;
-    
+
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours} 小時前`;
-    
+
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays < 7) return `${diffDays} 天前`;
-    
+
     return date.toLocaleDateString('zh-TW');
 }
 
@@ -849,7 +1035,7 @@ function getStatusText(status) {
 }
 
 // 關閉模態視窗（點擊外部）
-window.onclick = function(event) {
+window.onclick = function (event) {
     if (event.target.classList.contains('modal')) {
         event.target.classList.remove('active');
     }

@@ -40,6 +40,19 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-04-30 — 前端 Phase 1 UI 完善：
+- `index.html`：新增 **Guild Settings modal**（編輯社群 + 邀請碼 + 刪除）、**Join by Invite modal**、guilds sidebar 加入「透過邀請碼加入」按鈕
+- `app.js`：實作 `showGuildSettings()`、`handleUpdateGuild()`、`handleDeleteGuild()`、`handleCreateInvite()`、`copyInviteCode()`、`showJoinByInviteModal()`、`handleJoinByInvite()`、`handleKickMember()`、`handleUpdateMemberRole()`
+- `renderMembers()` 現在顯示角色 badge（owner/admin/moderator）及管理員操作按鈕（踢人/改角色），透過 `ROLE_LEVEL` 比較決定可見性
+- `styles.css`：新增 `.role-badge`、`.btn-danger`、`.btn-icon-sm`、`.invite-code-box`、`.settings-section`、`.member-actions`
+
+2026-04-30 — 前後端對接修正（Phase 1）：
+- `config.js`：補齊所有 Phase 1 端點（REFRESH, LOGOUT, PUBLIC_USER, KICK_MEMBER, UPDATE_MEMBER_ROLE, CREATE_INVITE, GET_INVITE, JOIN_BY_INVITE）及 `REFRESH_TOKEN` storage key
+- `api.js`：新增 `setRefreshToken/getRefreshToken`；login 儲存 refresh_token；`request()` 自動 401 → refresh → retry；新增 `refreshToken/logout/getPublicUser/kickMember/updateMemberRole/createInvite/getInvite/joinByInvite`
+- `api.js` `createChannel` 改送 `topic`（後端 `CreateChannelRequest.Topic`），不再送 `description`
+- `app.js`：`handleLogout()` 改為 async，先呼叫 `api.logout()` 再清除狀態，並清除 `REFRESH_TOKEN`；`updateChannelHeader()` 改用 `channel.topic`
+- Channel 模型 JSON 欄位為 `topic`（非 `description`）；Guild 模型用 `description`
+
 2026-04-30 — RBAC 權限系統（Phase 1 完成）：
 - `middleware.RequireGuildRole(minRole, guildMemberRepo)` 封裝角色驗證，從 URL param `:id` 取得 guild ID，角色階層 member<moderator<admin<owner，並將 `guild_member` 存入 context
 - `middleware.HasMinRole(userRole, minRole)` 公開函式，供 service/handler 重用

@@ -6,6 +6,8 @@ const API_CONFIG = {
         // 認證
         REGISTER: '/api/v1/auth/register',
         LOGIN: '/api/v1/auth/login',
+        REFRESH: '/api/v1/auth/refresh',
+        LOGOUT: '/api/v1/auth/logout',
 
         // 使用者
         ME: '/api/v1/users/me',
@@ -29,6 +31,18 @@ const API_CONFIG = {
         CHANNEL_MESSAGES: (channelId) => `/api/v1/channels/${channelId}/messages`,
         MESSAGE: (messageId) => `/api/v1/messages/${messageId}`,
 
+        // 邀請碼
+        CREATE_INVITE: (guildId) => `/api/v1/guilds/${guildId}/invites`,
+        GET_INVITE: (code) => `/api/v1/invites/${code}`,
+        JOIN_BY_INVITE: '/api/v1/guilds/join-by-invite',
+
+        // 成員管理
+        KICK_MEMBER: (guildId, userId) => `/api/v1/guilds/${guildId}/members/${userId}`,
+        UPDATE_MEMBER_ROLE: (guildId, userId) => `/api/v1/guilds/${guildId}/members/${userId}/role`,
+
+        // 使用者公開資料
+        PUBLIC_USER: (id) => `/api/v1/users/${id}`,
+
         // WebSocket
         WS: '/api/v1/ws'
     }
@@ -37,6 +51,7 @@ const API_CONFIG = {
 // 本地儲存鍵
 const STORAGE_KEYS = {
     TOKEN: 'talkrealm_token',
+    REFRESH_TOKEN: 'talkrealm_refresh_token',
     USER: 'talkrealm_user',
     LAST_GUILD: 'talkrealm_last_guild',
     LAST_CHANNEL: 'talkrealm_last_channel'
