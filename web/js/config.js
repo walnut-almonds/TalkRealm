@@ -6,31 +6,31 @@ const API_CONFIG = {
         // 認證
         REGISTER: '/api/v1/auth/register',
         LOGIN: '/api/v1/auth/login',
-        
+
         // 使用者
         ME: '/api/v1/users/me',
         UPDATE_ME: '/api/v1/users/me',
-        
+
         // 社群
         GUILDS: '/api/v1/guilds',
         GUILD: (id) => `/api/v1/guilds/${id}`,
         MY_GUILDS: '/api/v1/guilds/me',
-        
+
         // 社群成員
         GUILD_MEMBERS: (guildId) => `/api/v1/guilds/${guildId}/members`,
         JOIN_GUILD: (guildId) => `/api/v1/guilds/${guildId}/join`,
         LEAVE_GUILD: (guildId) => `/api/v1/guilds/${guildId}/leave`,
-        
+
         // 頻道
         GUILD_CHANNELS: (guildId) => `/api/v1/guilds/${guildId}/channels`,
         CHANNEL: (channelId) => `/api/v1/channels/${channelId}`,
-        
+
         // 訊息
         CHANNEL_MESSAGES: (channelId) => `/api/v1/channels/${channelId}/messages`,
         MESSAGE: (messageId) => `/api/v1/messages/${messageId}`,
-        
+
         // WebSocket
-        WS: '/ws'
+        WS: '/api/v1/ws'
     }
 };
 

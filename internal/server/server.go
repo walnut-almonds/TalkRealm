@@ -105,8 +105,9 @@ func New(cfg *config.Config) (*Server, error) {
 //	@contact.email	support@talkrealm.example.com
 func (s *Server) setupRoutes() {
 	// 提供靜態檔案 (前端)
-	// s.router.Static("/static", "./web")
-	// s.router.StaticFile("/", "./web/index.html")
+	s.router.Static("/js", "./web/js")
+	s.router.Static("/css", "./web/css")
+	s.router.StaticFile("/", "./web/index.html")
 
 	// 健康檢查
 	s.router.GET("/health", handler.HealthCheck)

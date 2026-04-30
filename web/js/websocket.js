@@ -7,8 +7,10 @@ class WebSocketManager {
         this.reconnectDelay = 1000;
         this.heartbeatInterval = null;
         this.isConnected = false;
+        this.identified = false;
         this.subscribedChannels = new Set();
         this.messageHandlers = [];
+        this._token = null;
     }
 
     // 連接 WebSocket
@@ -18,21 +20,16 @@ class WebSocketManager {
             return;
         }
 
-        const wsUrl = `${API_CONFIG.WS_URL}${API_CONFIG.ENDPOINTS.WS}?token=${token}`;
+        this._token = token;
+        // 不把 token 放 query string，由 identify op 傳遞
+        const wsUrl = `${API_CONFIG.WS_URL}${API_CONFIG.ENDPOINTS.WS}`;
 
         try {
             this.ws = new WebSocket(wsUrl);
 
             this.ws.onopen = () => {
-                console.log('WebSocket connected');
-                this.isConnected = true;
-                this.reconnectAttempts = 0;
-                this.startHeartbeat();
-
-                // 重新訂閱之前的頻道
-                this.subscribedChannels.forEach(channelId => {
-                    this.subscribeToChannel(channelId);
-                });
+                console.log('WebSocket connected, waiting for hello...');
+                // 不在 onopen 做任何事；等待 server 的 hello，再送 identify
             };
 
             this.ws.onmessage = (event) => {
@@ -51,6 +48,7 @@ class WebSocketManager {
             this.ws.onclose = () => {
                 console.log('WebSocket disconnected');
                 this.isConnected = false;
+                this.identified = false;
                 this.stopHeartbeat();
                 this.attemptReconnect(token);
             };
@@ -104,13 +102,23 @@ class WebSocketManager {
         }
     }
 
+    // 送出 identify op（收到 hello 後呼叫）
+    sendIdentify(channels = []) {
+        return this.send({
+            op: 'identify',
+            d: {
+                token: this._token,
+                channels: channels
+            }
+        });
+    }
+
     // 訂閱頻道
     subscribeToChannel(channelId) {
         this.subscribedChannels.add(channelId);
         return this.send({
-            type: 'subscribe',
-            channel_id: channelId,
-            timestamp: Date.now()
+            op: 'subscribe',
+            d: { channel_id: channelId }
         });
     }
 
@@ -118,32 +126,27 @@ class WebSocketManager {
     unsubscribeFromChannel(channelId) {
         this.subscribedChannels.delete(channelId);
         return this.send({
-            type: 'unsubscribe',
-            channel_id: channelId,
-            timestamp: Date.now()
+            op: 'unsubscribe',
+            d: { channel_id: channelId }
         });
     }
 
     // 發送正在輸入狀態
     sendTyping(channelId) {
         return this.send({
-            type: 'typing_start',
-            channel_id: channelId,
-            timestamp: Date.now()
+            op: 'typing_start',
+            d: { channel_id: channelId }
         });
     }
 
     // 心跳機制
-    startHeartbeat() {
+    startHeartbeat(interval = 30000) {
         this.stopHeartbeat();
         this.heartbeatInterval = setInterval(() => {
             if (this.isConnected) {
-                this.send({
-                    type: 'ping',
-                    timestamp: Date.now()
-                });
+                this.send({ op: 'heartbeat' });
             }
-        }, 30000); // 每 30 秒發送一次心跳
+        }, interval);
     }
 
     stopHeartbeat() {
@@ -157,55 +160,74 @@ class WebSocketManager {
     handleMessage(message) {
         console.log('WebSocket message received:', message);
 
-        switch (message.type) {
-            case 'pong':
+        // 後端使用 op / d 欄位
+        switch (message.op) {
+            case 'hello': {
+                // server 發送心跳間隔；回應 identify
+                const interval = message.d && message.d.heartbeat_interval || 30000;
+                this.startHeartbeat(interval);
+                // identify 時一次帶入目前已知的訂閱頻道
+                this.sendIdentify([...this.subscribedChannels]);
+                break;
+            }
+
+            case 'ready':
+                // identify 成功
+                this.isConnected = true;
+                this.identified = true;
+                this.reconnectAttempts = 0;
+                console.log('WebSocket identified, user:', message.d);
+                this.notifyHandlers('ready', message.d);
+                break;
+
+            case 'heartbeat_ack':
                 // 心跳回應
                 break;
 
             case 'message_create':
                 // 新訊息
-                this.notifyHandlers('message', message.data);
+                this.notifyHandlers('message', message.d);
                 break;
 
             case 'message_update':
                 // 訊息更新
-                this.notifyHandlers('message_update', message.data);
+                this.notifyHandlers('message_update', message.d);
                 break;
 
             case 'message_delete':
                 // 訊息刪除
-                this.notifyHandlers('message_delete', message.data);
+                this.notifyHandlers('message_delete', message.d);
                 break;
 
             case 'typing_start':
                 // 使用者正在輸入
-                this.notifyHandlers('typing', message.data);
+                this.notifyHandlers('typing', message.d);
                 break;
 
             case 'presence_update':
                 // 使用者狀態更新
-                this.notifyHandlers('user_status', message.data);
+                this.notifyHandlers('user_status', message.d);
                 break;
 
             case 'channel_create':
                 // 頻道建立
-                this.notifyHandlers('channel_create', message.data);
+                this.notifyHandlers('channel_create', message.d);
                 break;
 
             case 'channel_update':
                 // 頻道更新
-                this.notifyHandlers('channel_update', message.data);
+                this.notifyHandlers('channel_update', message.d);
                 break;
 
             case 'channel_delete':
                 // 頻道刪除
-                this.notifyHandlers('channel_delete', message.data);
+                this.notifyHandlers('channel_delete', message.d);
                 break;
 
             case 'error':
                 // 錯誤訊息
-                console.error('WebSocket error:', message.data);
-                showNotification(message.data.message || '發生錯誤', 'error');
+                console.error('WebSocket error:', message.d);
+                showNotification((message.d && message.d.message) || '發生錯誤', 'error');
                 break;
 
             default:
