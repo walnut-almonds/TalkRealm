@@ -89,7 +89,7 @@
 
 ## 🧪 測試 & 品質
 
-- [ ] **Unit Tests**：Handler / Service / Repository 各層覆蓋率 > 70%
+- [x] **Unit Tests**：Handler / Service / Repository 各層覆蓋率 > 70%
 - [ ] **WS Integration Test**：`gorilla/websocket` 模擬 client，測試 identify → send_message → message_create 流程
 - [ ] **Load Test**：k6 模擬 1000 concurrent WS 連線
 - [ ] **E2E Test**：docker-compose 啟動全服務，API 端到端測試
