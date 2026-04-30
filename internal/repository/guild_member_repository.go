@@ -17,6 +17,7 @@ type GuildMemberRepository interface {
 	GetByUserID(userID uint) ([]*model.GuildMember, error)
 	GetMember(guildID, userID uint) (*model.GuildMember, error)
 	IsMember(guildID, userID uint) (bool, error)
+	GetUserGuildIDs(userID uint) ([]uint, error)
 }
 
 type guildMemberRepository struct {
@@ -92,4 +93,13 @@ func (r *guildMemberRepository) IsMember(guildID, userID uint) (bool, error) {
 		Where("guild_id = ? AND user_id = ?", guildID, userID).
 		Count(&count).Error
 	return count > 0, err
+}
+
+// GetUserGuildIDs 取得使用者所屬的所有 guild IDs
+func (r *guildMemberRepository) GetUserGuildIDs(userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&model.GuildMember{}).
+		Where("user_id = ?", userID).
+		Pluck("guild_id", &ids).Error
+	return ids, err
 }

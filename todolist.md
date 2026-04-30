@@ -14,10 +14,10 @@
 - [x] **WS Heartbeat / Reconnect**：標準化 `heartbeat` / `heartbeat_ack`，前端自動重連邏輯
 
 ### Redis 整合
-- [ ] **引入 Redis Client**：在 `pkg/redis/` 封裝連線，config 加入 Redis 設定
-- [ ] **User Server Mapping**：Chat Server 連線時 `SET user:{userID}:server {serverID} EX 86400`
-- [ ] **Guild Online Set**：`SADD guild:{guildID}:online {userID}` / `SREM` on disconnect
-- [ ] **Rate Limiting Middleware**：`INCR ratelimit:{userID}:msg` TTL 1s，超過 10 則回 429
+- [x] **引入 Redis Client**：在 `pkg/redis/` 封裝連線，config 加入 Redis 設定
+- [x] **User Server Mapping**：Chat Server 連線時 `SET user:{userID}:server {serverID} EX 86400`
+- [x] **Guild Online Set**：`SADD guild:{guildID}:online {userID}` / `SREM` on disconnect
+- [x] **Rate Limiting Middleware**：`INCR ratelimit:{userID}:msg` TTL 1s，超過 10 則回 429
 
 ### API 補全
 - [ ] **Cursor-based Pagination**：`GET /api/v1/channels/{id}/messages` 改為 `?before={id}&limit=50`，移除 offset 分頁

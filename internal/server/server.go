@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/walnut-almonds/talkrealm/internal/handler"
 	"github.com/walnut-almonds/talkrealm/internal/middleware"
 	"github.com/walnut-almonds/talkrealm/internal/repository"
@@ -12,6 +13,7 @@ import (
 	"github.com/walnut-almonds/talkrealm/pkg/auth"
 	"github.com/walnut-almonds/talkrealm/pkg/config"
 	"github.com/walnut-almonds/talkrealm/pkg/database"
+	pkgredis "github.com/walnut-almonds/talkrealm/pkg/redis"
 )
 
 // Server 代表應用程式伺服器
@@ -24,6 +26,7 @@ type Server struct {
 	guildHandler   *handler.GuildHandler
 	channelHandler *handler.ChannelHandler
 	messageHandler *handler.MessageHandler
+	rdb            *goredis.Client
 }
 
 // New 創建新的伺服器實例
@@ -49,6 +52,13 @@ func New(cfg *config.Config) (*Server, error) {
 	// 獲取資料庫連接
 	db := database.GetDB()
 
+	// 初始化 Redis client（失敗時記錄 warning 但繼續啟動）
+	rdb, redisErr := pkgredis.NewClient(&cfg.Redis)
+	if redisErr != nil {
+		// 非致命錯誤：Redis 不可用時降級運行
+		_ = redisErr
+	}
+
 	// 初始化 Repository
 	userRepo := repository.NewUserRepository(db)
 	guildRepo := repository.NewGuildRepository(db)
@@ -58,6 +68,10 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// 初始化 WebSocket 管理器（傳入 jwtManager，用於 identify op 驗證）
 	wsManager := websocket.NewManager(jwtManager)
+	if rdb != nil {
+		wsManager.SetRedis(rdb)
+		wsManager.SetGuildLookup(guildMemberRepo)
+	}
 	go wsManager.Run() // 啟動 WebSocket 管理器
 
 	// 初始化 Service
@@ -85,6 +99,7 @@ func New(cfg *config.Config) (*Server, error) {
 		guildHandler:   guildHandler,
 		channelHandler: channelHandler,
 		messageHandler: messageHandler,
+		rdb:            rdb,
 	}
 
 	// 設定路由
@@ -167,7 +182,15 @@ func (s *Server) setupRoutes() {
 
 				// 頻道訊息
 				channels.GET("/:id/messages", s.messageHandler.ListChannelMessages)
-				channels.POST("/:id/messages", s.messageHandler.CreateMessage)
+				// 訊息發送套用 rate limit：每秒最多 10 則
+				if s.rdb != nil {
+					channels.POST("/:id/messages",
+						middleware.MessageRateLimit(s.rdb, 10),
+						s.messageHandler.CreateMessage,
+					)
+				} else {
+					channels.POST("/:id/messages", s.messageHandler.CreateMessage)
+				}
 			}
 
 			// 訊息相關

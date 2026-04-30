@@ -1,13 +1,24 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/walnut-almonds/talkrealm/pkg/auth"
 )
+
+// GuildMemberLookup 提供查詢使用者所屬 guild IDs 的介面（避免 websocket package 直接相依 repository）
+type GuildMemberLookup interface {
+	GetUserGuildIDs(userID uint) ([]uint, error)
+}
+
+// serverID 用於 Redis user server mapping（單體架構下固定為 "1"）
+const serverID = "1"
 
 // Manager 管理所有 WebSocket 連接
 type Manager struct {
@@ -31,6 +42,12 @@ type Manager struct {
 
 	// jwtManager 用於 identify op 的 token 驗證
 	jwtManager *auth.JWTManager
+
+	// redisClient 用於 user server mapping 及 guild online set
+	redisClient *goredis.Client
+
+	// guildLookup 用於查詢使用者所屬 guild IDs
+	guildLookup GuildMemberLookup
 }
 
 // NewManager 創建新的 WebSocket 管理器
@@ -80,6 +97,11 @@ func (m *Manager) Run() {
 			userID := client.userID
 			username := client.username
 			m.mu.Unlock()
+
+			// Redis 清理（在鎖外執行）
+			if wasIdentified {
+				m.redisOnDisconnect(userID)
+			}
 
 			// 廣播下線狀態（在鎖外執行，避免死鎖）
 			if wasIdentified {
@@ -225,6 +247,78 @@ func (m *Manager) broadcastPresenceUpdate(userID uint, username, status string) 
 			case client.send <- messageBytes:
 			default:
 			}
+		}
+	}
+}
+
+// SetRedis 注入 Redis client（可選；未設定時跳過 Redis 操作）
+func (m *Manager) SetRedis(rdb *goredis.Client) {
+	m.redisClient = rdb
+}
+
+// SetGuildLookup 注入 guild 成員查詢介面
+func (m *Manager) SetGuildLookup(l GuildMemberLookup) {
+	m.guildLookup = l
+}
+
+// redisOnIdentify 使用者上線時寫入 Redis：user server mapping + guild online set
+func (m *Manager) redisOnIdentify(userID uint) {
+	if m.redisClient == nil {
+		return
+	}
+	ctx := context.Background()
+
+	// SET user:{userID}:server {serverID} EX 86400
+	key := fmt.Sprintf("user:%d:server", userID)
+	if err := m.redisClient.Set(ctx, key, serverID, 86400e9).Err(); err != nil {
+		log.Printf("redis: set user server mapping failed: %v", err)
+	}
+
+	// SADD guild:{guildID}:online {userID}
+	if m.guildLookup != nil {
+		guildIDs, err := m.guildLookup.GetUserGuildIDs(userID)
+		if err != nil {
+			log.Printf("redis: fetch guild IDs for user %d failed: %v", userID, err)
+			return
+		}
+		pipe := m.redisClient.Pipeline()
+		for _, gid := range guildIDs {
+			guildKey := fmt.Sprintf("guild:%d:online", gid)
+			pipe.SAdd(ctx, guildKey, userID)
+		}
+		if _, err := pipe.Exec(ctx); err != nil {
+			log.Printf("redis: sadd guild online failed: %v", err)
+		}
+	}
+}
+
+// redisOnDisconnect 使用者下線時清理 Redis：刪除 user server mapping + 從 guild online set 移除
+func (m *Manager) redisOnDisconnect(userID uint) {
+	if m.redisClient == nil {
+		return
+	}
+	ctx := context.Background()
+
+	// DEL user:{userID}:server
+	key := fmt.Sprintf("user:%d:server", userID)
+	if err := m.redisClient.Del(ctx, key).Err(); err != nil {
+		log.Printf("redis: del user server mapping failed: %v", err)
+	}
+
+	// SREM guild:{guildID}:online {userID}
+	if m.guildLookup != nil {
+		guildIDs, err := m.guildLookup.GetUserGuildIDs(userID)
+		if err != nil {
+			log.Printf("redis: fetch guild IDs for user %d failed: %v", userID, err)
+			return
+		}
+		pipe := m.redisClient.Pipeline()
+		for _, gid := range guildIDs {
+			guildKey := fmt.Sprintf("guild:%d:online", gid)
+			pipe.SRem(ctx, guildKey, userID)
+		}
+		if _, err := pipe.Exec(ctx); err != nil {
+			log.Printf("redis: srem guild online failed: %v", err)
 		}
 	}
 }

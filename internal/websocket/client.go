@@ -273,6 +273,9 @@ func (c *Client) handleIdentify(raw json.RawMessage) {
 
 	// 廣播上線狀態
 	c.manager.broadcastPresenceUpdate(c.userID, c.username, "online")
+
+	// Redis：記錄 user server mapping 及 guild online set
+	go c.manager.redisOnIdentify(c.userID)
 }
 
 // sendHello 向剛連線的 client 發送 hello 訊息

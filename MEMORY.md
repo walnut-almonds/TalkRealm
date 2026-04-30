@@ -40,4 +40,4 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
-2026-04-30 — 實作 WebSocket 改善（Phase 1）：channel index、identify/hello/ready、typing_start、presence_update、heartbeat/heartbeat_ack；go.mod 更新至 go1.26.1。
+2026-04-30 — Redis 整合（Phase 1）：pkg/redis singleton（go-redis/v9）、User Server Mapping、Guild Online Set、Rate Limit Middleware（POST messages 每秒 10 則）；新增 GetUserGuildIDs 於 GuildMemberRepository；WS Manager 加入 SetRedis / SetGuildLookup；server.go 接線 Redis。
