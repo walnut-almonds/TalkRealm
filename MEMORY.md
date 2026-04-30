@@ -40,6 +40,17 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-04-30 — RBAC 權限系統（Phase 1 完成）：
+- `middleware.RequireGuildRole(minRole, guildMemberRepo)` 封裝角色驗證，從 URL param `:id` 取得 guild ID，角色階層 member<moderator<admin<owner，並將 `guild_member` 存入 context
+- `middleware.HasMinRole(userRole, minRole)` 公開函式，供 service/handler 重用
+- `guildRoleLevel` map 與 `hasMinRole()` 在 `guild_service.go` 內部維護
+- `ErrInsufficientPermission` 新增至 guild_service errors
+- `KickMember`：admin 可踢低階成員，不能踢同級或高階
+- `UpdateMemberRole`：admin 可設定 moderator/member；只有 owner 可設定 admin
+- 路由層 middleware 已套用：`DELETE /guilds/:id/members/:userId`、`PUT /guilds/:id/members/:userId/role`、`POST /guilds/:id/channels` 均需 `RequireGuildRole("admin")`
+- `Server` struct 新增 `guildMemberRepo repository.GuildMemberRepository` 欄位
+- 訊息刪除（`DeleteMessage`）已支援 admin 刪除他人訊息（service 層已處理）
+
 2026-04-30 — API 補全（Phase 1）：
 - Cursor-based pagination 已實作（`GetByChannelIDCursor` + `before`/`limit` query params）
 - Guild 邀請碼系統：`GuildInvite` model、`guild_invite_repository.go`、`guild_invite_service.go`；routes: `POST /guilds/:id/invites`、`GET /invites/:code`、`POST /guilds/join-by-invite`

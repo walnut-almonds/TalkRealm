@@ -341,8 +341,8 @@ func (h *GuildHandler) KickMember(c *gin.Context) {
 
 	err = h.guildMemberService.KickMember(uint(guildID), uint(targetUserID), operatorUserID)
 	if err != nil {
-		if errors.Is(err, service.ErrNotGuildOwner) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "only owner can kick members"})
+		if errors.Is(err, service.ErrNotGuildOwner) || errors.Is(err, service.ErrInsufficientPermission) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions to kick this member"})
 			return
 		}
 
@@ -437,8 +437,8 @@ func (h *GuildHandler) UpdateMemberRole(c *gin.Context) {
 		req.Role,
 	)
 	if err != nil {
-		if errors.Is(err, service.ErrNotGuildOwner) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "only owner can update member roles"})
+		if errors.Is(err, service.ErrNotGuildOwner) || errors.Is(err, service.ErrInsufficientPermission) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions to update member role"})
 			return
 		}
 

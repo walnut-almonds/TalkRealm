@@ -34,10 +34,10 @@
 - [x] **訊息 Attachment 欄位**：Message 回應加入 `attachments []` 陣列
 
 ### 權限系統（RBAC）
-- [ ] **Permission 中介層**：封裝 `RequireGuildRole(minRole)` middleware
-- [ ] **頻道操作權限**：create / update / delete channel 需 `admin` 以上
-- [ ] **成員管理權限**：kick / update role 需 `admin` 以上
-- [ ] **訊息刪除權限**：允許 channel admin 刪除他人訊息
+- [x] **Permission 中介層**：封裝 `RequireGuildRole(minRole)` middleware
+- [x] **頻道操作權限**：create / update / delete channel 需 `admin` 以上
+- [x] **成員管理權限**：kick / update role 需 `admin` 以上
+- [x] **訊息刪除權限**：允許 channel admin 刪除他人訊息
 
 ---
 

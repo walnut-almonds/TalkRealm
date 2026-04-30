@@ -9,12 +9,26 @@ import (
 )
 
 var (
-	ErrGuildNotFound      = errors.New("guild not found")
-	ErrNotGuildOwner      = errors.New("not guild owner")
-	ErrAlreadyInGuild     = errors.New("already in guild")
-	ErrNotGuildMember     = errors.New("not guild member")
-	ErrCannotLeaveAsOwner = errors.New("owner cannot leave guild, transfer ownership first")
+	ErrGuildNotFound          = errors.New("guild not found")
+	ErrNotGuildOwner          = errors.New("not guild owner")
+	ErrAlreadyInGuild         = errors.New("already in guild")
+	ErrNotGuildMember         = errors.New("not guild member")
+	ErrCannotLeaveAsOwner     = errors.New("owner cannot leave guild, transfer ownership first")
+	ErrInsufficientPermission = errors.New("insufficient permission")
 )
+
+// guildRoleLevel 角色層級（數字越大權限越高）
+var guildRoleLevel = map[string]int{
+	"member":    1,
+	"moderator": 2,
+	"admin":     3,
+	"owner":     4,
+}
+
+// hasMinRole 判斷 userRole 是否達到 minRole 的要求
+func hasMinRole(userRole, minRole string) bool {
+	return guildRoleLevel[userRole] >= guildRoleLevel[minRole]
+}
 
 // CreateGuildRequest 建立社群請求
 type CreateGuildRequest struct {
@@ -261,29 +275,36 @@ func (s *guildMemberService) LeaveGuild(guildID, userID uint) error {
 }
 
 // KickMember 踢出成員
+// 權限規則：owner 可以踢任何人；admin 可以踢 member / moderator
 func (s *guildMemberService) KickMember(guildID, targetUserID, operatorUserID uint) error {
-	// 檢查操作者是否為擁有者
-	guild, err := s.guildRepo.GetByID(guildID)
-	if err != nil {
-		return ErrGuildNotFound
-	}
-
-	if guild.OwnerID != operatorUserID {
-		return ErrNotGuildOwner
-	}
-
 	// 不能踢出自己
 	if targetUserID == operatorUserID {
 		return errors.New("cannot kick yourself")
 	}
 
-	// 檢查目標是否為成員
-	member, err := s.guildMemberRepo.GetMember(guildID, targetUserID)
-	if err != nil || member == nil {
+	// 取得操作者成員資訊
+	operator, err := s.guildMemberRepo.GetMember(guildID, operatorUserID)
+	if err != nil || operator == nil {
 		return ErrNotGuildMember
 	}
 
-	return s.guildMemberRepo.Delete(member.ID)
+	// 操作者需要至少 admin 角色
+	if !hasMinRole(operator.Role, "admin") {
+		return ErrInsufficientPermission
+	}
+
+	// 取得目標成員
+	target, err := s.guildMemberRepo.GetMember(guildID, targetUserID)
+	if err != nil || target == nil {
+		return ErrNotGuildMember
+	}
+
+	// admin 只能踢比自己低階的成員（不能踢同級 admin 或 owner）
+	if guildRoleLevel[target.Role] >= guildRoleLevel[operator.Role] {
+		return ErrInsufficientPermission
+	}
+
+	return s.guildMemberRepo.Delete(target.ID)
 }
 
 // ListGuildMembers 列出社群成員
@@ -308,34 +329,55 @@ func (s *guildMemberService) GetMember(guildID, userID uint) (*model.GuildMember
 }
 
 // UpdateMemberRole 更新成員角色
+// 權限規則：
+//   - owner 可以設定任何角色（admin / moderator / member）
+//   - admin 只能設定比自己低的角色（moderator / member），不能提升至 admin 或 owner
 func (s *guildMemberService) UpdateMemberRole(
 	guildID, targetUserID, operatorUserID uint,
 	role string,
 ) error {
-	// 檢查操作者是否為擁有者
-	guild, err := s.guildRepo.GetByID(guildID)
-	if err != nil {
-		return ErrGuildNotFound
-	}
-
-	if guild.OwnerID != operatorUserID {
-		return ErrNotGuildOwner
-	}
-
 	// 不能修改自己的角色
 	if targetUserID == operatorUserID {
 		return errors.New("cannot modify your own role")
 	}
 
-	// 取得目標成員
-	member, err := s.guildMemberRepo.GetMember(guildID, targetUserID)
-	if err != nil || member == nil {
+	// 取得操作者成員資訊
+	operator, err := s.guildMemberRepo.GetMember(guildID, operatorUserID)
+	if err != nil || operator == nil {
 		return ErrNotGuildMember
 	}
 
-	// 更新角色
-	member.Role = role
-	member.UpdatedAt = time.Now()
+	// 操作者需要至少 admin 角色
+	if !hasMinRole(operator.Role, "admin") {
+		return ErrInsufficientPermission
+	}
 
-	return s.guildMemberRepo.Update(member)
+	// 只有 owner 可以指派 admin 角色
+	if role == "admin" || role == "owner" {
+		guild, err := s.guildRepo.GetByID(guildID)
+		if err != nil {
+			return ErrGuildNotFound
+		}
+
+		if guild.OwnerID != operatorUserID {
+			return ErrInsufficientPermission
+		}
+	}
+
+	// 取得目標成員
+	target, err := s.guildMemberRepo.GetMember(guildID, targetUserID)
+	if err != nil || target == nil {
+		return ErrNotGuildMember
+	}
+
+	// admin 不能修改比自己高或同階的成員角色
+	if guildRoleLevel[target.Role] >= guildRoleLevel[operator.Role] {
+		return ErrInsufficientPermission
+	}
+
+	// 更新角色
+	target.Role = role
+	target.UpdatedAt = time.Now()
+
+	return s.guildMemberRepo.Update(target)
 }

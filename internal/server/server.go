@@ -18,15 +18,16 @@ import (
 
 // Server 代表應用程式伺服器
 type Server struct {
-	config         *config.Config
-	router         *gin.Engine
-	jwtManager     *auth.JWTManager
-	wsManager      *websocket.Manager
-	userHandler    *handler.UserHandler
-	guildHandler   *handler.GuildHandler
-	channelHandler *handler.ChannelHandler
-	messageHandler *handler.MessageHandler
-	rdb            *goredis.Client
+	config          *config.Config
+	router          *gin.Engine
+	jwtManager      *auth.JWTManager
+	wsManager       *websocket.Manager
+	userHandler     *handler.UserHandler
+	guildHandler    *handler.GuildHandler
+	channelHandler  *handler.ChannelHandler
+	messageHandler  *handler.MessageHandler
+	rdb             *goredis.Client
+	guildMemberRepo repository.GuildMemberRepository
 }
 
 // New 創建新的伺服器實例
@@ -94,15 +95,16 @@ func New(cfg *config.Config) (*Server, error) {
 	messageHandler := handler.NewMessageHandler(messageService)
 
 	s := &Server{
-		config:         cfg,
-		router:         router,
-		jwtManager:     jwtManager,
-		wsManager:      wsManager,
-		userHandler:    userHandler,
-		guildHandler:   guildHandler,
-		channelHandler: channelHandler,
-		messageHandler: messageHandler,
-		rdb:            rdb,
+		config:          cfg,
+		router:          router,
+		jwtManager:      jwtManager,
+		wsManager:       wsManager,
+		userHandler:     userHandler,
+		guildHandler:    guildHandler,
+		channelHandler:  channelHandler,
+		messageHandler:  messageHandler,
+		rdb:             rdb,
+		guildMemberRepo: guildMemberRepo,
 	}
 
 	// 設定路由
@@ -174,8 +176,15 @@ func (s *Server) setupRoutes() {
 				guilds.POST("/:id/join", s.guildHandler.JoinGuild)
 				guilds.POST("/:id/leave", s.guildHandler.LeaveGuild)
 				guilds.GET("/:id/members", s.guildHandler.ListGuildMembers)
-				guilds.DELETE("/:id/members/:userId", s.guildHandler.KickMember)
-				guilds.PUT("/:id/members/:userId/role", s.guildHandler.UpdateMemberRole)
+				// 踢成員 & 更新角色需要至少 admin 角色
+				guilds.DELETE("/:id/members/:userId",
+					middleware.RequireGuildRole("admin", s.guildMemberRepo),
+					s.guildHandler.KickMember,
+				)
+				guilds.PUT("/:id/members/:userId/role",
+					middleware.RequireGuildRole("admin", s.guildMemberRepo),
+					s.guildHandler.UpdateMemberRole,
+				)
 
 				// 社群邀請碼
 				guilds.POST("/:id/invites", s.guildHandler.CreateInvite)
@@ -183,7 +192,11 @@ func (s *Server) setupRoutes() {
 
 				// 社群頻道
 				guilds.GET("/:id/channels", s.channelHandler.ListGuildChannels)
-				guilds.POST("/:id/channels", s.channelHandler.CreateChannel)
+				// 建立頻道需要至少 admin 角色
+				guilds.POST("/:id/channels",
+					middleware.RequireGuildRole("admin", s.guildMemberRepo),
+					s.channelHandler.CreateChannel,
+				)
 			}
 
 			// 頻道相關
