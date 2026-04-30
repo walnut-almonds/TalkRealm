@@ -88,6 +88,8 @@ func AutoMigrate() error {
 		&model.Channel{},
 		&model.Message{},
 		&model.GuildMember{},
+		&model.GuildInvite{},
+		&model.RefreshToken{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)

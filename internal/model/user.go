@@ -44,16 +44,17 @@ type Channel struct {
 
 // Message 訊息模型
 type Message struct {
-	ID        uint      `gorm:"primarykey"           json:"id"`
-	ChannelID uint      `gorm:"not null"             json:"channel_id"`
-	Channel   Channel   `gorm:"foreignKey:ChannelID" json:"channel"`
-	UserID    uint      `gorm:"not null"             json:"user_id"`
-	User      User      `gorm:"foreignKey:UserID"    json:"user"`
-	Content   string    `gorm:"not null"             json:"content"`
-	Type      string    `gorm:"default:'text'"       json:"type"`      // text, image, file
-	IsEdited  bool      `gorm:"default:false"        json:"is_edited"` // 是否被編輯過
-	CreatedAt time.Time `                            json:"created_at"`
-	UpdatedAt time.Time `                            json:"updated_at"`
+	ID          uint      `gorm:"primarykey"           json:"id"`
+	ChannelID   uint      `gorm:"not null"             json:"channel_id"`
+	Channel     Channel   `gorm:"foreignKey:ChannelID" json:"channel"`
+	UserID      uint      `gorm:"not null"             json:"user_id"`
+	User        User      `gorm:"foreignKey:UserID"    json:"user"`
+	Content     string    `gorm:"not null"             json:"content"`
+	Type        string    `gorm:"default:'text'"       json:"type"`        // text, image, file
+	IsEdited    bool      `gorm:"default:false"        json:"is_edited"`   // 是否被編輯過
+	Attachments []string  `gorm:"-"                    json:"attachments"` // 附件（預留）
+	CreatedAt   time.Time `                            json:"created_at"`
+	UpdatedAt   time.Time `                            json:"updated_at"`
 }
 
 // GuildMember 社群成員模型
@@ -68,4 +69,29 @@ type GuildMember struct {
 	JoinedAt  time.Time `                          json:"joined_at"`
 	CreatedAt time.Time `                          json:"created_at"`
 	UpdatedAt time.Time `                          json:"updated_at"`
+}
+
+// GuildInvite 社群邀請碼模型
+type GuildInvite struct {
+	ID        uint       `gorm:"primarykey"             json:"id"`
+	GuildID   uint       `gorm:"not null;index"         json:"guild_id"`
+	Guild     Guild      `gorm:"foreignKey:GuildID"     json:"guild"`
+	CreatorID uint       `gorm:"not null"               json:"creator_id"`
+	Creator   User       `gorm:"foreignKey:CreatorID"   json:"creator"`
+	Code      string     `gorm:"uniqueIndex;not null"   json:"code"`
+	MaxUses   int        `gorm:"default:0"              json:"max_uses"`  // 0 = unlimited
+	Uses      int        `gorm:"default:0"              json:"uses"`
+	ExpiresAt *time.Time `                              json:"expires_at"` // nil = no expiry
+	CreatedAt time.Time  `                              json:"created_at"`
+	UpdatedAt time.Time  `                              json:"updated_at"`
+}
+
+// RefreshToken Refresh Token 模型
+type RefreshToken struct {
+	ID        uint      `gorm:"primarykey"           json:"id"`
+	UserID    uint      `gorm:"not null;index"       json:"user_id"`
+	Token     string    `gorm:"uniqueIndex;not null" json:"-"`
+	ExpiresAt time.Time `gorm:"not null"             json:"expires_at"`
+	Revoked   bool      `gorm:"default:false"        json:"revoked"`
+	CreatedAt time.Time `                            json:"created_at"`
 }

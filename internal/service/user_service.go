@@ -1,6 +1,8 @@
 package service
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -32,10 +34,21 @@ type LoginRequest struct {
 
 // LoginResponse 登入回應
 type LoginResponse struct {
-	AccessToken string      `json:"access_token"`
-	TokenType   string      `json:"token_type"`
-	ExpiresIn   int         `json:"expires_in"` // 秒數
-	User        *model.User `json:"user"`
+	AccessToken  string      `json:"access_token"`
+	RefreshToken string      `json:"refresh_token"`
+	TokenType    string      `json:"token_type"`
+	ExpiresIn    int         `json:"expires_in"` // 秒數
+	User         *model.User `json:"user"`
+}
+
+// PublicUser 使用者公開資料（不含 email 等敏感資訊）
+type PublicUser struct {
+	ID        uint      `json:"id"`
+	Username  string    `json:"username"`
+	Nickname  string    `json:"nickname"`
+	Avatar    string    `json:"avatar"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // UpdateUserRequest 更新使用者請求
@@ -50,20 +63,29 @@ type UserService interface {
 	Register(req *RegisterRequest) (*model.User, error)
 	Login(req *LoginRequest) (*LoginResponse, error)
 	GetByID(id uint) (*model.User, error)
+	GetPublicByID(id uint) (*PublicUser, error)
 	Update(id uint, req *UpdateUserRequest) (*model.User, error)
 	UpdateStatus(id uint, status string) error
+	RefreshAccessToken(refreshToken string) (*LoginResponse, error)
+	RevokeRefreshToken(refreshToken string) error
 }
 
 type userService struct {
-	repo       repository.UserRepository
-	jwtManager *auth.JWTManager
+	repo             repository.UserRepository
+	refreshTokenRepo repository.RefreshTokenRepository
+	jwtManager       *auth.JWTManager
 }
 
 // NewUserService 建立使用者服務
-func NewUserService(repo repository.UserRepository, jwtManager *auth.JWTManager) UserService {
+func NewUserService(
+	repo repository.UserRepository,
+	refreshTokenRepo repository.RefreshTokenRepository,
+	jwtManager *auth.JWTManager,
+) UserService {
 	return &userService{
-		repo:       repo,
-		jwtManager: jwtManager,
+		repo:             repo,
+		refreshTokenRepo: refreshTokenRepo,
+		jwtManager:       jwtManager,
 	}
 }
 
@@ -123,9 +145,25 @@ func (s *userService) Login(req *LoginRequest) (*LoginResponse, error) {
 		return nil, ErrInvalidCredentials
 	}
 
-	// 生成 JWT token
-	token, err := s.jwtManager.GenerateToken(user.ID, user.Username, user.Email)
+	// 生成 access token
+	accessToken, err := s.jwtManager.GenerateToken(user.ID, user.Username, user.Email)
 	if err != nil {
+		return nil, err
+	}
+
+	// 生成 refresh token
+	refreshToken, err := generateSecureToken()
+	if err != nil {
+		return nil, err
+	}
+
+	rt := &model.RefreshToken{
+		UserID:    user.ID,
+		Token:     refreshToken,
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+	if err := s.refreshTokenRepo.Create(rt); err != nil {
 		return nil, err
 	}
 
@@ -133,10 +171,11 @@ func (s *userService) Login(req *LoginRequest) (*LoginResponse, error) {
 	_ = s.repo.UpdateStatus(user.ID, "online")
 
 	return &LoginResponse{
-		AccessToken: token,
-		TokenType:   "Bearer",
-		ExpiresIn:   int(s.jwtManager.TokenDuration().Seconds()),
-		User:        user,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int(s.jwtManager.TokenDuration().Seconds()),
+		User:         user,
 	}, nil
 }
 
@@ -182,4 +221,94 @@ func (s *userService) Update(id uint, req *UpdateUserRequest) (*model.User, erro
 // UpdateStatus 更新使用者狀態
 func (s *userService) UpdateStatus(id uint, status string) error {
 	return s.repo.UpdateStatus(id, status)
+}
+
+// generateSecureToken 生成安全的隨機 token（64 字元 hex）
+func generateSecureToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(b), nil
+}
+
+// GetPublicByID 取得使用者公開資料（不含 email）
+func (s *userService) GetPublicByID(id uint) (*PublicUser, error) {
+	user, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	return &PublicUser{
+		ID:        user.ID,
+		Username:  user.Username,
+		Nickname:  user.Nickname,
+		Avatar:    user.Avatar,
+		Status:    user.Status,
+		CreatedAt: user.CreatedAt,
+	}, nil
+}
+
+// RefreshAccessToken 使用 refresh token 換發新的 access token（token rotation）
+func (s *userService) RefreshAccessToken(refreshToken string) (*LoginResponse, error) {
+	rt, err := s.refreshTokenRepo.GetByToken(refreshToken)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+
+	// 檢查是否已撤銷
+	if rt.Revoked {
+		return nil, ErrInvalidCredentials
+	}
+
+	// 檢查是否過期
+	if time.Now().After(rt.ExpiresAt) {
+		return nil, ErrInvalidCredentials
+	}
+
+	// 取得使用者
+	user, err := s.repo.GetByID(rt.UserID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	// 生成新 access token
+	accessToken, err := s.jwtManager.GenerateToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	// Token rotation：撤銷舊 refresh token，生成新的
+	if err := s.refreshTokenRepo.RevokeByToken(refreshToken); err != nil {
+		return nil, err
+	}
+
+	newRefreshToken, err := generateSecureToken()
+	if err != nil {
+		return nil, err
+	}
+
+	nrt := &model.RefreshToken{
+		UserID:    user.ID,
+		Token:     newRefreshToken,
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+	if err := s.refreshTokenRepo.Create(nrt); err != nil {
+		return nil, err
+	}
+
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int(s.jwtManager.TokenDuration().Seconds()),
+		User:         user,
+	}, nil
+}
+
+// RevokeRefreshToken 撤銷 refresh token（登出）
+func (s *userService) RevokeRefreshToken(refreshToken string) error {
+	return s.refreshTokenRepo.RevokeByToken(refreshToken)
 }

@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/walnut-almonds/talkrealm/internal/service"
@@ -99,11 +100,12 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "login successful",
-		"access_token": resp.AccessToken,
-		"token_type":   resp.TokenType,
-		"expires_in":   resp.ExpiresIn,
-		"user":         resp.User,
+		"message":       "login successful",
+		"access_token":  resp.AccessToken,
+		"refresh_token": resp.RefreshToken,
+		"token_type":    resp.TokenType,
+		"expires_in":    resp.ExpiresIn,
+		"user":          resp.User,
 	})
 }
 
@@ -199,4 +201,96 @@ func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 		"message": "user updated successfully",
 		"user":    user,
 	})
+}
+
+// RefreshToken 換發 access token
+//
+//	@Summary	換發 access token
+//	@Tags		auth
+//	@Accept		json
+//	@Produce	json
+//	@Param		request	body		RefreshTokenRequest		true	"refresh token"
+//	@Success	200		{object}	service.LoginResponse
+//	@Router		/api/v1/auth/refresh [post]
+func (h *UserHandler) RefreshToken(c *gin.Context) {
+	var req RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.userService.RefreshAccessToken(req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  resp.AccessToken,
+		"refresh_token": resp.RefreshToken,
+		"token_type":    resp.TokenType,
+		"expires_in":    resp.ExpiresIn,
+		"user":          resp.User,
+	})
+}
+
+// Logout 登出（撤銷 refresh token）
+//
+//	@Summary	登出
+//	@Tags		auth
+//	@Accept		json
+//	@Produce	json
+//	@Param		request	body		RefreshTokenRequest	true	"refresh token"
+//	@Success	200		{object}	map[string]string
+//	@Router		/api/v1/auth/logout [post]
+func (h *UserHandler) Logout(c *gin.Context) {
+	var req RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userService.RevokeRefreshToken(req.RefreshToken); err != nil {
+		// 即使 token 不存在也回傳 200，避免資訊洩漏
+		c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
+}
+
+// GetPublicUser 取得使用者公開資料
+//
+//	@Summary	取得使用者公開資料
+//	@Tags		users
+//	@Produce	json
+//	@Param		id	path		int	true	"使用者 ID"
+//	@Success	200	{object}	service.PublicUser
+//	@Failure	404	{object}	map[string]string
+//	@Router		/api/v1/users/{id} [get]
+func (h *UserHandler) GetPublicUser(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	user, err := h.userService.GetPublicByID(uint(userID))
+	if err != nil {
+		if errors.Is(err, service.ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+// RefreshTokenRequest refresh token 請求
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }

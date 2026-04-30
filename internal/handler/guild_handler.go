@@ -14,15 +14,18 @@ import (
 type GuildHandler struct {
 	guildService       service.GuildService
 	guildMemberService service.GuildMemberService
+	guildInviteService service.GuildInviteService
 }
 
 func NewGuildHandler(
 	guildService service.GuildService,
 	guildMemberService service.GuildMemberService,
+	guildInviteService service.GuildInviteService,
 ) *GuildHandler {
 	return &GuildHandler{
 		guildService:       guildService,
 		guildMemberService: guildMemberService,
+		guildInviteService: guildInviteService,
 	}
 }
 
@@ -462,4 +465,125 @@ type ErrorResponse struct {
 
 type SuccessResponse struct {
 	Message string `json:"message"`
+}
+
+// CreateInvite 建立邀請碼
+//
+//	@Summary		建立社群邀請碼
+//	@Description	建立指定社群的邀請碼
+//	@Tags			GuildInvite
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		int								true	"社群 ID"
+//	@Param			request	body		service.CreateInviteRequest		false	"建立邀請碼請求"
+//	@Success		201		{object}	model.GuildInvite
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Router			/api/v1/guilds/{id}/invites [post]
+func (h *GuildHandler) CreateInvite(c *gin.Context) {
+	guildID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild ID"})
+		return
+	}
+
+	userID := c.GetUint("user_id")
+
+	var req service.CreateInviteRequest
+	// body is optional; ShouldBindJSON error is ignored to allow empty body
+	_ = c.ShouldBindJSON(&req)
+
+	invite, err := h.guildInviteService.CreateInvite(uint(guildID), userID, &req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrGuildNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+		case errors.Is(err, service.ErrNotGuildMember):
+			c.JSON(http.StatusForbidden, gin.H{"error": "you are not a member of this guild"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusCreated, invite)
+}
+
+// GetInvite 查詢邀請碼資訊
+//
+//	@Summary		查詢邀請碼資訊
+//	@Description	透過邀請碼取得社群資訊
+//	@Tags			GuildInvite
+//	@Produce		json
+//	@Param			code	path		string	true	"邀請碼"
+//	@Success		200		{object}	model.GuildInvite
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/invites/{code} [get]
+func (h *GuildHandler) GetInvite(c *gin.Context) {
+	code := c.Param("code")
+
+	invite, err := h.guildInviteService.GetInviteByCode(code)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInviteNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
+		case errors.Is(err, service.ErrInviteExpired):
+			c.JSON(http.StatusGone, gin.H{"error": "invite has expired"})
+		case errors.Is(err, service.ErrInviteMaxUses):
+			c.JSON(http.StatusGone, gin.H{"error": "invite has reached max uses"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, invite)
+}
+
+// JoinByInvite 透過邀請碼加入社群
+//
+//	@Summary		透過邀請碼加入社群
+//	@Description	使用邀請碼加入一個社群
+//	@Tags			GuildInvite
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		JoinByInviteRequest	true	"加入請求"
+//	@Success		200		{object}	SuccessResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/api/v1/guilds/join-by-invite [post]
+func (h *GuildHandler) JoinByInvite(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var req JoinByInviteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.guildInviteService.JoinByInvite(req.Code, userID); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInviteNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
+		case errors.Is(err, service.ErrInviteExpired):
+			c.JSON(http.StatusGone, gin.H{"error": "invite has expired"})
+		case errors.Is(err, service.ErrInviteMaxUses):
+			c.JSON(http.StatusGone, gin.H{"error": "invite has reached max uses"})
+		case errors.Is(err, service.ErrAlreadyInGuild):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "already in guild"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "joined guild successfully"})
+}
+
+// JoinByInviteRequest 透過邀請碼加入請求
+type JoinByInviteRequest struct {
+	Code string `json:"code" binding:"required"`
 }

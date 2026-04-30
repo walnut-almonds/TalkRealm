@@ -40,4 +40,10 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
-2026-04-30 — Redis 整合（Phase 1）：pkg/redis singleton（go-redis/v9）、User Server Mapping、Guild Online Set、Rate Limit Middleware（POST messages 每秒 10 則）；新增 GetUserGuildIDs 於 GuildMemberRepository；WS Manager 加入 SetRedis / SetGuildLookup；server.go 接線 Redis。
+2026-04-30 — API 補全（Phase 1）：
+- Cursor-based pagination 已實作（`GetByChannelIDCursor` + `before`/`limit` query params）
+- Guild 邀請碼系統：`GuildInvite` model、`guild_invite_repository.go`、`guild_invite_service.go`；routes: `POST /guilds/:id/invites`、`GET /invites/:code`、`POST /guilds/join-by-invite`
+- Refresh Token：`RefreshToken` model、`refresh_token_repository.go`；`UserService` 新增 `RefreshAccessToken`/`RevokeRefreshToken`；token rotation 機制（舊 token 撤銷，發新 token）；routes: `POST /auth/refresh`、`POST /auth/logout`
+- User 公開資料 API：`GET /api/v1/users/:id`（回傳 `PublicUser`，不含 email）
+- Message Attachments：`Message.Attachments []string`（`gorm:"-"`），AfterFind hook 確保序列化為 `[]` 而非 `null`
+- `NewUserService` 需傳入 `RefreshTokenRepository`；`NewGuildHandler` 需傳入 `GuildInviteService`

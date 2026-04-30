@@ -20,18 +20,18 @@
 - [x] **Rate Limiting Middleware**：`INCR ratelimit:{userID}:msg` TTL 1s，超過 10 則回 429
 
 ### API 補全
-- [ ] **Cursor-based Pagination**：`GET /api/v1/channels/{id}/messages` 改為 `?before={id}&limit=50`，移除 offset 分頁
-- [ ] **Guild 邀請碼系統**
-  - [ ] DB migration：`guild_invites` 表
-  - [ ] `POST /api/v1/guilds/{id}/invites`：生成邀請碼
-  - [ ] `GET /api/v1/invites/{code}`：查詢邀請碼資訊
-  - [ ] `POST /api/v1/guilds/join-by-invite`：透過邀請碼加入
-- [ ] **Refresh Token**
-  - [ ] DB migration：`refresh_tokens` 表
-  - [ ] `POST /api/v1/auth/refresh`：換發 access token
-  - [ ] `POST /api/v1/auth/logout`：revoke refresh token
-- [ ] **User 公開資料 API**：`GET /api/v1/users/{id}`（不含 email）
-- [ ] **訊息 Attachment 欄位**：Message 回應加入 `attachments []` 陣列
+- [x] **Cursor-based Pagination**：`GET /api/v1/channels/{id}/messages` 改為 `?before={id}&limit=50`，移除 offset 分頁
+- [x] **Guild 邀請碼系統**
+  - [x] DB migration：`guild_invites` 表
+  - [x] `POST /api/v1/guilds/{id}/invites`：生成邀請碼
+  - [x] `GET /api/v1/invites/{code}`：查詢邀請碼資訊
+  - [x] `POST /api/v1/guilds/join-by-invite`：透過邀請碼加入
+- [x] **Refresh Token**
+  - [x] DB migration：`refresh_tokens` 表
+  - [x] `POST /api/v1/auth/refresh`：換發 access token
+  - [x] `POST /api/v1/auth/logout`：revoke refresh token
+- [x] **User 公開資料 API**：`GET /api/v1/users/{id}`（不含 email）
+- [x] **訊息 Attachment 欄位**：Message 回應加入 `attachments []` 陣列
 
 ### 權限系統（RBAC）
 - [ ] **Permission 中介層**：封裝 `RequireGuildRole(minRole)` middleware

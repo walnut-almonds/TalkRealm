@@ -65,6 +65,8 @@ func New(cfg *config.Config) (*Server, error) {
 	guildMemberRepo := repository.NewGuildMemberRepository(db)
 	channelRepo := repository.NewChannelRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
+	guildInviteRepo := repository.NewGuildInviteRepository(db)
+	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 
 	// 初始化 WebSocket 管理器（傳入 jwtManager，用於 identify op 驗證）
 	wsManager := websocket.NewManager(jwtManager)
@@ -75,9 +77,10 @@ func New(cfg *config.Config) (*Server, error) {
 	go wsManager.Run() // 啟動 WebSocket 管理器
 
 	// 初始化 Service
-	userService := service.NewUserService(userRepo, jwtManager)
+	userService := service.NewUserService(userRepo, refreshTokenRepo, jwtManager)
 	guildService := service.NewGuildService(guildRepo, guildMemberRepo)
 	guildMemberService := service.NewGuildMemberService(guildRepo, guildMemberRepo)
+	guildInviteService := service.NewGuildInviteService(guildInviteRepo, guildRepo, guildMemberRepo)
 	channelService := service.NewChannelService(channelRepo, guildRepo, guildMemberRepo)
 	messageService := service.NewMessageService(messageRepo, channelRepo, guildMemberRepo)
 
@@ -86,7 +89,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
-	guildHandler := handler.NewGuildHandler(guildService, guildMemberService)
+	guildHandler := handler.NewGuildHandler(guildService, guildMemberService, guildInviteService)
 	channelHandler := handler.NewChannelHandler(channelService)
 	messageHandler := handler.NewMessageHandler(messageService)
 
@@ -136,7 +139,15 @@ func (s *Server) setupRoutes() {
 		{
 			auth.POST("/register", s.userHandler.Register)
 			auth.POST("/login", s.userHandler.Login)
+			auth.POST("/refresh", s.userHandler.RefreshToken)
+			auth.POST("/logout", s.userHandler.Logout)
 		}
+
+		// 公開路由 - 使用者公開資料
+		v1.GET("/users/:id", s.userHandler.GetPublicUser)
+
+		// 公開路由 - 邀請碼資訊（可無需登入查詢）
+		v1.GET("/invites/:code", s.guildHandler.GetInvite)
 
 		// 需要認證的路由
 		protected := v1.Group("")
@@ -165,6 +176,10 @@ func (s *Server) setupRoutes() {
 				guilds.GET("/:id/members", s.guildHandler.ListGuildMembers)
 				guilds.DELETE("/:id/members/:userId", s.guildHandler.KickMember)
 				guilds.PUT("/:id/members/:userId/role", s.guildHandler.UpdateMemberRole)
+
+				// 社群邀請碼
+				guilds.POST("/:id/invites", s.guildHandler.CreateInvite)
+				guilds.POST("/join-by-invite", s.guildHandler.JoinByInvite)
 
 				// 社群頻道
 				guilds.GET("/:id/channels", s.channelHandler.ListGuildChannels)
