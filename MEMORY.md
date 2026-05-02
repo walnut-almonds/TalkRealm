@@ -40,7 +40,13 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
-2026-04-30 — 前端 Phase 1 UI 完善：
+2026-05-02 — 對齊 design-all-v2.png 架構圖，更新 plan.md / todolist.md：
+- **新增 Notification Service**：獨立服務，消費 `topic:notification`，呼叫 Push Gateway (FCM/APNs)，寫 DB
+- **新增 Translation Service**：獨立服務，由 Message Persistence Service 非同步派發，DeepL/GPT-4o，結果存 **Cassandra**（非 PostgreSQL 欄位）
+- **MQ Topic 命名統一**：`topic:record`、`topic:server.{id}`、`topic:notification`（對齊圖示；實作選 NATS JetStream，圖示標 Kafka，等效替代）
+- **Message Persistence Service** 寫 DB 後需非同步派發翻譯任務給 Translation Service
+- plan.md 第七節新增 Cassandra `translation_messages` schema 與 PostgreSQL `notifications` schema
+- WS 連線 URL 修正：token 透過 identify op 傳遞，不放 query string
 - `index.html`：新增 **Guild Settings modal**（編輯社群 + 邀請碼 + 刪除）、**Join by Invite modal**、guilds sidebar 加入「透過邀請碼加入」按鈕
 - `app.js`：實作 `showGuildSettings()`、`handleUpdateGuild()`、`handleDeleteGuild()`、`handleCreateInvite()`、`copyInviteCode()`、`showJoinByInviteModal()`、`handleJoinByInvite()`、`handleKickMember()`、`handleUpdateMemberRole()`
 - `renderMembers()` 現在顯示角色 badge（owner/admin/moderator）及管理員操作按鈕（踢人/改角色），透過 `ROLE_LEVEL` 比較決定可見性

@@ -46,15 +46,17 @@ Voice:
 | 服務 | 技術 | 職責 |
 |------|------|------|
 | **WebSocket Gateway** | Go + gorilla/websocket | 維護長連線、路由 WS 訊息到 Chat Server |
-| **Chat Server** | Go | 處理即時訊息路由、跨 server 轉發（透過 MQ）|
+| **Chat Server** | Go | 處理即時訊息路由、Redis 查詢 user 所在 server、跨 server 轉發（透過 MQ）|
 | **Auth Service** | Go + JWT | 註冊、登入、Token 驗證 |
-| **RestfulAPI Gateway** | Go + Gin | 統一 REST 入口、轉發到後端服務 |
-| **Message Persistence Service** | Go | 消費 MQ `topic:record`，寫入 DB |
+| **RestfulAPI Gateway** | Go + Gin | 統一 REST 入口（api.talkrealm.com）|
+| **Message Persistence Service** | Go | 消費 MQ `topic:record`，寫入 DB；同時非同步派發任務給 Translation Service |
+| **Translation Service** | Go | 接收翻譯任務（DeepL / GPT-4o），中日英三語互譯，結果寫入 Cassandra |
+| **Notification Service** | Go | 消費 MQ `topic:notification`，呼叫 Push Gateway（FCM/APNs），寫入通知記錄 DB |
 | **File Access Service** | Go | Pre-signed URL 生成、檔案 metadata 管理 |
-| **File Server** | Minio (S3-compatible) | 實際存放檔案 |
-| **LiveKit Voice Server** | LiveKit | WebRTC 語音/視訊 |
-| **Redis** | Redis | 記錄 userID → serverID 映射、Session 快取 |
-| **Message Queue** | NATS JetStream / Kafka | 跨 Chat Server 訊息路由 + 持久化任務佇列 |
+| **File Server** | Minio (S3-compatible) | 實際存放檔案（S3 相容，生產可換 AWS S3）|
+| **LiveKit Voice Server** | LiveKit | WebRTC 語音/視訊（SFU）|
+| **Redis（KVCache）** | Redis | 記錄 userID → serverID 映射、Guild online set、Rate limiting |
+| **Message Queue** | Kafka（圖示）/ NATS JetStream（實作選擇）| 跨 Chat Server 路由、持久化、通知分流 |
 
 ---
 
@@ -441,8 +443,9 @@ Voice:
 
 #### 連線
 ```
-wss://ws.talkrealm.com/ws?token=<JWT>
+wss://ws.talkrealm.com/ws
 ```
+> Token 不放在 query string，連線後透過 `identify` op 傳遞（安全性較佳）。
 
 #### Client → Server 訊息格式
 ```json
@@ -526,17 +529,28 @@ ratelimit:{userID}:msg   COUNTER  TTL: 1s
 
 ## 六、Message Queue Topic 設計
 
-使用 **NATS JetStream**（或 Kafka）：
+架構圖使用 **Kafka**；實作選擇 **NATS JetStream**（輕量等效替代，Kafka 為備選）：
 
 | Topic | 生產者 | 消費者 | 說明 |
 |-------|--------|--------|------|
-| `chat.server.{serverID}` | 任何 Chat Server | 對應 Chat Server | 跨 server 訊息路由 |
-| `chat.record` | 所有 Chat Server | Message Persistence Service | 持久化訊息到 DB |
-| `chat.event` | 所有 Chat Server | 推送服務 / 通知服務 | 事件廣播 |
+| `topic:server.{serverID}` | 任何 Chat Server | 目標 Chat Server | 跨 server 訊息路由（user online 時）|
+| `topic:record` | 所有 Chat Server | Message Persistence Service | 持久化訊息到 DB，同時派發翻譯任務 |
+| `topic:notification` | 所有 Chat Server | Notification Service | 目標 user offline 時推播通知 |
+
+### Chat Server 發訊息決策邏輯
+```
+收到 client send_message
+  ├── 永遠 publish → topic:record  （Message Persistence Service 寫 DB + 派翻譯任務）
+  └── 查 Redis user:{targetID}:server
+        ├── 存在（online）→ publish → topic:server.{serverID}
+        └── 不存在（offline）→ publish → topic:notification
+```
 
 ---
 
 ## 七、資料庫 Schema（主要表格）
+
+> 主要服務使用 **PostgreSQL**；Translation Service 使用 **Cassandra**（高寫入吞吐量、翻譯結果儲存）。
 
 ### users
 ```sql
@@ -584,6 +598,26 @@ id BIGSERIAL PK, message_id BIGINT FK, file_id TEXT,
 filename TEXT, mime_type TEXT, size BIGINT
 ```
 
+### translation_messages *(Cassandra — Translation Service)*
+```cql
+CREATE TABLE translation_messages (
+  message_id  BIGINT,
+  original_lang TEXT,
+  content_zh  TEXT,
+  content_ja  TEXT,
+  content_en  TEXT,
+  translated_at TIMESTAMP,
+  PRIMARY KEY (message_id)
+);
+```
+
+### notifications *(PostgreSQL — Notification Service)*
+```sql
+id BIGSERIAL PK, user_id BIGINT FK, message_id BIGINT,
+type TEXT, content TEXT, is_read BOOL DEFAULT FALSE,
+created_at TIMESTAMPTZ
+```
+
 ### files *(新增)*
 ```sql
 id TEXT PK (UUID), filename TEXT, mime_type TEXT, size BIGINT,
@@ -611,8 +645,11 @@ created_at TIMESTAMPTZ
 | RBAC 權限系統 | ❌ 只有 role 欄位 | 完整 role permission check | 🟡 中 |
 | Cursor-based pagination | ❌ offset pagination | before/after message_id | 🟡 中 |
 | **WS message format** | ⚠️ `type`/`data` 格式 | `op`/`d` Discord-like 格式 | 🟡 中 |
-| **訊息建立頃道** | ⚠️ REST POST 建立，WS 僅廣播 | WS-first：client 透過 WS `send_message` op 直接建立 | 🟡 中 |
+| **訊息發送方式** | ⚠️ REST POST 建立，WS 僅廣播 | WS-first：client 透過 WS `send_message` op 直接建立 | 🟡 中 |
 | **`is_edited` 欄位** | ✅ 已新增至 Message model | 須加 DB migration | 🔴 高 |
+| **Notification Service** | ❌ 無 | 獨立服務，消費 `topic:notification`，呼叫 Push Gateway | 🟡 中 |
+| **Translation Service** | ❌ 無 | 獨立服務，DeepL/GPT-4o，結果存 Cassandra | 🟠 低 |
+| **MQ Topic 命名對齊** | ⚠️ 程式碼未對齊圖示命名 | `topic:record`, `topic:server.{id}`, `topic:notification` | 🟡 中 |
 
 ---
 
@@ -628,15 +665,18 @@ created_at TIMESTAMPTZ
 - 完整 RBAC middleware
 
 ### Phase 2：接入 MQ（中期）
-- 引入 NATS JetStream
-- Chat Server publish `chat.record` → Message Persistence Consumer
-- Chat Server publish `chat.server.{id}` → 跨 server 路由
+- 引入 NATS JetStream（對應架構圖 Kafka，等效實作）
+- Chat Server publish `topic:record` → Message Persistence Consumer（寫 DB + 派翻譯任務）
+- Chat Server publish `topic:server.{id}` → 跨 server 路由（user online）
+- Chat Server publish `topic:notification` → Notification Service（user offline）
+- Notification Service 骨架：consume `topic:notification` → Push Gateway（FCM/APNs）
 - 將 WebSocket 連線管理與 HTTP handler 拆為兩個 binary（ws-gateway / api-server）
 
 ### Phase 3：File Service & Voice（中期）
 - 接入 Minio，實作 File Access Service
 - Pre-signed URL API
 - LiveKit 整合，實作語音頻道 token API
+- Translation Service 骨架：接收翻譯任務，DeepL/GPT-4o，結果寫 Cassandra
 
 ### Phase 4：微服務拆分（長期）
 - Auth Service 獨立部署

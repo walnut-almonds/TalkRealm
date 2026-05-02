@@ -23,7 +23,7 @@
 - [x] **Guild Online Set**：`SADD guild:{guildID}:online {userID}` / `SREM` on disconnect
 - [x] **Rate Limiting Middleware**：`INCR ratelimit:{userID}:msg` TTL 1s，超過 10 則回 429
 - [x] **IsUserOnline**：`Manager.IsUserOnline(userID)` 以 Redis key 存在為準，無 Redis 時 fallback 本地 clients
-- [ ] **Notification 分流**：Chat Server 發訊息前呼叫 `IsUserOnline(targetUserID)`；online → `topic:serverB`，offline → `topic:notification`（目前無此分流邏輯）
+- [ ] **Notification 分流**：Chat Server 發訊息前呼叫 `IsUserOnline(targetUserID)`；online → publish `topic:server.{serverID}`，offline → publish `topic:notification`（目前無此分流邏輯）
 
 ### API 補全
 - [x] **Cursor-based Pagination**：`GET /api/v1/channels/{id}/messages` 改為 `?before={id}&limit=50`
@@ -47,13 +47,15 @@
 
 > 詳細設計見 [`translation-plan.md`](./translation-plan.md)
 
-### DB Migration
-- [ ] **訊息表三語擴充**：`messages` 表新增 `original_lang`、`content_zh`、`content_ja`、`content_en` 欄位
-- [ ] **`game_states` 表**：新增 `message_id`、`guesser_id`、`hidden_lang`、`guess_content`、`mode`、`is_correct`、`guessed_at` 欄位
+> **對齊架構圖**：Translation Service 為獨立服務，由 Message Persistence Service 非同步派發任務；翻譯結果存入 **Cassandra**（非 PostgreSQL 欄位擴充）。
 
-### Translation Service
+### DB / 儲存層
+- [ ] **Cassandra `translation_messages` 表**：`message_id`、`original_lang`、`content_zh`、`content_ja`、`content_en`、`translated_at`
+- [ ] **`game_states` 表（PostgreSQL）**：新增 `message_id`、`guesser_id`、`hidden_lang`、`guess_content`、`mode`、`is_correct`、`guessed_at` 欄位
+
+### Translation Service（獨立服務）
 - [ ] **DeepL API 整合**：`internal/service/translation_service.go`，封裝 DeepL Free API 呼叫（中日英三語互譯）
-- [ ] **非同步翻譯流程**：發訊息時同步存原文，goroutine 非同步觸發翻譯，翻譯完成後寫回 DB
+- [ ] **非同步翻譯流程**：Message Persistence Service consume `topic:record` 寫 DB 後，非同步派發任務給 Translation Service；結果寫入 Cassandra
 - [ ] **WS Push `translation_ready`**：翻譯完成後透過 WS Manager 推送給同頻道接收方
 
 ### Dictionary Service
@@ -83,16 +85,16 @@
 
 ---
 
-## �🟡 Phase 2 — MQ 整合（中期）
+## 🟡 Phase 2 — MQ 整合（中期）
 
-### NATS JetStream
+### NATS JetStream（對應架構圖 Kafka，等效實作）
 - [ ] **引入 NATS client**：`pkg/mq/` 封裝 Publish / Subscribe
-- [ ] **`chat.record` Stream**：Chat Server 發送訊息時 publish，供 Message Persistence Consumer 消費寫 DB
-- [ ] **`chat.server.{id}` Topic**：Chat Server 收到目標 user 在另一 server 時，publish 到對應 topic
-- [ ] **`chat.notification` Topic**：目標 user offline 時（`IsUserOnline` 為 false）publish，供 Notification Service 消費
-- [ ] **Message Persistence Consumer**：獨立 goroutine（或獨立 binary），consume `chat.record` → 批次寫入 DB
+- [ ] **`topic:record` Stream**：Chat Server 發送訊息時永遠 publish，供 Message Persistence Consumer 消費寫 DB
+- [ ] **`topic:server.{id}` Topic**：Chat Server 收到目標 user 在另一 server（online）時，publish 到對應 topic
+- [ ] **`topic:notification` Topic**：目標 user offline（`IsUserOnline` 為 false）時 publish，供 Notification Service 消費
+- [ ] **Message Persistence Consumer**：獨立 goroutine（或獨立 binary），consume `topic:record` → 批次寫入 DB，同時非同步派發翻譯任務給 Translation Service
 - [ ] **跨 Server 訊息路由**：Chat Server subscribe 自身 topic，收到後透過 WS Manager 推給 client
-- [ ] **Notification Service 骨架**：consume `chat.notification`，呼叫 Push Gateway（FCM/APNs），寫 notification 記錄至 DB
+- [ ] **Notification Service 骨架**：consume `topic:notification` → 呼叫 Push Gateway（FCM/APNs）→ 寫通知記錄至 DB
 - [ ] **`last_read_message_id` schema**：`guild_members` 或獨立表記錄每個 user 在每個 channel 的最後已讀位置（badge count 必要）
 
 ### 服務拆分（Binary 層）
@@ -125,6 +127,8 @@
 
 - [ ] **Auth Service 獨立**：獨立 repo / binary，其他服務透過 gRPC 或 JWT 驗證
 - [ ] **Message Persistence Service 獨立**：獨立部署，只消費 MQ
+- [ ] **Translation Service 獨立**：獨立部署，接收翻譯任務，連接 Cassandra
+- [ ] **Notification Service 獨立**：獨立部署，消費 `topic:notification`，連接 Push Gateway
 - [ ] **File Access Service 獨立**：獨立 Deployment
 - [ ] **API Gateway**：Nginx / Traefik 路由 `ws.talkrealm.com` 和 `api.talkrealm.com`
 - [ ] **K8s HPA**：Chat Server 水平擴展，依連線數 autoscale
