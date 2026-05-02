@@ -594,6 +594,16 @@ body {
     transition: background-color 0.2s;
 }
 
+.message--pending {
+    opacity: 0.55;
+}
+
+.message--pending .message-text::after {
+    content: ' ⏳';
+    font-size: 0.75em;
+    color: var(--text-muted);
+}
+
 .message:hover {
     background-color: rgba(0, 0, 0, 0.1);
 }

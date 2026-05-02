@@ -11,10 +11,11 @@ import (
 type MessageRepository interface {
 	Create(message *model.Message) error
 	GetByID(id uint) (*model.Message, error)
+	GetByNonce(userID uint, nonce string) (*model.Message, error)
 	Update(message *model.Message) error
 	Delete(id uint) error
 	GetByChannelID(channelID uint, offset, limit int) ([]*model.Message, error)
-	GetByChannelIDCursor(channelID uint, before uint, limit int) ([]*model.Message, error)
+	GetByChannelIDCursor(channelID, before uint, limit int) ([]*model.Message, error)
 	GetByUserID(userID uint, offset, limit int) ([]*model.Message, error)
 }
 
@@ -30,6 +31,21 @@ func NewMessageRepository(db *gorm.DB) MessageRepository {
 // Create 建立新訊息
 func (r *messageRepository) Create(message *model.Message) error {
 	return r.db.Create(message).Error
+}
+
+// GetByNonce 透過 userID + nonce 查詢訊息（用於冪等去重）
+func (r *messageRepository) GetByNonce(userID uint, nonce string) (*model.Message, error) {
+	var message model.Message
+	err := r.db.Preload("User").Preload("Channel").
+		Where("user_id = ? AND nonce = ?", userID, nonce).
+		First(&message).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &message, nil
 }
 
 // GetByID 透過 ID 取得訊息

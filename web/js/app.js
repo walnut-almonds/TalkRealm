@@ -202,20 +202,42 @@ async function sendMessage() {
         return;
     }
 
+    // 產生冪等 nonce（UUID v4）
+    const nonce = crypto.randomUUID();
+
+    // Optimistic UI：先在畫面顯示「發送中」訊息
+    const optimisticMsg = {
+        id: null,
+        nonce,
+        channel_id: appState.currentChannel.id,
+        user_id: appState.user.id,
+        user: appState.user,
+        content,
+        type: 'text',
+        is_edited: false,
+        attachments: [],
+        created_at: new Date().toISOString(),
+        _pending: true  // 標記為待確認
+    };
+    appState.messages.push(optimisticMsg);
+    renderMessages();
+    scrollToBottom();
+
+    input.value = '';
+    input.focus();
+
     try {
-        input.value = '';
-        input.disabled = true;
-
-        await api.sendMessage(appState.currentChannel.id, content);
-
-        // 訊息會通過 WebSocket 接收，不需要手動添加
+        await api.sendMessage(appState.currentChannel.id, content, 'text', nonce);
+        // 成功後 server 會透過 WS 廣播 message_create（含 nonce），
+        // handleNewMessage 會用 nonce 把 optimistic message 替換掉
     } catch (error) {
         console.error('Failed to send message:', error);
         showNotification('發送訊息失敗', 'error');
+        // 移除 optimistic message
+        const idx = appState.messages.findIndex(m => m.nonce === nonce && m._pending);
+        if (idx !== -1) appState.messages.splice(idx, 1);
+        renderMessages();
         input.value = content; // 恢復輸入
-    } finally {
-        input.disabled = false;
-        input.focus();
     }
 }
 
@@ -262,11 +284,27 @@ function setupWebSocketHandlers() {
 // 處理新訊息
 function handleNewMessage(message) {
     // 只處理當前頻道的訊息
-    if (appState.currentChannel && message.channel_id === appState.currentChannel.id) {
-        appState.messages.push(message);
-        renderMessages();
-        scrollToBottom();
+    if (!appState.currentChannel || message.channel_id !== appState.currentChannel.id) {
+        return;
     }
+
+    // 用 nonce 替換 optimistic message（避免重複顯示）
+    if (message.nonce) {
+        const idx = appState.messages.findIndex(m => m.nonce === message.nonce && m._pending);
+        if (idx !== -1) {
+            appState.messages[idx] = message;
+            renderMessages();
+            return;
+        }
+        // 防止重複：若已存在相同 nonce 的確認訊息，直接忽略
+        if (appState.messages.some(m => m.nonce === message.nonce && !m._pending)) {
+            return;
+        }
+    }
+
+    appState.messages.push(message);
+    renderMessages();
+    scrollToBottom();
 }
 
 // 處理訊息更新
@@ -484,8 +522,9 @@ function renderMessages() {
             (new Date(message.created_at) - new Date(prevMessage.created_at)) < 300000; // 5分鐘內
 
         const messageElement = document.createElement('div');
-        messageElement.className = 'message';
-        messageElement.setAttribute('data-message-id', message.id);
+        messageElement.className = `message${message._pending ? ' message--pending' : ''}`;
+        messageElement.setAttribute('data-message-id', message.id || '');
+        if (message.nonce) messageElement.setAttribute('data-nonce', message.nonce);
 
         const user = message.user || {};
         const nickname = user.nickname || user.username || 'Unknown';

@@ -232,11 +232,10 @@ class API {
         return this.get(url);
     }
 
-    async sendMessage(channelId, content, messageType = 'text') {
-        return this.post(API_CONFIG.ENDPOINTS.CHANNEL_MESSAGES(channelId), {
-            content,
-            type: messageType
-        });
+    async sendMessage(channelId, content, messageType = 'text', nonce = null) {
+        const body = { content, type: messageType };
+        if (nonce) body.nonce = nonce;
+        return this.post(API_CONFIG.ENDPOINTS.CHANNEL_MESSAGES(channelId), body);
     }
 
     async updateMessage(messageId, content) {

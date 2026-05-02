@@ -14,6 +14,7 @@ var (
 	ErrNotMessageOwner     = errors.New("not the owner of this message")
 	ErrEmptyMessageContent = errors.New("message content cannot be empty")
 	ErrInvalidMessageType  = errors.New("invalid message type")
+	ErrDuplicateNonce      = errors.New("duplicate nonce: message already exists")
 )
 
 // WebSocketManager 定義 WebSocket 管理器的介面（避免循環依賴）
@@ -25,7 +26,11 @@ type WebSocketManager interface {
 type MessageService interface {
 	CreateMessage(userID uint, req *CreateMessageRequest) (*model.Message, error)
 	GetMessage(messageID, userID uint) (*model.Message, error)
-	ListChannelMessages(channelID, userID uint, limit int, before uint) (*MessageListResponse, error)
+	ListChannelMessages(
+		channelID, userID uint,
+		limit int,
+		before uint,
+	) (*MessageListResponse, error)
 	UpdateMessage(messageID, userID uint, req *UpdateMessageRequest) (*model.Message, error)
 	DeleteMessage(messageID, userID uint) error
 	SetWebSocketManager(manager WebSocketManager)
@@ -61,7 +66,8 @@ func (s *messageService) SetWebSocketManager(manager WebSocketManager) {
 type CreateMessageRequest struct {
 	ChannelID uint   `json:"channel_id"`
 	Content   string `json:"content"    binding:"required"`
-	Type      string `json:"type"` // text, image, file (預設: text)
+	Type      string `json:"type"`  // text, image, file (預設: text)
+	Nonce     string `json:"nonce"` // client 產生的冪等 key（可選，建議 UUID v4）
 }
 
 // UpdateMessageRequest 更新訊息請求
@@ -95,6 +101,18 @@ func (s *messageService) CreateMessage(
 		return nil, ErrInvalidMessageType
 	}
 
+	// 冪等去重：若 client 提供 nonce，先查 DB 是否已存在
+	if req.Nonce != "" {
+		existing, err := s.messageRepo.GetByNonce(userID, req.Nonce)
+		if err != nil {
+			return nil, err
+		}
+		if existing != nil {
+			// 已存在：直接返回原訊息，不重複寫入
+			return existing, nil
+		}
+	}
+
 	// 檢查頻道是否存在
 	channel, err := s.channelRepo.GetByID(req.ChannelID)
 	if err != nil {
@@ -113,6 +131,7 @@ func (s *messageService) CreateMessage(
 		UserID:    userID,
 		Content:   req.Content,
 		Type:      msgType,
+		Nonce:     req.Nonce,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}

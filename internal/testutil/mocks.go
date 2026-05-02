@@ -315,6 +315,7 @@ func (m *MockGuildMemberRepository) GetUserGuildIDs(userID uint) ([]uint, error)
 type MockMessageRepository struct {
 	CreateFn               func(message *model.Message) error
 	GetByIDFn              func(id uint) (*model.Message, error)
+	GetByNonceFn           func(userID uint, nonce string) (*model.Message, error)
 	UpdateFn               func(message *model.Message) error
 	DeleteFn               func(id uint) error
 	GetByChannelIDFn       func(channelID uint, offset, limit int) ([]*model.Message, error)
@@ -335,6 +336,14 @@ func (m *MockMessageRepository) Create(message *model.Message) error {
 func (m *MockMessageRepository) GetByID(id uint) (*model.Message, error) {
 	if m.GetByIDFn != nil {
 		return m.GetByIDFn(id)
+	}
+
+	return nil, nil
+}
+
+func (m *MockMessageRepository) GetByNonce(userID uint, nonce string) (*model.Message, error) {
+	if m.GetByNonceFn != nil {
+		return m.GetByNonceFn(userID, nonce)
 	}
 
 	return nil, nil
