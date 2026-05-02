@@ -323,6 +323,41 @@ func (m *Manager) redisOnDisconnect(userID uint) {
 	}
 }
 
+// redisRefreshHeartbeat 收到 heartbeat 時刷新 user server mapping 的 TTL
+func (m *Manager) redisRefreshHeartbeat(userID uint) {
+	if m.redisClient == nil {
+		return
+	}
+	ctx := context.Background()
+	key := fmt.Sprintf("user:%d:server", userID)
+	if err := m.redisClient.Expire(ctx, key, 86400*time.Second).Err(); err != nil {
+		log.Printf("redis: refresh heartbeat TTL for user %d failed: %v", userID, err)
+	}
+}
+
+// IsUserOnline 檢查使用者是否在線（以 Redis key 是否存在為準）
+func (m *Manager) IsUserOnline(userID uint) bool {
+	if m.redisClient == nil {
+		// fallback：掃描本地 clients
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		for c := range m.clients {
+			if c.identified && c.userID == userID {
+				return true
+			}
+		}
+		return false
+	}
+	ctx := context.Background()
+	key := fmt.Sprintf("user:%d:server", userID)
+	exists, err := m.redisClient.Exists(ctx, key).Result()
+	if err != nil {
+		log.Printf("redis: check user %d online failed: %v", userID, err)
+		return false
+	}
+	return exists > 0
+}
+
 // BroadcastToAll 向所有連接的客戶端廣播消息
 func (m *Manager) BroadcastToAll(msgType string, data interface{}) {
 	message := OutgoingMessage{

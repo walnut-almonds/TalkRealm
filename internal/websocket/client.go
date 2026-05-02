@@ -168,6 +168,10 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 			Data:      map[string]int64{"timestamp": time.Now().UnixMilli()},
 			Timestamp: time.Now().UnixMilli(),
 		})
+		// 已認證的 client 收到心跳時，刷新 Redis TTL，維持 online 狀態
+		if c.identified {
+			go c.manager.redisRefreshHeartbeat(c.userID)
+		}
 		return
 	}
 

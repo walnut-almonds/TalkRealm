@@ -10,28 +10,30 @@
 - [x] **WS Channel Index**：Manager 加入 `channelSubscriptions map[uint]map[*Client]bool`，只推訊息給訂閱該頻道的 client，O(1) 查找
 - [x] **WS Identify Op**：連線後 server 發 `hello`（帶 heartbeat_interval），client 發 `identify`（帶 JWT），server 回 `ready`，並訂閱初始頻道列表
 - [x] **Typing Indicator**：實作 `typing_start` op（WS Client → Server → 同頻道廣播，排除發送者）
-- [x] **Presence 系統**：identify 後廣播 `presence_update` online，斷線後廣播 offline（Redis 版本留待 Redis 整合後補充）
+- [x] **Presence 系統**：identify 後廣播 `presence_update` online，斷線後廣播 offline
 - [x] **WS Heartbeat / Reconnect**：標準化 `heartbeat` / `heartbeat_ack`，前端自動重連邏輯
+- [x] **Heartbeat 刷新 Redis TTL**：收到 `heartbeat` 時執行 `EXPIRE user:{userID}:server 86400`，以 key 存在與否作為 online/offline 唯一標準
+- [ ] **WS `send_message` op**：client 透過 WS 發訊息（`op: send_message`，帶 `channel_id / content / type / nonce`），server 驗證權限後寫 DB 並廣播 `message_create`（目前訊息發送走 REST POST）
+- [ ] **WS `message_create` / `message_update` / `message_delete` op**：統一 server→client 的訊息事件格式（目前部分廣播格式未對齊 plan.md Discord-like `op`/`d` 規格）
+- [ ] **`is_edited` DB migration**：`messages` 表加 `is_edited` 欄位（model 已有，migration 未執行）
 
 ### Redis 整合
 - [x] **引入 Redis Client**：在 `pkg/redis/` 封裝連線，config 加入 Redis 設定
 - [x] **User Server Mapping**：Chat Server 連線時 `SET user:{userID}:server {serverID} EX 86400`
 - [x] **Guild Online Set**：`SADD guild:{guildID}:online {userID}` / `SREM` on disconnect
 - [x] **Rate Limiting Middleware**：`INCR ratelimit:{userID}:msg` TTL 1s，超過 10 則回 429
+- [x] **IsUserOnline**：`Manager.IsUserOnline(userID)` 以 Redis key 存在為準，無 Redis 時 fallback 本地 clients
+- [ ] **Notification 分流**：Chat Server 發訊息前呼叫 `IsUserOnline(targetUserID)`；online → `topic:serverB`，offline → `topic:notification`（目前無此分流邏輯）
 
 ### API 補全
-- [x] **Cursor-based Pagination**：`GET /api/v1/channels/{id}/messages` 改為 `?before={id}&limit=50`，移除 offset 分頁
-- [x] **Guild 邀請碼系統**
-  - [x] DB migration：`guild_invites` 表
-  - [x] `POST /api/v1/guilds/{id}/invites`：生成邀請碼
-  - [x] `GET /api/v1/invites/{code}`：查詢邀請碼資訊
-  - [x] `POST /api/v1/guilds/join-by-invite`：透過邀請碼加入
-- [x] **Refresh Token**
-  - [x] DB migration：`refresh_tokens` 表
-  - [x] `POST /api/v1/auth/refresh`：換發 access token
-  - [x] `POST /api/v1/auth/logout`：revoke refresh token
+- [x] **Cursor-based Pagination**：`GET /api/v1/channels/{id}/messages` 改為 `?before={id}&limit=50`
+- [x] **Guild 邀請碼系統**（`guild_invites` 表、`POST/GET/JOIN` API）
+- [x] **Refresh Token**（`refresh_tokens` 表、`/auth/refresh`、`/auth/logout`）
 - [x] **User 公開資料 API**：`GET /api/v1/users/{id}`（不含 email）
 - [x] **訊息 Attachment 欄位**：Message 回應加入 `attachments []` 陣列
+- [ ] **`PATCH /api/v1/users/me`**：更新暱稱 / avatar / status（plan.md 4.2 已定義，目前未實作）
+- [ ] **`PUT /api/v1/channels/{id}/position`**：更新頻道排序（plan.md 4.4 已定義，未實作）
+- [ ] **`GET /api/v1/messages/{id}`**：取得單一訊息詳情（plan.md 4.5 已定義，未實作）
 
 ### 權限系統（RBAC）
 - [x] **Permission 中介層**：封裝 `RequireGuildRole(minRole)` middleware
@@ -41,14 +43,57 @@
 
 ---
 
-## 🟡 Phase 2 — MQ 整合（中期）
+## � Translation Plan Phase 1 — 翻譯猜字 MVP（字典模式）
+
+> 詳細設計見 [`translation-plan.md`](./translation-plan.md)
+
+### DB Migration
+- [ ] **訊息表三語擴充**：`messages` 表新增 `original_lang`、`content_zh`、`content_ja`、`content_en` 欄位
+- [ ] **`game_states` 表**：新增 `message_id`、`guesser_id`、`hidden_lang`、`guess_content`、`mode`、`is_correct`、`guessed_at` 欄位
+
+### Translation Service
+- [ ] **DeepL API 整合**：`internal/service/translation_service.go`，封裝 DeepL Free API 呼叫（中日英三語互譯）
+- [ ] **非同步翻譯流程**：發訊息時同步存原文，goroutine 非同步觸發翻譯，翻譯完成後寫回 DB
+- [ ] **WS Push `translation_ready`**：翻譯完成後透過 WS Manager 推送給同頻道接收方
+
+### Dictionary Service
+- [ ] **字典資料來源確認**：確認中日英三語單字字典來源與建置方式
+- [ ] **`internal/service/dictionary_service.go`**：封裝字典查詢，完全匹配判斷
+
+### Game API
+- [ ] **`POST /api/v1/messages/{id}/guess`**：接受猜測內容，呼叫 Dictionary Service 判斷，寫入 `game_states`
+- [ ] **`GET /api/v1/messages/{id}/game`**：取得該訊息的猜測狀態（已猜 / 未猜 / 結果）
+
+### 前端
+- [ ] **「翻譯載入中」UI 狀態**：收到訊息後顯示 loading，等待 `translation_ready` WS 事件
+- [ ] **隱藏原文 / 譯文 UI**：讓用戶可選擇隱藏哪一側
+- [ ] **猜字輸入 UI**：顯示猜測輸入框，回饋正確 / 錯誤結果
+
+---
+
+## 🔵 Translation Plan Phase 2 — LLM 語意模式（待 Phase 1 驗證後）
+
+- [ ] **訊息表 embedding 欄位**：`embedding_zh`、`embedding_ja`、`embedding_en`
+- [ ] **Guess Evaluation Service**：呼叫 Gemini 1.5 Flash（或 Groq + Llama 3.1）判斷語意相似度 ≥ 70%
+- [ ] **`game_states` 加入 `similarity_score`**：記錄 LLM 回傳相似度
+- [ ] **雙模式 API**：`POST /api/v1/messages/{id}/guess` 支援 `mode: "dictionary" | "semantic"`
+- [ ] **LLM Prompt 設計與三語測試**
+- [ ] **免費 API 額度監控機制**
+- [ ] **Reward Service**：積分 / 徽章 / 排行榜（設計 TBD）
+
+---
+
+## �🟡 Phase 2 — MQ 整合（中期）
 
 ### NATS JetStream
 - [ ] **引入 NATS client**：`pkg/mq/` 封裝 Publish / Subscribe
 - [ ] **`chat.record` Stream**：Chat Server 發送訊息時 publish，供 Message Persistence Consumer 消費寫 DB
 - [ ] **`chat.server.{id}` Topic**：Chat Server 收到目標 user 在另一 server 時，publish 到對應 topic
+- [ ] **`chat.notification` Topic**：目標 user offline 時（`IsUserOnline` 為 false）publish，供 Notification Service 消費
 - [ ] **Message Persistence Consumer**：獨立 goroutine（或獨立 binary），consume `chat.record` → 批次寫入 DB
 - [ ] **跨 Server 訊息路由**：Chat Server subscribe 自身 topic，收到後透過 WS Manager 推給 client
+- [ ] **Notification Service 骨架**：consume `chat.notification`，呼叫 Push Gateway（FCM/APNs），寫 notification 記錄至 DB
+- [ ] **`last_read_message_id` schema**：`guild_members` 或獨立表記錄每個 user 在每個 channel 的最後已讀位置（badge count 必要）
 
 ### 服務拆分（Binary 層）
 - [ ] **ws-gateway binary**：僅處理 WebSocket 連線管理，與 api-server 分開
@@ -126,6 +171,16 @@
 - [x] Channel CRUD
 - [x] 基礎訊息 CRUD（REST）
 - [x] WebSocket 連線與基礎廣播
+- [x] WS identify / hello / ready / heartbeat / presence_update
+- [x] WS typing_start
+- [x] WS subscribe / unsubscribe channel
+- [x] Redis user server mapping + guild online set
+- [x] Redis Heartbeat TTL 刷新 + `IsUserOnline`
+- [x] Rate Limiting middleware（Redis counter）
+- [x] Cursor-based message pagination
+- [x] Guild 邀請碼系統
+- [x] Refresh Token + logout
+- [x] RBAC `RequireGuildRole` middleware
 - [x] Docker Compose 本地開發環境
 - [x] Kubernetes 部署配置
 - [x] OpenAPI 基礎定義
