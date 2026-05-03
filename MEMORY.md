@@ -32,6 +32,7 @@ make check        # 全部檢查（lint + build + test）
 - WS Manager 已有 channel subscription index（Phase 1 完成）；Presence 系統目前無 Redis（狀態不持久化）
 - `message_service.go` 中 WS Manager 以 interface 注入（避免循環依賴），需 `SetWebSocketManager()` 設定；另有 `CreateMessageWS()` 供 WS `send_message` op 呼叫（`MessageSender` interface 注入到 Manager）
 - handler.go 仍有 TODO stub functions（已被 user_handler.go 等各自的 handler 取代）
+- 部署到 VPS 使用 `docker-compose.prod.yml` 時，`POSTGRES_PASSWORD` / `REDIS_PASSWORD` 需由同目錄 `.env` 或 `--env-file` 提供；否則 Compose 會以空字串替代，造成 postgres healthcheck 失敗。
 
 ## Decisions
 - MQ 選擇 NATS JetStream（輕量，適合小團隊），備選 Kafka

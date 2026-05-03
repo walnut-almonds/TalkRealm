@@ -50,20 +50,25 @@ jobs:
             ghcr.io/walnut-almonds/talkrealm:latest
             ghcr.io/walnut-almonds/talkrealm:${{ github.sha }}
 
-      - name: Generate config.yaml
+      - name: Generate config.yaml and .env
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: envsubst < configs/config.prod.yaml > config.yaml
+        run: |
+          test -n "$DB_PASSWORD"
+          test -n "$REDIS_PASSWORD"
+          test -n "$JWT_SECRET"
+          envsubst < configs/config.prod.yaml > config.yaml
+          printf 'POSTGRES_PASSWORD=%s\nREDIS_PASSWORD=%s\n' "$DB_PASSWORD" "$REDIS_PASSWORD" > .env
 
-      - name: Upload compose and config to VPS
+      - name: Upload compose, config and .env to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.prod.yml,config.yaml"
+          source: "docker-compose.prod.yml,config.yaml,.env"
           target: "/opt/talkrealm/"
 
       - name: Deploy on VPS
@@ -78,7 +83,7 @@ jobs:
             echo "Pulling latest image..."
             docker pull ghcr.io/walnut-almonds/talkrealm:latest
             echo "Restarting app container..."
-            docker compose -f docker-compose.prod.yml up -d
+            docker compose --env-file .env -f docker-compose.prod.yml up -d
             echo "Cleaning up old images..."
             docker image prune -f
             echo "Deploy complete!"
