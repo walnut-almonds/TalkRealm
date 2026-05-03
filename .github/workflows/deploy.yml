@@ -68,7 +68,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.prod.yml,config.yaml,.env"
+          source: "docker-compose.prod.yml,config.yaml,.env,nginx/nginx.conf"
           target: "/opt/talkrealm/"
 
       - name: Deploy on VPS
