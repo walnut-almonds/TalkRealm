@@ -203,7 +203,12 @@ async function sendMessage() {
     }
 
     // 產生冪等 nonce（UUID v4）
-    const nonce = crypto.randomUUID();
+    // crypto.randomUUID() 僅在 secure context（HTTPS/localhost）可用，提供 fallback
+    const nonce = (typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+            (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+        );
 
     // Optimistic UI：先在畫面顯示「發送中」訊息
     const optimisticMsg = {
