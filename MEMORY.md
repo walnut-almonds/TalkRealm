@@ -2,7 +2,7 @@
 
 ## Quick Facts
 - Module: `github.com/walnut-almonds/talkrealm`
-- Go version: 1.25.5
+- Go version: 1.26.1
 - Web framework: Gin v1.10.0
 - ORM: GORM + PostgreSQL (`gorm.io/driver/postgres`)
 - WebSocket: `gorilla/websocket`

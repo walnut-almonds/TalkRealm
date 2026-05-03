@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: talkrealm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: talkrealm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: talkrealm
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - talkrealm-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U talkrealm -d talkrealm" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: talkrealm-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - talkrealm-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: ghcr.io/walnut-almonds/talkrealm:latest
+    container_name: talkrealm-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /opt/talkrealm/config.yaml:/talk-realm/config.yaml:ro
+    networks:
+      - talkrealm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  talkrealm-network:
+    driver: bridge
