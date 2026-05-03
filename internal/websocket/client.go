@@ -127,27 +127,24 @@ func (c *Client) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
+				c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
-			w, err := c.conn.NextWriter(websocket.TextMessage)
-			if err != nil {
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				return
 			}
-			w.Write(message)
 
-			// 批量寫入排隊中的消息
+			// 將排隊中的訊息逐一以獨立 frame 發送，避免多個 JSON 合併在同一 frame 導致解析失敗
 			n := len(c.send)
 			for i := 0; i < n; i++ {
-				w.Write([]byte{'\n'})
-				w.Write(<-c.send)
-			}
-
-			if err := w.Close(); err != nil {
-				return
+				c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+				if err := c.conn.WriteMessage(websocket.TextMessage, <-c.send); err != nil {
+					return
+				}
 			}
 
 		case <-ticker.C:
@@ -216,10 +213,16 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 			ContentType string `json:"type"`
 			Nonce       string `json:"nonce"`
 		}
-		if err := json.Unmarshal(msg.Data, &payload); err != nil || payload.ChannelID == 0 || payload.Content == "" {
+		if err := json.Unmarshal(
+			msg.Data,
+			&payload,
+		); err != nil || payload.ChannelID == 0 ||
+			payload.Content == "" {
 			c.sendJSON(OutgoingMessage{
-				Op:        "error",
-				Data:      map[string]string{"message": "invalid send_message payload: channel_id and content required"},
+				Op: "error",
+				Data: map[string]string{
+					"message": "invalid send_message payload: channel_id and content required",
+				},
 				Timestamp: time.Now().UnixMilli(),
 			})
 			return
