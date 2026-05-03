@@ -50,13 +50,20 @@ jobs:
             ghcr.io/walnut-almonds/talkrealm:latest
             ghcr.io/walnut-almonds/talkrealm:${{ github.sha }}
 
-      - name: Upload compose file to VPS
+      - name: Generate config.yaml
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: envsubst < configs/config.prod.yaml > config.yaml
+
+      - name: Upload compose and config to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.prod.yml"
+          source: "docker-compose.prod.yml,config.yaml"
           target: "/opt/talkrealm/"
 
       - name: Deploy on VPS

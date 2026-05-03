@@ -1,0 +1,31 @@
+server:
+  port: 8080
+  mode: release
+  read_timeout: 10s
+  write_timeout: 10s
+  idle_timeout: 60s
+
+database:
+  host: postgres
+  port: 5432
+  user: talkrealm
+  password: ${DB_PASSWORD}
+  dbname: talkrealm
+  sslmode: disable
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 60
+  log_mode: false
+
+redis:
+  host: redis
+  port: 6379
+  password: ${REDIS_PASSWORD}
+  db: 0
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration_hours: 168
+
+log:
+  level: info
