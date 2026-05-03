@@ -78,7 +78,7 @@ jobs:
             echo "Pulling latest image..."
             docker pull ghcr.io/walnut-almonds/talkrealm:latest
             echo "Restarting app container..."
-            docker compose -f docker-compose.prod.yml up -d --no-deps app
+            docker compose -f docker-compose.prod.yml up -d
             echo "Cleaning up old images..."
             docker image prune -f
             echo "Deploy complete!"
