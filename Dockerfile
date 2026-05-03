@@ -3,6 +3,7 @@ FROM gcr.io/distroless/static-debian12
 ARG APP
 
 COPY ${APP} /talk-realm/app
+COPY web/ /talk-realm/web/
 
 WORKDIR /talk-realm
 
