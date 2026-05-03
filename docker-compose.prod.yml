@@ -38,8 +38,8 @@ services:
     image: ghcr.io/walnut-almonds/talkrealm:latest
     container_name: talkrealm-app
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     volumes:
       - /opt/talkrealm/config.yaml:/talk-realm/config.yaml:ro
     networks:
@@ -47,6 +47,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    container_name: talkrealm-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/talkrealm/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/ssl/certs/qrumi.org.pem:/etc/ssl/certs/qrumi.org.pem:ro
+      - /etc/ssl/private/qrumi.org.key:/etc/ssl/private/qrumi.org.key:ro
+    networks:
+      - talkrealm-network
+    depends_on:
+      - app
 
 volumes:
   postgres_data:
