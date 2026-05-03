@@ -28,12 +28,14 @@ type GuildInviteService interface {
 	CreateInvite(guildID, creatorID uint, req *CreateInviteRequest) (*model.GuildInvite, error)
 	GetInviteByCode(code string) (*model.GuildInvite, error)
 	JoinByInvite(code string, userID uint) error
+	SetWebSocketManager(m GuildEventBroadcaster)
 }
 
 type guildInviteService struct {
 	inviteRepo      repository.GuildInviteRepository
 	guildRepo       repository.GuildRepository
 	guildMemberRepo repository.GuildMemberRepository
+	wsManager       GuildEventBroadcaster
 }
 
 // NewGuildInviteService 建立社群邀請碼服務
@@ -47,6 +49,11 @@ func NewGuildInviteService(
 		guildRepo:       guildRepo,
 		guildMemberRepo: guildMemberRepo,
 	}
+}
+
+// SetWebSocketManager 設定 WebSocket 廣播器
+func (s *guildInviteService) SetWebSocketManager(m GuildEventBroadcaster) {
+	s.wsManager = m
 }
 
 // generateInviteCode 生成 8 字元邀請碼（Base32 大寫）
@@ -148,6 +155,14 @@ func (s *guildInviteService) JoinByInvite(code string, userID uint) error {
 
 	if err := s.guildMemberRepo.Create(member); err != nil {
 		return err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(invite.GuildID, "guild_member_add", map[string]any{
+			"guild_id": invite.GuildID,
+			"user_id":  userID,
+			"role":     "member",
+		})
 	}
 
 	// 增加邀請碼使用次數

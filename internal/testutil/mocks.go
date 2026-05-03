@@ -592,13 +592,14 @@ func (m *MockUserService) RevokeRefreshToken(refreshToken string) error {
 
 // MockGuildService is a test double for service.GuildService.
 type MockGuildService struct {
-	CreateGuildFn    func(ownerID uint, req *service.CreateGuildRequest) (*model.Guild, error)
-	GetGuildFn       func(guildID uint) (*model.Guild, error)
-	ListUserGuildsFn func(userID uint) ([]*model.Guild, error)
-	UpdateGuildFn    func(guildID, userID uint, req *service.UpdateGuildRequest) (*model.Guild, error)
-	DeleteGuildFn    func(guildID, userID uint) error
-	IsGuildOwnerFn   func(guildID, userID uint) (bool, error)
-	IsGuildMemberFn  func(guildID, userID uint) (bool, error)
+	CreateGuildFn          func(ownerID uint, req *service.CreateGuildRequest) (*model.Guild, error)
+	GetGuildFn             func(guildID uint) (*model.Guild, error)
+	ListUserGuildsFn       func(userID uint) ([]*model.Guild, error)
+	UpdateGuildFn          func(guildID, userID uint, req *service.UpdateGuildRequest) (*model.Guild, error)
+	DeleteGuildFn          func(guildID, userID uint) error
+	IsGuildOwnerFn         func(guildID, userID uint) (bool, error)
+	IsGuildMemberFn        func(guildID, userID uint) (bool, error)
+	SetWebSocketManagerFn  func(m service.GuildEventBroadcaster)
 }
 
 var _ service.GuildService = (*MockGuildService)(nil)
@@ -659,14 +660,21 @@ func (m *MockGuildService) IsGuildMember(guildID, userID uint) (bool, error) {
 	return false, nil
 }
 
+func (m *MockGuildService) SetWebSocketManager(mgr service.GuildEventBroadcaster) {
+	if m.SetWebSocketManagerFn != nil {
+		m.SetWebSocketManagerFn(mgr)
+	}
+}
+
 // MockGuildMemberService is a test double for service.GuildMemberService.
 type MockGuildMemberService struct {
-	JoinGuildFn        func(guildID, userID uint) error
-	LeaveGuildFn       func(guildID, userID uint) error
-	KickMemberFn       func(guildID, targetUserID, operatorUserID uint) error
-	ListGuildMembersFn func(guildID uint) ([]*model.GuildMember, error)
-	GetMemberFn        func(guildID, userID uint) (*model.GuildMember, error)
-	UpdateMemberRoleFn func(guildID, targetUserID, operatorUserID uint, role string) error
+	JoinGuildFn           func(guildID, userID uint) error
+	LeaveGuildFn          func(guildID, userID uint) error
+	KickMemberFn          func(guildID, targetUserID, operatorUserID uint) error
+	ListGuildMembersFn    func(guildID uint) ([]*model.GuildMember, error)
+	GetMemberFn           func(guildID, userID uint) (*model.GuildMember, error)
+	UpdateMemberRoleFn    func(guildID, targetUserID, operatorUserID uint, role string) error
+	SetWebSocketManagerFn func(m service.GuildEventBroadcaster)
 }
 
 var _ service.GuildMemberService = (*MockGuildMemberService)(nil)
@@ -719,11 +727,18 @@ func (m *MockGuildMemberService) UpdateMemberRole(guildID, targetUserID, operato
 	return nil
 }
 
+func (m *MockGuildMemberService) SetWebSocketManager(mgr service.GuildEventBroadcaster) {
+	if m.SetWebSocketManagerFn != nil {
+		m.SetWebSocketManagerFn(mgr)
+	}
+}
+
 // MockGuildInviteService is a test double for service.GuildInviteService.
 type MockGuildInviteService struct {
-	CreateInviteFn    func(guildID, creatorID uint, req *service.CreateInviteRequest) (*model.GuildInvite, error)
-	GetInviteByCodeFn func(code string) (*model.GuildInvite, error)
-	JoinByInviteFn    func(code string, userID uint) error
+	CreateInviteFn        func(guildID, creatorID uint, req *service.CreateInviteRequest) (*model.GuildInvite, error)
+	GetInviteByCodeFn     func(code string) (*model.GuildInvite, error)
+	JoinByInviteFn        func(code string, userID uint) error
+	SetWebSocketManagerFn func(m service.GuildEventBroadcaster)
 }
 
 var _ service.GuildInviteService = (*MockGuildInviteService)(nil)
@@ -752,6 +767,12 @@ func (m *MockGuildInviteService) JoinByInvite(code string, userID uint) error {
 	return nil
 }
 
+func (m *MockGuildInviteService) SetWebSocketManager(mgr service.GuildEventBroadcaster) {
+	if m.SetWebSocketManagerFn != nil {
+		m.SetWebSocketManagerFn(mgr)
+	}
+}
+
 // MockMessageService is a test double for service.MessageService.
 type MockMessageService struct {
 	CreateMessageFn       func(userID uint, req *service.CreateMessageRequest) (*model.Message, error)
@@ -760,6 +781,7 @@ type MockMessageService struct {
 	UpdateMessageFn       func(messageID, userID uint, req *service.UpdateMessageRequest) (*model.Message, error)
 	DeleteMessageFn       func(messageID, userID uint) error
 	SetWebSocketManagerFn func(manager service.WebSocketManager)
+	CreateMessageWSFn     func(userID, channelID uint, content, contentType, nonce string) (any, error)
 }
 
 var _ service.MessageService = (*MockMessageService)(nil)
@@ -810,6 +832,14 @@ func (m *MockMessageService) SetWebSocketManager(manager service.WebSocketManage
 	}
 }
 
+func (m *MockMessageService) CreateMessageWS(userID, channelID uint, content, contentType, nonce string) (any, error) {
+	if m.CreateMessageWSFn != nil {
+		return m.CreateMessageWSFn(userID, channelID, content, contentType, nonce)
+	}
+
+	return nil, nil
+}
+
 // ---------------------------------------------------------------------------
 // MockChannelService
 // ---------------------------------------------------------------------------
@@ -822,6 +852,7 @@ type MockChannelService struct {
 	UpdateChannelFn         func(channelID, userID uint, req *service.UpdateChannelRequest) (*model.Channel, error)
 	DeleteChannelFn         func(channelID, userID uint) error
 	UpdateChannelPositionFn func(channelID, userID uint, position int) error
+	SetWebSocketManagerFn   func(m service.GuildEventBroadcaster)
 }
 
 var _ service.ChannelService = (*MockChannelService)(nil)
@@ -866,4 +897,10 @@ func (m *MockChannelService) UpdateChannelPosition(channelID, userID uint, posit
 		return m.UpdateChannelPositionFn(channelID, userID, position)
 	}
 	return nil
+}
+
+func (m *MockChannelService) SetWebSocketManager(mgr service.GuildEventBroadcaster) {
+	if m.SetWebSocketManagerFn != nil {
+		m.SetWebSocketManagerFn(mgr)
+	}
 }

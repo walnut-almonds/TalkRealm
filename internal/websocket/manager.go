@@ -17,6 +17,12 @@ type GuildMemberLookup interface {
 	GetUserGuildIDs(userID uint) ([]uint, error)
 }
 
+// MessageSender 訊息建立介面（避免循環依賴）
+// 由 MessageService 實作，注入 Manager 後供 send_message op 使用
+type MessageSender interface {
+	CreateMessageWS(userID, channelID uint, content, contentType, nonce string) (any, error)
+}
+
 // serverID 用於 Redis user server mapping（單體架構下固定為 "1"）
 const serverID = "1"
 
@@ -27,6 +33,9 @@ type Manager struct {
 
 	// channelSubscriptions 頻道訂閱索引：channelID -> 訂閱該頻道的 clients（O(1) 查找）
 	channelSubscriptions map[uint]map[*Client]bool
+
+	// guildSubscriptions guild 訂閱索引：guildID -> 訂閱該 guild 的 clients（O(1) 廣播 guild 事件）
+	guildSubscriptions map[uint]map[*Client]bool
 
 	// 從客戶端接收的廣播消息
 	broadcast chan []byte
@@ -48,6 +57,9 @@ type Manager struct {
 
 	// guildLookup 用於查詢使用者所屬 guild IDs
 	guildLookup GuildMemberLookup
+
+	// msgSender 用於 send_message op（注入 MessageService，避免循環依賴）
+	msgSender MessageSender
 }
 
 // NewManager 創建新的 WebSocket 管理器
@@ -55,6 +67,7 @@ func NewManager(jwtManager *auth.JWTManager) *Manager {
 	return &Manager{
 		clients:              make(map[*Client]bool),
 		channelSubscriptions: make(map[uint]map[*Client]bool),
+		guildSubscriptions:   make(map[uint]map[*Client]bool),
 		broadcast:            make(chan []byte, 256),
 		register:             make(chan *Client),
 		unregister:           make(chan *Client),
@@ -81,6 +94,11 @@ func (m *Manager) Run() {
 				// 從所有頻道訂閱中移除
 				for channelID := range client.channels {
 					if subscribers, ok := m.channelSubscriptions[channelID]; ok {
+						delete(subscribers, client)
+					}
+				}
+				for guildID := range client.guilds {
+					if subscribers, ok := m.guildSubscriptions[guildID]; ok {
 						delete(subscribers, client)
 					}
 				}
@@ -151,6 +169,76 @@ func (m *Manager) UnsubscribeFromChannel(client *Client, channelID uint) {
 		delete(subscribers, client)
 	}
 	log.Printf("User %s unsubscribed from channel %d", client.username, channelID)
+}
+
+// SubscribeToGuild 將 client 加入 guild 訂閱索引
+func (m *Manager) SubscribeToGuild(client *Client, guildID uint) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	client.guilds[guildID] = true
+	if m.guildSubscriptions[guildID] == nil {
+		m.guildSubscriptions[guildID] = make(map[*Client]bool)
+	}
+	m.guildSubscriptions[guildID][client] = true
+}
+
+// UnsubscribeFromGuild 將 client 從 guild 訂閱索引中移除
+func (m *Manager) UnsubscribeFromGuild(client *Client, guildID uint) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(client.guilds, guildID)
+	if subscribers, ok := m.guildSubscriptions[guildID]; ok {
+		delete(subscribers, client)
+	}
+}
+
+// BroadcastToGuild 向訂閱了指定 guild 的所有客戶端廣播消息
+func (m *Manager) BroadcastToGuild(guildID uint, msgType string, data interface{}) {
+	message := OutgoingMessage{
+		Op:        msgType,
+		Data:      data,
+		Timestamp: time.Now().UnixMilli(),
+	}
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling guild message: %v", err)
+		return
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	subscribers, ok := m.guildSubscriptions[guildID]
+	if !ok {
+		return
+	}
+
+	count := 0
+	for client := range subscribers {
+		select {
+		case client.send <- messageBytes:
+			count++
+		default:
+			log.Printf("Failed to send guild message to client %s (buffer full)", client.username)
+		}
+	}
+	log.Printf("Broadcasted %s to guild %d: %d clients", msgType, guildID, count)
+}
+
+// SubscribeClientToUserGuilds 將 client 訂閱至其所有 guild（由 guildLookup 查詢）
+func (m *Manager) SubscribeClientToUserGuilds(client *Client) {
+	if m.guildLookup == nil {
+		return
+	}
+	guildIDs, err := m.guildLookup.GetUserGuildIDs(client.userID)
+	if err != nil {
+		log.Printf("ws: failed to get guild IDs for user %d: %v", client.userID, err)
+		return
+	}
+	for _, gid := range guildIDs {
+		m.SubscribeToGuild(client, gid)
+	}
+	log.Printf("User %s subscribed to %d guilds", client.username, len(guildIDs))
 }
 
 // BroadcastToChannel 向訂閱了指定頻道的所有客戶端廣播消息（使用 O(1) 索引查找）
@@ -259,6 +347,28 @@ func (m *Manager) SetRedis(rdb *goredis.Client) {
 // SetGuildLookup 注入 guild 成員查詢介面
 func (m *Manager) SetGuildLookup(l GuildMemberLookup) {
 	m.guildLookup = l
+}
+
+// SetMessageSender 注入訊息建立器（供 send_message op 使用）
+func (m *Manager) SetMessageSender(s MessageSender) {
+	m.msgSender = s
+}
+
+// CheckRateLimit 檢查使用者是否超出速率限制（每秒 maxMsg 則）
+// 回傳 true 表示允許，false 表示超限
+func (m *Manager) CheckRateLimit(userID uint, maxMsg int) bool {
+	if m.redisClient == nil {
+		return true // 無 Redis 時放行
+	}
+	ctx := context.Background()
+	key := fmt.Sprintf("ratelimit:%d:ws_msg", userID)
+	pipe := m.redisClient.Pipeline()
+	incr := pipe.Incr(ctx, key)
+	pipe.Expire(ctx, key, time.Second)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return true // Redis 錯誤時放行
+	}
+	return incr.Val() <= int64(maxMsg)
 }
 
 // redisOnIdentify 使用者上線時寫入 Redis：user server mapping + guild online set

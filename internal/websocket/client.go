@@ -61,6 +61,9 @@ type Client struct {
 	// 訂閱的頻道 ID 集合
 	channels map[uint]bool
 
+	// 訂閱的 guild ID 集合
+	guilds map[uint]bool
+
 	// 緩衝通道，用於發送消息
 	send chan []byte
 }
@@ -71,6 +74,7 @@ func NewClient(conn *websocket.Conn, manager *Manager) *Client {
 		conn:     conn,
 		manager:  manager,
 		channels: make(map[uint]bool),
+		guilds:   make(map[uint]bool),
 		send:     make(chan []byte, 256),
 	}
 }
@@ -205,6 +209,53 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 		}
 		c.manager.UnsubscribeFromChannel(c, payload.ChannelID)
 
+	case "send_message":
+		var payload struct {
+			ChannelID   uint   `json:"channel_id"`
+			Content     string `json:"content"`
+			ContentType string `json:"type"`
+			Nonce       string `json:"nonce"`
+		}
+		if err := json.Unmarshal(msg.Data, &payload); err != nil || payload.ChannelID == 0 || payload.Content == "" {
+			c.sendJSON(OutgoingMessage{
+				Op:        "error",
+				Data:      map[string]string{"message": "invalid send_message payload: channel_id and content required"},
+				Timestamp: time.Now().UnixMilli(),
+			})
+			return
+		}
+		// Rate limit: 每秒最多 10 則
+		if !c.manager.CheckRateLimit(c.userID, 10) {
+			c.sendJSON(OutgoingMessage{
+				Op:        "error",
+				Data:      map[string]string{"message": "rate limit exceeded; please slow down"},
+				Timestamp: time.Now().UnixMilli(),
+			})
+			return
+		}
+		if c.manager.msgSender == nil {
+			c.sendJSON(OutgoingMessage{
+				Op:        "error",
+				Data:      map[string]string{"message": "messaging not available"},
+				Timestamp: time.Now().UnixMilli(),
+			})
+			return
+		}
+		contentType := payload.ContentType
+		if contentType == "" {
+			contentType = "text"
+		}
+		// CreateMessageWS 內部會廣播 message_create 給頻道所有訂閱者（含發送者自己）
+		if _, err := c.manager.msgSender.CreateMessageWS(
+			c.userID, payload.ChannelID, payload.Content, contentType, payload.Nonce,
+		); err != nil {
+			c.sendJSON(OutgoingMessage{
+				Op:        "error",
+				Data:      map[string]string{"message": err.Error()},
+				Timestamp: time.Now().UnixMilli(),
+			})
+		}
+
 	case "typing_start":
 		var payload struct {
 			ChannelID uint `json:"channel_id"`
@@ -263,6 +314,9 @@ func (c *Client) handleIdentify(raw json.RawMessage) {
 	for _, channelID := range payload.Channels {
 		c.manager.SubscribeToChannel(c, channelID)
 	}
+
+	// 訂閱所屬的所有 guild（非同步 DB 查詢，不阻塞 readPump）
+	go c.manager.SubscribeClientToUserGuilds(c)
 
 	// 回應 ready
 	c.sendJSON(OutgoingMessage{

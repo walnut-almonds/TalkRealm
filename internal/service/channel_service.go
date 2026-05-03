@@ -39,12 +39,14 @@ type ChannelService interface {
 	UpdateChannel(channelID, userID uint, req *UpdateChannelRequest) (*model.Channel, error)
 	DeleteChannel(channelID, userID uint) error
 	UpdateChannelPosition(channelID, userID uint, position int) error
+	SetWebSocketManager(m GuildEventBroadcaster)
 }
 
 type channelService struct {
 	channelRepo     repository.ChannelRepository
 	guildRepo       repository.GuildRepository
 	guildMemberRepo repository.GuildMemberRepository
+	wsManager       GuildEventBroadcaster
 }
 
 // NewChannelService 建立頻道服務
@@ -58,6 +60,11 @@ func NewChannelService(
 		guildRepo:       guildRepo,
 		guildMemberRepo: guildMemberRepo,
 	}
+}
+
+// SetWebSocketManager 設定 WebSocket 廣播器
+func (s *channelService) SetWebSocketManager(m GuildEventBroadcaster) {
+	s.wsManager = m
 }
 
 // CreateChannel 建立頻道
@@ -112,6 +119,10 @@ func (s *channelService) CreateChannel(
 
 	if err := s.channelRepo.Create(channel); err != nil {
 		return nil, err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(channel.GuildID, "channel_create", channel)
 	}
 
 	return channel, nil
@@ -205,6 +216,10 @@ func (s *channelService) UpdateChannel(
 		return nil, err
 	}
 
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(channel.GuildID, "channel_update", channel)
+	}
+
 	return channel, nil
 }
 
@@ -233,7 +248,18 @@ func (s *channelService) DeleteChannel(channelID, userID uint) error {
 		}
 	}
 
-	return s.channelRepo.Delete(channelID)
+	if err := s.channelRepo.Delete(channelID); err != nil {
+		return err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(channel.GuildID, "channel_delete", map[string]any{
+			"channel_id": channelID,
+			"guild_id":   channel.GuildID,
+		})
+	}
+
+	return nil
 }
 
 // UpdateChannelPosition 更新頻道位置
@@ -264,5 +290,13 @@ func (s *channelService) UpdateChannelPosition(channelID, userID uint, position 
 	channel.Position = position
 	channel.UpdatedAt = time.Now()
 
-	return s.channelRepo.Update(channel)
+	if err := s.channelRepo.Update(channel); err != nil {
+		return err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(channel.GuildID, "channel_update", channel)
+	}
+
+	return nil
 }

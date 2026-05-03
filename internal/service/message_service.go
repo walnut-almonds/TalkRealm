@@ -34,6 +34,8 @@ type MessageService interface {
 	UpdateMessage(messageID, userID uint, req *UpdateMessageRequest) (*model.Message, error)
 	DeleteMessage(messageID, userID uint) error
 	SetWebSocketManager(manager WebSocketManager)
+	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
+	CreateMessageWS(userID, channelID uint, content, contentType, nonce string) (any, error)
 }
 
 type messageService struct {
@@ -60,6 +62,19 @@ func NewMessageService(
 // SetWebSocketManager 設定 WebSocket 管理器
 func (s *messageService) SetWebSocketManager(manager WebSocketManager) {
 	s.wsManager = manager
+}
+
+// CreateMessageWS 給 WebSocket send_message op 使用的薄包裝
+func (s *messageService) CreateMessageWS(
+	userID, channelID uint,
+	content, contentType, nonce string,
+) (any, error) {
+	return s.CreateMessage(userID, &CreateMessageRequest{
+		ChannelID: channelID,
+		Content:   content,
+		Type:      contentType,
+		Nonce:     nonce,
+	})
 }
 
 // CreateMessageRequest 建立訊息請求

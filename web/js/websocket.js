@@ -131,6 +131,14 @@ class WebSocketManager {
         });
     }
 
+    // 透過 WebSocket 發送訊息
+    sendMessage(channelId, content, type = 'text', nonce = '') {
+        return this.send({
+            op: 'send_message',
+            d: { channel_id: channelId, content, type, nonce }
+        });
+    }
+
     // 發送正在輸入狀態
     sendTyping(channelId) {
         return this.send({
@@ -222,6 +230,31 @@ class WebSocketManager {
             case 'channel_delete':
                 // 頻道刪除
                 this.notifyHandlers('channel_delete', message.d);
+                break;
+
+            case 'guild_update':
+                // 社群資訊更新
+                this.notifyHandlers('guild_update', message.d);
+                break;
+
+            case 'guild_delete':
+                // 社群刪除
+                this.notifyHandlers('guild_delete', message.d);
+                break;
+
+            case 'guild_member_add':
+                // 成員加入社群
+                this.notifyHandlers('guild_member_add', message.d);
+                break;
+
+            case 'guild_member_remove':
+                // 成員離開／被踢出社群
+                this.notifyHandlers('guild_member_remove', message.d);
+                break;
+
+            case 'guild_member_update':
+                // 成員資訊更新（角色等）
+                this.notifyHandlers('guild_member_update', message.d);
                 break;
 
             case 'error':

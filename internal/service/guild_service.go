@@ -17,6 +17,11 @@ var (
 	ErrInsufficientPermission = errors.New("insufficient permission")
 )
 
+// GuildEventBroadcaster WebSocket guild 廣播介面（避免循環相依）
+type GuildEventBroadcaster interface {
+	BroadcastToGuild(guildID uint, msgType string, data any)
+}
+
 // guildRoleLevel 角色層級（數字越大權限越高）
 var guildRoleLevel = map[string]int{
 	"member":    1,
@@ -53,11 +58,13 @@ type GuildService interface {
 	DeleteGuild(guildID, userID uint) error
 	IsGuildOwner(guildID, userID uint) (bool, error)
 	IsGuildMember(guildID, userID uint) (bool, error)
+	SetWebSocketManager(m GuildEventBroadcaster)
 }
 
 type guildService struct {
 	guildRepo       repository.GuildRepository
 	guildMemberRepo repository.GuildMemberRepository
+	wsManager       GuildEventBroadcaster
 }
 
 // NewGuildService 建立社群服務
@@ -69,6 +76,11 @@ func NewGuildService(
 		guildRepo:       guildRepo,
 		guildMemberRepo: guildMemberRepo,
 	}
+}
+
+// SetWebSocketManager 設定 WebSocket 廣播器
+func (s *guildService) SetWebSocketManager(m GuildEventBroadcaster) {
+	s.wsManager = m
 }
 
 // CreateGuild 建立社群
@@ -160,6 +172,15 @@ func (s *guildService) UpdateGuild(
 		return nil, err
 	}
 
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(guildID, "guild_update", map[string]any{
+			"guild_id":    guild.ID,
+			"name":        guild.Name,
+			"description": guild.Description,
+			"icon":        guild.Icon,
+		})
+	}
+
 	return guild, nil
 }
 
@@ -173,6 +194,13 @@ func (s *guildService) DeleteGuild(guildID, userID uint) error {
 
 	if !isOwner {
 		return ErrNotGuildOwner
+	}
+
+	// 廣播 guild_delete（在刪除前，讓在線成員收到通知）
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(guildID, "guild_delete", map[string]any{
+			"guild_id": guildID,
+		})
 	}
 
 	// 刪除社群（會級聯刪除成員、頻道等）
@@ -207,11 +235,13 @@ type GuildMemberService interface {
 	ListGuildMembers(guildID uint) ([]*model.GuildMember, error)
 	GetMember(guildID, userID uint) (*model.GuildMember, error)
 	UpdateMemberRole(guildID, targetUserID, operatorUserID uint, role string) error
+	SetWebSocketManager(m GuildEventBroadcaster)
 }
 
 type guildMemberService struct {
 	guildRepo       repository.GuildRepository
 	guildMemberRepo repository.GuildMemberRepository
+	wsManager       GuildEventBroadcaster
 }
 
 // NewGuildMemberService 建立社群成員服務
@@ -223,6 +253,11 @@ func NewGuildMemberService(
 		guildRepo:       guildRepo,
 		guildMemberRepo: guildMemberRepo,
 	}
+}
+
+// SetWebSocketManager 設定 WebSocket 廣播器
+func (s *guildMemberService) SetWebSocketManager(m GuildEventBroadcaster) {
+	s.wsManager = m
 }
 
 // JoinGuild 加入社群
@@ -249,7 +284,19 @@ func (s *guildMemberService) JoinGuild(guildID, userID uint) error {
 		UpdatedAt: time.Now(),
 	}
 
-	return s.guildMemberRepo.Create(member)
+	if err := s.guildMemberRepo.Create(member); err != nil {
+		return err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(guildID, "guild_member_add", map[string]any{
+			"guild_id": guildID,
+			"user_id":  userID,
+			"role":     "member",
+		})
+	}
+
+	return nil
 }
 
 // LeaveGuild 離開社群
@@ -271,7 +318,18 @@ func (s *guildMemberService) LeaveGuild(guildID, userID uint) error {
 		return ErrNotGuildMember
 	}
 
-	return s.guildMemberRepo.Delete(member.ID)
+	if err := s.guildMemberRepo.Delete(member.ID); err != nil {
+		return err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(guildID, "guild_member_remove", map[string]any{
+			"guild_id": guildID,
+			"user_id":  userID,
+		})
+	}
+
+	return nil
 }
 
 // KickMember 踢出成員
@@ -304,7 +362,18 @@ func (s *guildMemberService) KickMember(guildID, targetUserID, operatorUserID ui
 		return ErrInsufficientPermission
 	}
 
-	return s.guildMemberRepo.Delete(target.ID)
+	if err := s.guildMemberRepo.Delete(target.ID); err != nil {
+		return err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(guildID, "guild_member_remove", map[string]any{
+			"guild_id": guildID,
+			"user_id":  targetUserID,
+		})
+	}
+
+	return nil
 }
 
 // ListGuildMembers 列出社群成員
@@ -379,5 +448,17 @@ func (s *guildMemberService) UpdateMemberRole(
 	target.Role = role
 	target.UpdatedAt = time.Now()
 
-	return s.guildMemberRepo.Update(target)
+	if err := s.guildMemberRepo.Update(target); err != nil {
+		return err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToGuild(guildID, "guild_member_update", map[string]any{
+			"guild_id": guildID,
+			"user_id":  targetUserID,
+			"role":     role,
+		})
+	}
+
+	return nil
 }

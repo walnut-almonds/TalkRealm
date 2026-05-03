@@ -13,9 +13,9 @@
 - [x] **Presence 系統**：identify 後廣播 `presence_update` online，斷線後廣播 offline
 - [x] **WS Heartbeat / Reconnect**：標準化 `heartbeat` / `heartbeat_ack`，前端自動重連邏輯
 - [x] **Heartbeat 刷新 Redis TTL**：收到 `heartbeat` 時執行 `EXPIRE user:{userID}:server 86400`，以 key 存在與否作為 online/offline 唯一標準
-- [ ] **WS `send_message` op**：client 透過 WS 發訊息（`op: send_message`，帶 `channel_id / content / type / nonce`），server 驗證權限後寫 DB 並廣播 `message_create`（目前訊息發送走 REST POST）
-- [ ] **WS `message_create` / `message_update` / `message_delete` op**：統一 server→client 的訊息事件格式（目前部分廣播格式未對齊 plan.md Discord-like `op`/`d` 規格）
-- [ ] **`is_edited` DB migration**：`messages` 表加 `is_edited` 欄位（model 已有，migration 未執行）
+- [x] **WS `send_message` op**：client 透過 WS 發訊息（`op: send_message`，帶 `channel_id / content / type / nonce`），server 驗證權限後寫 DB 並廣播 `message_create`（目前訊息發送走 REST POST）
+- [x] **WS `message_create` / `message_update` / `message_delete` op**：統一 server→client 的訊息事件格式（目前部分廣播格式未對齊 plan.md Discord-like `op`/`d` 規格）
+- [x] **`is_edited` DB migration**：`messages` 表加 `is_edited` 欄位（model 已有，migration 未執行）
 
 ### Redis 整合
 - [x] **引入 Redis Client**：在 `pkg/redis/` 封裝連線，config 加入 Redis 設定
@@ -31,9 +31,9 @@
 - [x] **Refresh Token**（`refresh_tokens` 表、`/auth/refresh`、`/auth/logout`）
 - [x] **User 公開資料 API**：`GET /api/v1/users/{id}`（不含 email）
 - [x] **訊息 Attachment 欄位**：Message 回應加入 `attachments []` 陣列
-- [ ] **`PATCH /api/v1/users/me`**：更新暱稱 / avatar / status（plan.md 4.2 已定義，目前未實作）
-- [ ] **`PUT /api/v1/channels/{id}/position`**：更新頻道排序（plan.md 4.4 已定義，未實作）
-- [ ] **`GET /api/v1/messages/{id}`**：取得單一訊息詳情（plan.md 4.5 已定義，未實作）
+- [x] **`PATCH /api/v1/users/me`**：更新暱稱 / avatar / status（plan.md 4.2 已定義，目前未實作）
+- [x] **`PUT /api/v1/channels/{id}/position`**：更新頻道排序（plan.md 4.4 已定義，未實作）
+- [x] **`GET /api/v1/messages/{id}`**：取得單一訊息詳情（plan.md 4.5 已定義，未實作）
 
 ### 權限系統（RBAC）
 - [x] **Permission 中介層**：封裝 `RequireGuildRole(minRole)` middleware

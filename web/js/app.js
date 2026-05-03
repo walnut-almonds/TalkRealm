@@ -277,6 +277,21 @@ function setupWebSocketHandlers() {
             case 'channel_delete':
                 handleChannelDelete(data);
                 break;
+            case 'guild_update':
+                handleGuildUpdate(data);
+                break;
+            case 'guild_delete':
+                handleGuildDelete(data);
+                break;
+            case 'guild_member_add':
+                handleGuildMemberAdd(data);
+                break;
+            case 'guild_member_remove':
+                handleGuildMemberRemove(data);
+                break;
+            case 'guild_member_update':
+                handleGuildMemberUpdate(data);
+                break;
         }
     });
 }
@@ -376,6 +391,64 @@ function handleChannelDelete(data) {
             updateChannelHeader();
             renderMessages();
         }
+    }
+}
+
+// 處理社群更新
+function handleGuildUpdate(guild) {
+    const index = appState.guilds.findIndex(g => g.id === guild.id);
+    if (index !== -1) {
+        appState.guilds[index] = guild;
+        renderGuilds();
+        if (appState.currentGuild && appState.currentGuild.id === guild.id) {
+            appState.currentGuild = guild;
+            updateGuildHeader();
+        }
+    }
+}
+
+// 處理社群刪除
+function handleGuildDelete(data) {
+    const guildId = data.guild_id;
+    appState.guilds = appState.guilds.filter(g => g.id !== guildId);
+    renderGuilds();
+    if (appState.currentGuild && appState.currentGuild.id === guildId) {
+        showHomeView();
+        showNotification('所在社群已被刪除', 'info');
+    }
+}
+
+// 處理成員加入
+function handleGuildMemberAdd(data) {
+    if (!appState.currentGuild || data.guild_id !== appState.currentGuild.id) return;
+    const exists = appState.members.some(m => m.user_id === data.user_id);
+    if (!exists) {
+        appState.members.push(data);
+        renderMembers();
+    }
+}
+
+// 處理成員離開
+function handleGuildMemberRemove(data) {
+    if (!appState.currentGuild || data.guild_id !== appState.currentGuild.id) return;
+    appState.members = appState.members.filter(m => m.user_id !== data.user_id);
+    renderMembers();
+    // 若被踢出的是自己
+    if (appState.user && data.user_id === appState.user.id) {
+        appState.guilds = appState.guilds.filter(g => g.id !== data.guild_id);
+        renderGuilds();
+        showHomeView();
+        showNotification('您已被移出該社群', 'info');
+    }
+}
+
+// 處理成員更新
+function handleGuildMemberUpdate(data) {
+    if (!appState.currentGuild || data.guild_id !== appState.currentGuild.id) return;
+    const index = appState.members.findIndex(m => m.user_id === data.user_id);
+    if (index !== -1) {
+        appState.members[index] = { ...appState.members[index], ...data };
+        renderMembers();
     }
 }
 

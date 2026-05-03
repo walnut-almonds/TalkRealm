@@ -18,8 +18,8 @@ make check        # 全部檢查（lint + build + test）
 
 ## Architecture Notes
 - `internal/server/server.go`：DI 組裝、路由設定的主入口
-- `internal/websocket/manager.go`：channel 訂閱索引（`channelSubscriptions map[uint]map[*Client]bool`），O(1) 廣播；jwtManager 注入用於 identify op
-- WS 協議：client→server op: `identify`, `heartbeat`, `subscribe`, `unsubscribe`, `typing_start`；server→client op: `hello`, `ready`, `heartbeat_ack`, `message_create`, `typing_start`, `presence_update`, `error`
+- `internal/websocket/manager.go`：channel 訂閱索引（`channelSubscriptions map[uint]map[*Client]bool`）+ guild 訂閱索引（`guildSubscriptions map[uint]map[*Client]bool`），O(1) 廣播；jwtManager 注入用於 identify op；identify 後自動呼叫 `SubscribeClientToUserGuilds` 訂閱所有 guild
+- WS 協議：client→server op: `identify`, `heartbeat`, `subscribe`, `unsubscribe`, `typing_start`, `send_message`；server→client op: `hello`, `ready`, `heartbeat_ack`, `message_create`, `message_update`, `message_delete`, `typing_start`, `presence_update`, `error`, `guild_update`, `guild_delete`, `guild_member_add`, `guild_member_remove`, `guild_member_update`, `channel_create`, `channel_update`, `channel_delete`
 - WS 端點：`GET /api/v1/ws`（無需 JWT 中間件，由 identify op 驗證）
 - identify flow：client 連線 → server 送 `hello`（heartbeat_interval=30000ms）→ client 送 `identify`（token + channels[]）→ server 驗證 JWT，送 `ready` + 廣播 `presence_update online`
 - `pkg/auth/jwt.go`：JWTManager，sign / verify token
@@ -30,7 +30,7 @@ make check        # 全部檢查（lint + build + test）
 
 ## Pitfalls
 - WS Manager 已有 channel subscription index（Phase 1 完成）；Presence 系統目前無 Redis（狀態不持久化）
-- `message_service.go` 中 WS Manager 以 interface 注入（避免循環依賴），需 `SetWebSocketManager()` 設定
+- `message_service.go` 中 WS Manager 以 interface 注入（避免循環依賴），需 `SetWebSocketManager()` 設定；另有 `CreateMessageWS()` 供 WS `send_message` op 呼叫（`MessageSender` interface 注入到 Manager）
 - handler.go 仍有 TODO stub functions（已被 user_handler.go 等各自的 handler 取代）
 
 ## Decisions

@@ -71,9 +71,10 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// 初始化 WebSocket 管理器（傳入 jwtManager，用於 identify op 驗證）
 	wsManager := websocket.NewManager(jwtManager)
+	// GuildLookup 讓 WS manager 在 identify 時訂閱使用者的所有 guild（Redis 可選）
+	wsManager.SetGuildLookup(guildMemberRepo)
 	if rdb != nil {
 		wsManager.SetRedis(rdb)
-		wsManager.SetGuildLookup(guildMemberRepo)
 	}
 	go wsManager.Run() // 啟動 WebSocket 管理器
 
@@ -85,8 +86,15 @@ func New(cfg *config.Config) (*Server, error) {
 	channelService := service.NewChannelService(channelRepo, guildRepo, guildMemberRepo)
 	messageService := service.NewMessageService(messageRepo, channelRepo, guildMemberRepo)
 
-	// 設定 WebSocket 管理器到 MessageService
+	// 設定 WebSocket 管理器到各 Service
 	messageService.SetWebSocketManager(wsManager)
+	guildService.SetWebSocketManager(wsManager)
+	guildMemberService.SetWebSocketManager(wsManager)
+	guildInviteService.SetWebSocketManager(wsManager)
+	channelService.SetWebSocketManager(wsManager)
+
+	// 設定 MessageSender：讓 WS Manager 能處理 send_message op
+	wsManager.SetMessageSender(messageService)
 
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
