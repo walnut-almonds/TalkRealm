@@ -1,7 +1,10 @@
 // API 配置
+const _origin = window.location.origin; // e.g. http://140.99.243.135:8080
+const _wsOrigin = _origin.replace(/^http/, 'ws');
+
 const API_CONFIG = {
-    BASE_URL: 'http://localhost:8080',
-    WS_URL: 'ws://localhost:8080',
+    BASE_URL: _origin,
+    WS_URL: _wsOrigin,
     ENDPOINTS: {
         // 認證
         REGISTER: '/api/v1/auth/register',
