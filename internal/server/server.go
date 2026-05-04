@@ -14,6 +14,7 @@ import (
 	"github.com/walnut-almonds/talkrealm/pkg/auth"
 	"github.com/walnut-almonds/talkrealm/pkg/config"
 	"github.com/walnut-almonds/talkrealm/pkg/database"
+	"github.com/walnut-almonds/talkrealm/pkg/logger"
 	pkgredis "github.com/walnut-almonds/talkrealm/pkg/redis"
 	"github.com/walnut-almonds/talkrealm/pkg/storage"
 )
@@ -115,7 +116,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 	minioClient, minioErr := storage.NewClient(&cfg.Minio)
 	if minioErr != nil {
-		_ = minioErr // 非致命，File API 在 Minio 未設定時不可用
+		logger.Warn("Minio init failed, file service disabled", "error", minioErr)
 	} else {
 		fileRepo := repository.NewFileRepository(db)
 		fileService := service.NewFileService(fileRepo, minioClient, rdb, &cfg.Minio)
