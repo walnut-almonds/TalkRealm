@@ -1,6 +1,7 @@
 package server
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -266,15 +267,27 @@ func (s *Server) setupRoutes() {
 			}
 		}
 
-		// 檔案服務（需要 Minio 啟動，否則 handler 為 nil）
-		if s.fileHandler != nil {
-			files := protected.Group("/files")
-			{
+		// 檔案服務（需要 Minio 啟動；若 Minio 未設定則回傳 503 而非 404）
+		files := protected.Group("/files")
+		{
+			if s.fileHandler != nil {
 				files.POST("/presign", s.fileHandler.PresignUpload)
 				files.POST("/:id/confirm", s.fileHandler.ConfirmUpload)
 				files.GET("/:id", s.fileHandler.GetFile)
 				files.GET("/:id/url", s.fileHandler.GetDownloadURL)
 				files.DELETE("/:id", s.fileHandler.DeleteFile)
+			} else {
+				fileUnavailable := func(c *gin.Context) {
+					c.JSON(
+						http.StatusServiceUnavailable,
+						gin.H{"error": "file service unavailable: storage not configured"},
+					)
+				}
+				files.POST("/presign", fileUnavailable)
+				files.POST("/:id/confirm", fileUnavailable)
+				files.GET("/:id", fileUnavailable)
+				files.GET("/:id/url", fileUnavailable)
+				files.DELETE("/:id", fileUnavailable)
 			}
 		}
 
