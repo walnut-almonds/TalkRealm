@@ -594,6 +594,10 @@ body {
     transition: background-color 0.2s;
 }
 
+.message+.message {
+    margin-top: 2px;
+}
+
 .message--pending {
     opacity: 0.55;
 }
@@ -616,6 +620,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-right: 16px;
+    flex-shrink: 0;
+}
+
+.message-avatar-spacer {
+    width: 40px;
     margin-right: 16px;
     flex-shrink: 0;
 }

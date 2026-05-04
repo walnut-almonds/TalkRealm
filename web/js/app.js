@@ -596,8 +596,7 @@ function renderMessages() {
     appState.messages.forEach((message, index) => {
         const prevMessage = index > 0 ? appState.messages[index - 1] : null;
         const isGrouped = prevMessage &&
-            prevMessage.user_id === message.user_id &&
-            (new Date(message.created_at) - new Date(prevMessage.created_at)) < 300000; // 5分鐘內
+            prevMessage.user_id === message.user_id;
 
         const messageElement = document.createElement('div');
         messageElement.className = `message${message._pending ? ' message--pending' : ''}`;
@@ -611,7 +610,7 @@ function renderMessages() {
 
         if (isGrouped) {
             messageElement.innerHTML = `
-                <div class="message-avatar"></div>
+                <div class="message-avatar-spacer" aria-hidden="true"></div>
                 <div class="message-content">
                     <div class="message-text">${escapeHtml(message.content)}</div>
                 </div>
