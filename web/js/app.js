@@ -146,6 +146,7 @@ async function selectChannel(channelId) {
         // 更新 UI
         updateChannelHeader();
         renderMessages();
+        scrollToBottom();
 
         // 儲存到本地
         localStorage.setItem(STORAGE_KEYS.LAST_CHANNEL, channelId);
@@ -174,11 +175,11 @@ async function loadMessages(channelId, before = null) {
     try {
         const response = await api.getChannelMessages(channelId, 50, before);
 
-        // 後端返回 response 物件，包含 messages 陣列
+        // 後端返回 response 物件，包含 messages 陣列（已按 ID 升序排列）
         const messages = response.messages || [];
 
         if (before) {
-            // 載入更多訊息（往前）
+            // 載入更多訊息（往前）：舊訊息在前，現有訊息在後
             appState.messages = [...messages, ...appState.messages];
         } else {
             // 首次載入

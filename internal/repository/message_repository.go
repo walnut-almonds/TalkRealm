@@ -36,15 +36,18 @@ func (r *messageRepository) Create(message *model.Message) error {
 // GetByNonce 透過 userID + nonce 查詢訊息（用於冪等去重）
 func (r *messageRepository) GetByNonce(userID uint, nonce string) (*model.Message, error) {
 	var message model.Message
-	err := r.db.Preload("User").Preload("Channel").
+
+	err := r.db.Preload("User").
 		Where("user_id = ? AND nonce = ?", userID, nonce).
 		First(&message).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, gorm.ErrRecordNotFound
 		}
+
 		return nil, err
 	}
+
 	return &message, nil
 }
 
@@ -52,7 +55,7 @@ func (r *messageRepository) GetByNonce(userID uint, nonce string) (*model.Messag
 func (r *messageRepository) GetByID(id uint) (*model.Message, error) {
 	var message model.Message
 
-	err := r.db.Preload("User").Preload("Channel").First(&message, id).Error
+	err := r.db.Preload("User").First(&message, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("message not found")
@@ -103,7 +106,7 @@ func (r *messageRepository) GetByChannelIDCursor(
 	q := r.db.
 		Preload("User").
 		Where("channel_id = ?", channelID).
-		Order("id DESC").
+		Order("id DESC"). // fetch DESC to apply cursor filter, then reverse
 		Limit(limit)
 
 	if before > 0 {
@@ -111,7 +114,15 @@ func (r *messageRepository) GetByChannelIDCursor(
 	}
 
 	err := q.Find(&messages).Error
-	return messages, err
+	if err != nil {
+		return nil, err
+	}
+	// Reverse to chronological (ascending) order for the caller
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+
+	return messages, nil
 }
 
 // GetByUserID 取得使用者的訊息（分頁）

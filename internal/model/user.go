@@ -46,7 +46,7 @@ type Channel struct {
 type Message struct {
 	ID          uint      `gorm:"primarykey"                              json:"id"`
 	ChannelID   uint      `gorm:"not null"                                json:"channel_id"`
-	Channel     Channel   `gorm:"foreignKey:ChannelID"                    json:"channel"`
+	Channel     Channel   `gorm:"foreignKey:ChannelID"                    json:"-"`
 	UserID      uint      `gorm:"not null"                                json:"user_id"`
 	User        User      `gorm:"foreignKey:UserID"                       json:"user"`
 	Content     string    `gorm:"not null"                                json:"content"`
@@ -74,17 +74,17 @@ type GuildMember struct {
 
 // GuildInvite 社群邀請碼模型
 type GuildInvite struct {
-	ID        uint       `gorm:"primarykey"             json:"id"`
-	GuildID   uint       `gorm:"not null;index"         json:"guild_id"`
-	Guild     Guild      `gorm:"foreignKey:GuildID"     json:"guild"`
-	CreatorID uint       `gorm:"not null"               json:"creator_id"`
-	Creator   User       `gorm:"foreignKey:CreatorID"   json:"creator"`
-	Code      string     `gorm:"uniqueIndex;not null"   json:"code"`
-	MaxUses   int        `gorm:"default:0"              json:"max_uses"`  // 0 = unlimited
-	Uses      int        `gorm:"default:0"              json:"uses"`
-	ExpiresAt *time.Time `                              json:"expires_at"` // nil = no expiry
-	CreatedAt time.Time  `                              json:"created_at"`
-	UpdatedAt time.Time  `                              json:"updated_at"`
+	ID        uint       `gorm:"primarykey"           json:"id"`
+	GuildID   uint       `gorm:"not null;index"       json:"guild_id"`
+	Guild     Guild      `gorm:"foreignKey:GuildID"   json:"guild"`
+	CreatorID uint       `gorm:"not null"             json:"creator_id"`
+	Creator   User       `gorm:"foreignKey:CreatorID" json:"creator"`
+	Code      string     `gorm:"uniqueIndex;not null" json:"code"`
+	MaxUses   int        `gorm:"default:0"            json:"max_uses"` // 0 = unlimited
+	Uses      int        `gorm:"default:0"            json:"uses"`
+	ExpiresAt *time.Time `                            json:"expires_at"` // nil = no expiry
+	CreatedAt time.Time  `                            json:"created_at"`
+	UpdatedAt time.Time  `                            json:"updated_at"`
 }
 
 // RefreshToken Refresh Token 模型

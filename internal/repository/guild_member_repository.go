@@ -37,13 +37,16 @@ func (r *guildMemberRepository) Create(member *model.GuildMember) error {
 // GetByID 透過 ID 取得成員
 func (r *guildMemberRepository) GetByID(id uint) (*model.GuildMember, error) {
 	var member model.GuildMember
-	err := r.db.Preload("User").Preload("Guild").First(&member, id).Error
+
+	err := r.db.Preload("User").First(&member, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("guild member not found")
 		}
+
 		return nil, err
 	}
+
 	return &member, nil
 }
 
@@ -60,20 +63,25 @@ func (r *guildMemberRepository) Delete(id uint) error {
 // GetByGuildID 取得社群的所有成員
 func (r *guildMemberRepository) GetByGuildID(guildID uint) ([]*model.GuildMember, error) {
 	var members []*model.GuildMember
+
 	err := r.db.Preload("User").Where("guild_id = ?", guildID).Find(&members).Error
+
 	return members, err
 }
 
 // GetByUserID 取得使用者加入的所有社群成員資料
 func (r *guildMemberRepository) GetByUserID(userID uint) ([]*model.GuildMember, error) {
 	var members []*model.GuildMember
-	err := r.db.Preload("Guild").Where("user_id = ?", userID).Find(&members).Error
+
+	err := r.db.Where("user_id = ?", userID).Find(&members).Error
+
 	return members, err
 }
 
 // GetMember 取得特定社群的特定成員
 func (r *guildMemberRepository) GetMember(guildID, userID uint) (*model.GuildMember, error) {
 	var member model.GuildMember
+
 	err := r.db.
 		Where("guild_id = ? AND user_id = ?", guildID, userID).
 		First(&member).Error
@@ -81,25 +89,31 @@ func (r *guildMemberRepository) GetMember(guildID, userID uint) (*model.GuildMem
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("guild member not found")
 		}
+
 		return nil, err
 	}
+
 	return &member, nil
 }
 
 // IsMember 檢查使用者是否為社群成員
 func (r *guildMemberRepository) IsMember(guildID, userID uint) (bool, error) {
 	var count int64
+
 	err := r.db.Model(&model.GuildMember{}).
 		Where("guild_id = ? AND user_id = ?", guildID, userID).
 		Count(&count).Error
+
 	return count > 0, err
 }
 
 // GetUserGuildIDs 取得使用者所屬的所有 guild IDs
 func (r *guildMemberRepository) GetUserGuildIDs(userID uint) ([]uint, error) {
 	var ids []uint
+
 	err := r.db.Model(&model.GuildMember{}).
 		Where("user_id = ?", userID).
 		Pluck("guild_id", &ids).Error
+
 	return ids, err
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"github.com/walnut-almonds/talkrealm/internal/repository"
+	"gorm.io/gorm"
 )
 
 var (
@@ -119,9 +120,10 @@ func (s *messageService) CreateMessage(
 	// 冪等去重：若 client 提供 nonce，先查 DB 是否已存在
 	if req.Nonce != "" {
 		existing, err := s.messageRepo.GetByNonce(userID, req.Nonce)
-		if err != nil {
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
+
 		if existing != nil {
 			// 已存在：直接返回原訊息，不重複寫入
 			return existing, nil
