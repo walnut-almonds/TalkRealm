@@ -235,6 +235,7 @@ async function sendMessage() {
     scrollToBottom();
 
     input.value = '';
+    autoResizeTextarea(input);
     input.focus();
 
     try {
@@ -249,7 +250,14 @@ async function sendMessage() {
         if (idx !== -1) appState.messages.splice(idx, 1);
         renderMessages();
         input.value = content; // 恢復輸入
+        autoResizeTextarea(input);
     }
+}
+
+// 自動調整 textarea 高度
+function autoResizeTextarea(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
 }
 
 // 處理訊息輸入鍵盤事件
@@ -258,6 +266,52 @@ function handleMessageKeyPress(event) {
         event.preventDefault();
         sendMessage();
     }
+}
+
+// 簡易 Markdown 渲染（支援: ``` 程式碼區塊, ` 行內程式碼, - 列舉, 換行）
+function renderMarkdown(rawText) {
+    // 以 ``` 分割，奇數索引為程式碼區塊
+    const parts = rawText.split(/(```[\s\S]*?```)/g);
+
+    return parts.map((part, i) => {
+        if (i % 2 === 1) {
+            // 程式碼區塊
+            let inner = part.slice(3, -3);
+            // 移除可能的語言標記首行（e.g. ```js\n...）
+            const firstNewline = inner.indexOf('\n');
+            if (firstNewline > 0 && /^\w+$/.test(inner.slice(0, firstNewline).trim())) {
+                inner = inner.slice(firstNewline + 1);
+            }
+            return `<pre class="md-code-block"><code>${escapeHtml(inner)}</code></pre>`;
+        }
+
+        let html = escapeHtml(part);
+
+        // 行內程式碼
+        html = html.replace(/`([^`\n]+)`/g, '<code class="md-inline-code">$1</code>');
+
+        // 逐行處理：列舉 & 換行
+        const lines = html.split('\n');
+        let inList = false;
+        let out = '';
+
+        for (let j = 0; j < lines.length; j++) {
+            const line = lines[j];
+            const isLast = j === lines.length - 1;
+
+            if (/^- /.test(line)) {
+                if (!inList) { out += '<ul class="md-list">'; inList = true; }
+                out += `<li>${line.slice(2)}</li>`;
+            } else {
+                if (inList) { out += '</ul>'; inList = false; }
+                out += line;
+                if (!isLast) out += '<br>';
+            }
+        }
+        if (inList) out += '</ul>';
+
+        return out;
+    }).join('');
 }
 
 // 設定 WebSocket 處理器
@@ -659,7 +713,7 @@ function renderMessages() {
             messageElement.innerHTML = `
                 <div class="message-avatar-spacer" aria-hidden="true"></div>
                 <div class="message-content">
-                    <div class="message-text">${escapeHtml(message.content)}</div>
+                    <div class="message-text">${renderMarkdown(message.content)}</div>
                 </div>
             `;
         } else {
@@ -672,7 +726,7 @@ function renderMessages() {
                         <span class="message-author">${escapeHtml(nickname)}</span>
                         <span class="message-timestamp">${timestamp}</span>
                     </div>
-                    <div class="message-text">${escapeHtml(message.content)}</div>
+                    <div class="message-text">${renderMarkdown(message.content)}</div>
                 </div>
             `;
         }

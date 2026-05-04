@@ -67,6 +67,9 @@
 - [ ] **`GET /api/v1/messages/{id}/game`**：取得該訊息的猜測狀態（已猜 / 未猜 / 結果）
 
 ### 前端
+- [x] **多行輸入 (Shift+Enter 換行)**：input 改為 textarea，自動伸縮高度，Enter 送出 / Shift+Enter 換行
+- [x] **基礎 Markdown 渲染**：訊息顯示支援 ` ``` ` 程式碼區塊、`` ` `` 行內程式碼、`-` 列舉，以及換行顯示
+- [ ] **完整 Markdown 支援**：`**bold**`、`*italic*`、`>` blockquote、`### heading`、連結、圖片等（目前僅支援 code block / inline code / bullet list / 換行）
 - [ ] **「翻譯載入中」UI 狀態**：收到訊息後顯示 loading，等待 `translation_ready` WS 事件
 - [ ] **隱藏原文 / 譯文 UI**：讓用戶可選擇隱藏哪一側
 - [ ] **猜字輸入 UI**：顯示猜測輸入框，回饋正確 / 錯誤結果

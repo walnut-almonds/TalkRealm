@@ -708,7 +708,8 @@ body {
     padding: 4px;
 }
 
-.message-input input {
+.message-input input,
+.message-input textarea {
     flex: 1;
     background: transparent;
     border: none;
@@ -716,6 +717,47 @@ body {
     color: var(--text-primary);
     font-size: 14px;
     padding: 8px;
+    font-family: inherit;
+    line-height: 1.45;
+    resize: none;
+    overflow-y: auto;
+    max-height: 200px;
+    min-height: 20px;
+}
+
+/* Markdown 渲染樣式 */
+.message-text .md-code-block {
+    background: #1e1f22;
+    border: 1px solid #3a3b3e;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    overflow-x: auto;
+    white-space: pre;
+    display: block;
+}
+
+.message-text .md-code-block code {
+    background: none;
+    padding: 0;
+    font-size: inherit;
+}
+
+.message-text .md-inline-code {
+    background: #1e1f22;
+    border: 1px solid #3a3b3e;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+}
+
+.message-text .md-list {
+    margin: 4px 0;
+    padding-left: 22px;
+    list-style-type: disc;
 }
 
 .btn-icon {

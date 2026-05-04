@@ -175,8 +175,8 @@
                     <button class="btn-icon" title="上傳檔案">
                         <i class="fas fa-plus-circle"></i>
                     </button>
-                    <input type="text" id="message-input" placeholder="在此輸入訊息..."
-                        onkeypress="handleMessageKeyPress(event)">
+                    <textarea id="message-input" placeholder="在此輸入訊息..." rows="1"
+                        onkeydown="handleMessageKeyPress(event)" oninput="autoResizeTextarea(this)"></textarea>
                     <button class="btn-icon" title="表情符號">
                         <i class="fas fa-smile"></i>
                     </button>
