@@ -33,7 +33,7 @@ type Guild struct {
 type Channel struct {
 	ID        uint      `gorm:"primarykey"         json:"id"`
 	GuildID   uint      `gorm:"not null"           json:"guild_id"`
-	Guild     Guild     `gorm:"foreignKey:GuildID" json:"guild"`
+	Guild     Guild     `gorm:"foreignKey:GuildID" json:"-"`
 	Name      string    `gorm:"not null"           json:"name"`
 	Type      string    `gorm:"not null"           json:"type"` // text, voice
 	Topic     string    `                          json:"topic"`
@@ -48,7 +48,7 @@ type Message struct {
 	ChannelID   uint      `gorm:"not null"                                json:"channel_id"`
 	Channel     Channel   `gorm:"foreignKey:ChannelID"                    json:"-"`
 	UserID      uint      `gorm:"not null"                                json:"user_id"`
-	User        User      `gorm:"foreignKey:UserID"                       json:"user"`
+	User        User      `gorm:"foreignKey:UserID"                       json:"-"`
 	Content     string    `gorm:"not null"                                json:"content"`
 	Type        string    `gorm:"default:'text'"                          json:"type"`        // text, image, file
 	IsEdited    bool      `gorm:"default:false"                           json:"is_edited"`   // 是否被編輯過
@@ -62,7 +62,7 @@ type Message struct {
 type GuildMember struct {
 	ID        uint      `gorm:"primarykey"         json:"id"`
 	GuildID   uint      `gorm:"not null"           json:"guild_id"`
-	Guild     Guild     `gorm:"foreignKey:GuildID" json:"guild"`
+	Guild     Guild     `gorm:"foreignKey:GuildID" json:"-"`
 	UserID    uint      `gorm:"not null"           json:"user_id"`
 	User      User      `gorm:"foreignKey:UserID"  json:"user"`
 	Nickname  string    `                          json:"nickname"`

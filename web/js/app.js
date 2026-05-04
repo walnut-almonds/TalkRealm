@@ -568,6 +568,17 @@ function renderMembers() {
     });
 }
 
+// 透過 user_id 從已快取的成員清單或當前使用者解析用戶資料
+function resolveMessageUser(userId) {
+    // 先從成員列表找（member.user 由 /guilds/:id/members 預先載入）
+    const member = appState.members.find(m => m.user_id === userId);
+    if (member && member.user) return member.user;
+    // 若是自己（發送者已不在成員中，但就是本人）
+    if (appState.user && appState.user.id === userId) return appState.user;
+    // 找不到：顯示 Unknown
+    return { id: userId, username: 'Unknown', nickname: 'Unknown', avatar: null };
+}
+
 // 渲染訊息列表
 function renderMessages() {
     const container = document.getElementById('messages-container');
@@ -604,7 +615,7 @@ function renderMessages() {
         messageElement.setAttribute('data-message-id', message.id || '');
         if (message.nonce) messageElement.setAttribute('data-nonce', message.nonce);
 
-        const user = message.user || {};
+        const user = resolveMessageUser(message.user_id);
         const nickname = user.nickname || user.username || 'Unknown';
         const avatar = user.avatar;
         const timestamp = formatTimestamp(message.created_at);

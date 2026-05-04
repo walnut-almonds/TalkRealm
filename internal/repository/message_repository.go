@@ -37,7 +37,7 @@ func (r *messageRepository) Create(message *model.Message) error {
 func (r *messageRepository) GetByNonce(userID uint, nonce string) (*model.Message, error) {
 	var message model.Message
 
-	err := r.db.Preload("User").
+	err := r.db.
 		Where("user_id = ? AND nonce = ?", userID, nonce).
 		First(&message).Error
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *messageRepository) GetByNonce(userID uint, nonce string) (*model.Messag
 func (r *messageRepository) GetByID(id uint) (*model.Message, error) {
 	var message model.Message
 
-	err := r.db.Preload("User").First(&message, id).Error
+	err := r.db.First(&message, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("message not found")
@@ -85,7 +85,6 @@ func (r *messageRepository) GetByChannelID(
 	var messages []*model.Message
 
 	err := r.db.
-		Preload("User").
 		Where("channel_id = ?", channelID).
 		Order("created_at DESC").
 		Offset(offset).
@@ -104,7 +103,6 @@ func (r *messageRepository) GetByChannelIDCursor(
 	var messages []*model.Message
 
 	q := r.db.
-		Preload("User").
 		Where("channel_id = ?", channelID).
 		Order("id DESC"). // fetch DESC to apply cursor filter, then reverse
 		Limit(limit)
