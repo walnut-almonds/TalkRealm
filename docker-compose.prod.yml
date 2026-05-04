@@ -47,7 +47,7 @@ services:
     networks:
       - talkrealm-network
     healthcheck:
-      test: [ "CMD", "mc", "ready", "local" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -64,6 +64,8 @@ services:
       - talkrealm-network
     depends_on:
       postgres:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   nginx:
