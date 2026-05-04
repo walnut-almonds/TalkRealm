@@ -7,7 +7,9 @@ const appState = {
     channels: [],
     members: [],
     messages: [],
-    isLoading: false
+    isLoading: false,
+    // 待附加的已確認檔案 ID（上傳成功後儲存，隨下次訊息一起送出）
+    pendingFileIds: []
 };
 
 // 初始化應用程式
@@ -238,10 +240,10 @@ async function loadMessages(channelId, before = null) {
 async function sendMessage() {
     const input = document.getElementById('message-input');
     const content = input.value.trim();
+    const fileIds = [...appState.pendingFileIds];
 
-    if (!content || !appState.currentChannel) {
-        return;
-    }
+    if (!content && fileIds.length === 0) return;
+    if (!appState.currentChannel) return;
 
     // 產生冪等 nonce（UUID v4）
     // crypto.randomUUID() 僅在 secure context（HTTPS/localhost）可用，提供 fallback
@@ -258,7 +260,7 @@ async function sendMessage() {
         channel_id: appState.currentChannel.id,
         user_id: appState.user.id,
         user: appState.user,
-        content,
+        content: content || '',
         type: 'text',
         is_edited: false,
         attachments: [],
@@ -273,8 +275,12 @@ async function sendMessage() {
     autoResizeTextarea(input);
     input.focus();
 
+    // 清除已附加的檔案
+    appState.pendingFileIds = [];
+    clearFilePreview();
+
     try {
-        await api.sendMessage(appState.currentChannel.id, content, 'text', nonce);
+        await api.sendMessage(appState.currentChannel.id, content || '', 'text', nonce, fileIds);
         // 成功後 server 會透過 WS 廣播 message_create（含 nonce），
         // handleNewMessage 會用 nonce 把 optimistic message 替換掉
     } catch (error) {
@@ -286,6 +292,9 @@ async function sendMessage() {
         renderMessages();
         input.value = content; // 恢復輸入
         autoResizeTextarea(input);
+        // 恢復待附加檔案
+        appState.pendingFileIds = fileIds;
+        renderFilePreview();
     }
 }
 
@@ -302,6 +311,195 @@ function handleMessageKeyPress(event) {
         sendMessage();
     }
 }
+
+// ===================== 檔案上傳相關 =====================
+
+// 當使用者選取檔案後觸發
+async function handleFileSelected(input) {
+    const file = input.files[0];
+    if (!file) return;
+    // 重置 input 以便同一個檔案可以再次選取
+    input.value = '';
+
+    await uploadFile(file);
+}
+
+// 執行檔案上傳流程：presign → PUT → confirm
+async function uploadFile(file) {
+    if (!appState.currentChannel) {
+        showNotification('請先選擇一個頻道', 'error');
+        return;
+    }
+
+    // 先在預覽區顯示進度
+    const previewId = `upload-${Date.now()}`;
+    addFilePreviewChip(previewId, file.name, 0);
+
+    try {
+        // Step 1: 取得 pre-signed URL
+        const presignResp = await api.presignUpload(file.name, file.type || 'application/octet-stream', file.size);
+        const { file_id, upload_url } = presignResp;
+
+        // Step 2: 直接 PUT 至 Minio，更新進度
+        await api.uploadToMinio(upload_url, file, (pct) => {
+            updateFilePreviewProgress(previewId, pct);
+        });
+
+        // Step 3: 通知 server 確認上傳完成
+        await api.confirmUpload(file_id);
+
+        // 標記為完成並記錄 file_id
+        markFilePreviewDone(previewId, file.name, file_id);
+        appState.pendingFileIds.push(file_id);
+
+    } catch (err) {
+        console.error('File upload failed:', err);
+        showNotification(`上傳失敗：${err.message}`, 'error');
+        removeFilePreviewChip(previewId);
+    }
+}
+
+// ── 預覽 Chip 操作 ──
+
+function getPreviewArea() {
+    return document.getElementById('file-preview-area');
+}
+
+function addFilePreviewChip(id, filename, progress) {
+    const area = getPreviewArea();
+    area.style.display = 'flex';
+    const chip = document.createElement('div');
+    chip.className = 'file-preview-chip';
+    chip.id = id;
+    chip.innerHTML = `
+        <i class="fas fa-spinner fa-spin"></i>
+        <span class="chip-name">${escapeHtml(filename)}</span>
+        <span class="chip-progress">${progress}%</span>
+    `;
+    area.appendChild(chip);
+}
+
+function updateFilePreviewProgress(id, pct) {
+    const chip = document.getElementById(id);
+    if (!chip) return;
+    const prog = chip.querySelector('.chip-progress');
+    if (prog) prog.textContent = `${pct}%`;
+}
+
+function markFilePreviewDone(id, filename, fileId) {
+    const chip = document.getElementById(id);
+    if (!chip) return;
+    chip.dataset.fileId = fileId;
+    chip.innerHTML = `
+        <i class="fas fa-paperclip"></i>
+        <span class="chip-name">${escapeHtml(filename)}</span>
+        <button class="chip-remove" onclick="removeUploadedFile('${id}','${fileId}')" title="移除">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    chip.classList.add('file-preview-chip--done');
+}
+
+function removeFilePreviewChip(id) {
+    const chip = document.getElementById(id);
+    if (chip) chip.remove();
+    const area = getPreviewArea();
+    if (area && area.children.length === 0) area.style.display = 'none';
+}
+
+// 使用者點擊移除按鈕
+function removeUploadedFile(chipId, fileId) {
+    appState.pendingFileIds = appState.pendingFileIds.filter(id => String(id) !== String(fileId));
+    removeFilePreviewChip(chipId);
+}
+
+function clearFilePreview() {
+    const area = getPreviewArea();
+    if (!area) return;
+    area.innerHTML = '';
+    area.style.display = 'none';
+}
+
+function renderFilePreview() {
+    // 若有需要可重繪，目前預覽已在上傳成功時即時建立，此處保留為 hook
+}
+
+// ── 訊息附件渲染 ──
+
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+
+function renderAttachments(attachments) {
+    if (!attachments || attachments.length === 0) return '';
+
+    const html = attachments.map(att => {
+        if (!att || !att.file) return '';
+        const file = att.file;
+        const isImage = IMAGE_TYPES.includes(file.content_type);
+        const safeName = escapeHtml(file.filename || 'attachment');
+
+        if (isImage) {
+            // 圖片直接顯示縮圖，點擊取得下載 URL
+            return `
+                <div class="message-attachment message-attachment--image">
+                    <img src="" alt="${safeName}"
+                        data-file-id="${file.id}"
+                        onclick="openAttachment(${file.id})"
+                        onload="this.style.opacity=1"
+                        style="opacity:0;transition:opacity .2s"
+                        title="${safeName}">
+                    <script>loadAttachmentImage(${file.id})<\/script>
+                </div>`;
+        }
+
+        // 非圖片：顯示下載連結
+        const sizeStr = formatFileSize(file.size || 0);
+        return `
+            <div class="message-attachment message-attachment--file">
+                <i class="fas fa-file"></i>
+                <div class="attachment-info">
+                    <span class="attachment-name">${safeName}</span>
+                    <span class="attachment-size">${sizeStr}</span>
+                </div>
+                <button class="btn-icon attachment-download" onclick="openAttachment(${file.id})" title="下載">
+                    <i class="fas fa-download"></i>
+                </button>
+            </div>`;
+    }).join('');
+
+    return html ? `<div class="message-attachments">${html}</div>` : '';
+}
+
+// 點擊附件時開啟下載 URL
+async function openAttachment(fileId) {
+    try {
+        const resp = await api.getFileDownloadUrl(fileId);
+        window.open(resp.url, '_blank');
+    } catch (err) {
+        showNotification('無法取得檔案連結', 'error');
+    }
+}
+
+// 載入圖片附件的 src（非同步取得簽名 URL）
+async function loadAttachmentImage(fileId) {
+    try {
+        const resp = await api.getFileDownloadUrl(fileId);
+        const img = document.querySelector(`img[data-file-id="${fileId}"]`);
+        if (img) img.src = resp.url;
+    } catch (err) {
+        console.warn('Failed to load image attachment:', fileId, err);
+    }
+}
+
+// 格式化檔案大小
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+}
+
+// ===================== END 檔案上傳相關 =====================
 
 // 簡易 Markdown 渲染（支援: ``` 程式碼區塊, ` 行內程式碼, - 列舉, 換行）
 function renderMarkdown(rawText) {
@@ -749,6 +947,7 @@ function renderMessages() {
                 <div class="message-avatar-spacer" aria-hidden="true"></div>
                 <div class="message-content">
                     <div class="message-text">${renderMarkdown(message.content)}</div>
+                    ${renderAttachments(message.attachments)}
                 </div>
             `;
         } else {
@@ -762,6 +961,7 @@ function renderMessages() {
                         <span class="message-timestamp">${timestamp}</span>
                     </div>
                     <div class="message-text">${renderMarkdown(message.content)}</div>
+                    ${renderAttachments(message.attachments)}
                 </div>
             `;
         }

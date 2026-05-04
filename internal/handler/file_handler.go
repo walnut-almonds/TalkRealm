@@ -19,6 +19,11 @@ func NewFileHandler(fileService service.FileService) *FileHandler {
 	return &FileHandler{fileService: fileService}
 }
 
+// GetFileService 返回 FileService（供其他 Service 注入用）
+func (h *FileHandler) GetFileService() service.FileService {
+	return h.fileService
+}
+
 // PresignUpload 產生 Pre-signed 上傳 URL
 //
 //	@Summary		申請上傳 URL

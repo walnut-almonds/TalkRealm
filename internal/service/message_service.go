@@ -35,6 +35,7 @@ type MessageService interface {
 	UpdateMessage(messageID, userID uint, req *UpdateMessageRequest) (*model.Message, error)
 	DeleteMessage(messageID, userID uint) error
 	SetWebSocketManager(manager WebSocketManager)
+	SetFileService(fs FileService)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
 	CreateMessageWS(userID, channelID uint, content, contentType, nonce string) (any, error)
 }
@@ -44,6 +45,7 @@ type messageService struct {
 	channelRepo     repository.ChannelRepository
 	guildMemberRepo repository.GuildMemberRepository
 	wsManager       WebSocketManager
+	fileService     FileService // 可選，用於建立附件關聯
 }
 
 // NewMessageService 建立訊息服務實例
@@ -56,8 +58,14 @@ func NewMessageService(
 		messageRepo:     messageRepo,
 		channelRepo:     channelRepo,
 		guildMemberRepo: guildMemberRepo,
-		wsManager:       nil, // 稍後設定
+		wsManager:       nil,
+		fileService:     nil, // 稍後透過 SetFileService 設定
 	}
+}
+
+// SetFileService 設定 FileService（用於建立附件關聯）
+func (s *messageService) SetFileService(fs FileService) {
+	s.fileService = fs
 }
 
 // SetWebSocketManager 設定 WebSocket 管理器
@@ -81,9 +89,10 @@ func (s *messageService) CreateMessageWS(
 // CreateMessageRequest 建立訊息請求
 type CreateMessageRequest struct {
 	ChannelID uint   `json:"channel_id"`
-	Content   string `json:"content"    binding:"required"`
-	Type      string `json:"type"`  // text, image, file (預設: text)
-	Nonce     string `json:"nonce"` // client 產生的冪等 key（可選，建議 UUID v4）
+	Content   string `json:"content"`
+	Type      string `json:"type"`     // text, image, file (預設: text)
+	Nonce     string `json:"nonce"`    // client 產生的冪等 key（可選，建議 UUID v4）
+	FileIDs   []uint `json:"file_ids"` // 附加的已確認檔案 ID（可選）
 }
 
 // UpdateMessageRequest 更新訊息請求
@@ -155,6 +164,16 @@ func (s *messageService) CreateMessage(
 
 	if err := s.messageRepo.Create(message); err != nil {
 		return nil, err
+	}
+
+	// 建立附件關聯
+	if s.fileService != nil && len(req.FileIDs) > 0 {
+		for _, fid := range req.FileIDs {
+			if _, err := s.fileService.AttachToMessage(message.ID, fid); err != nil {
+				// 附件關聯失敗不中斷訊息發送，僅記錄
+				_ = err
+			}
+		}
 	}
 
 	// 重新取得訊息（包含關聯資料）

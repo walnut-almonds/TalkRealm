@@ -46,6 +46,13 @@ const API_CONFIG = {
         // 使用者公開資料
         PUBLIC_USER: (id) => `/api/v1/users/${id}`,
 
+        // 檔案
+        FILE_PRESIGN: '/api/v1/files/presign',
+        FILE_CONFIRM: (id) => `/api/v1/files/${id}/confirm`,
+        FILE_META: (id) => `/api/v1/files/${id}`,
+        FILE_URL: (id) => `/api/v1/files/${id}/url`,
+        FILE_DELETE: (id) => `/api/v1/files/${id}`,
+
         // WebSocket
         WS: '/api/v1/ws'
     }

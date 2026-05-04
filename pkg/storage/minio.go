@@ -12,14 +12,12 @@ import (
 	"github.com/walnut-almonds/talkrealm/pkg/logger"
 )
 
-// Client 封裝 Minio 操作
 type Client struct {
 	mc     *minio.Client
 	bucket string
 	cfg    *config.MinioConfig
 }
 
-// NewClient 建立 Minio Client，並確保 bucket 存在
 func NewClient(cfg *config.MinioConfig) (*Client, error) {
 	mc, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
@@ -31,7 +29,6 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 
 	ctx := context.Background()
 
-	// 確保 bucket 存在，不存在時自動建立
 	exists, err := mc.BucketExists(ctx, cfg.Bucket)
 	if err != nil {
 		return nil, fmt.Errorf("minio: check bucket failed: %w", err)
@@ -50,10 +47,11 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 	return &Client{mc: mc, bucket: cfg.Bucket, cfg: cfg}, nil
 }
 
-// PresignPutURL 產生 Pre-signed 上傳 URL（PUT）
-// expiry 單位：分鐘
-func (c *Client) PresignPutURL(key string, expiry int) (string, error) {
-	_ = url.Values{} // ensure url import is used via other methods
+func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, error) {
+	params := url.Values{}
+	if contentType != "" {
+		params.Set("Content-Type", contentType)
+	}
 
 	u, err := c.mc.PresignedPutObject(
 		context.Background(),
@@ -68,7 +66,6 @@ func (c *Client) PresignPutURL(key string, expiry int) (string, error) {
 	return u.String(), nil
 }
 
-// PresignGetURL 產生 Pre-signed 下載 URL（GET）
 func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
 	u, err := c.mc.PresignedGetObject(
 		context.Background(),
@@ -84,7 +81,6 @@ func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
 	return u.String(), nil
 }
 
-// DeleteObject 刪除 Minio 上的物件
 func (c *Client) DeleteObject(key string) error {
 	err := c.mc.RemoveObject(context.Background(), c.bucket, key, minio.RemoveObjectOptions{})
 	if err != nil {
@@ -94,7 +90,6 @@ func (c *Client) DeleteObject(key string) error {
 	return nil
 }
 
-// ObjectExists 確認物件是否存在（upload confirm 時使用）
 func (c *Client) ObjectExists(key string) (bool, int64, error) {
 	info, err := c.mc.StatObject(context.Background(), c.bucket, key, minio.StatObjectOptions{})
 	if err != nil {

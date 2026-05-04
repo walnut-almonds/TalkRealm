@@ -158,7 +158,7 @@ func (s *fileService) PresignUpload(
 	}
 
 	// 7. 產生 Pre-signed PUT URL
-	uploadURL, err := s.storage.PresignPutURL(key, s.cfg.PresignExpiry)
+	uploadURL, err := s.storage.PresignPutURL(key, req.ContentType, s.cfg.PresignExpiry)
 	if err != nil {
 		// 清理剛建立的 pending 記錄
 		_ = s.fileRepo.Delete(file.ID)

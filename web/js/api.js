@@ -232,9 +232,10 @@ class API {
         return this.get(url);
     }
 
-    async sendMessage(channelId, content, messageType = 'text', nonce = null) {
+    async sendMessage(channelId, content, messageType = 'text', nonce = null, fileIds = []) {
         const body = { content, type: messageType };
         if (nonce) body.nonce = nonce;
+        if (fileIds && fileIds.length > 0) body.file_ids = fileIds;
         return this.post(API_CONFIG.ENDPOINTS.CHANNEL_MESSAGES(channelId), body);
     }
 
@@ -271,6 +272,60 @@ class API {
 
     async joinByInvite(code) {
         return this.post(API_CONFIG.ENDPOINTS.JOIN_BY_INVITE, { code });
+    }
+
+    // 檔案 API
+    // 1. 取得 pre-signed upload URL（建立 pending 記錄）
+    async presignUpload(filename, contentType, size) {
+        return this.post(API_CONFIG.ENDPOINTS.FILE_PRESIGN, {
+            filename,
+            content_type: contentType,
+            size
+        });
+    }
+
+    // 2. 直接 PUT 檔案至 Minio（不經過 API Server）
+    async uploadToMinio(uploadUrl, file, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', uploadUrl);
+            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+            if (onProgress) {
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        onProgress(Math.round((e.loaded / e.total) * 100));
+                    }
+                };
+            }
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve();
+                } else {
+                    reject(new Error(`上傳失敗 (${xhr.status})`));
+                }
+            };
+            xhr.onerror = () => reject(new Error('網路錯誤，上傳失敗'));
+            xhr.send(file);
+        });
+    }
+
+    // 3. 確認上傳完成
+    async confirmUpload(fileId) {
+        return this.post(API_CONFIG.ENDPOINTS.FILE_CONFIRM(fileId), {});
+    }
+
+    // 取得下載 URL
+    async getFileDownloadUrl(fileId) {
+        return this.get(API_CONFIG.ENDPOINTS.FILE_URL(fileId));
+    }
+
+    // 刪除檔案
+    async deleteFile(fileId) {
+        return this.request(API_CONFIG.ENDPOINTS.FILE_DELETE(fileId), {
+            method: 'DELETE'
+        });
     }
 }
 

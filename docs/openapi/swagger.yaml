@@ -264,14 +264,17 @@ definitions:
         type: integer
       content:
         type: string
+      file_ids:
+        description: 附加的已確認檔案 ID（可選）
+        items:
+          type: integer
+        type: array
       nonce:
         description: client 產生的冪等 key（可選，建議 UUID v4）
         type: string
       type:
         description: 'text, image, file (預設: text)'
         type: string
-    required:
-    - content
     type: object
   service.LoginRequest:
     properties:

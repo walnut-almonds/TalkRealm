@@ -206,9 +206,14 @@
             </div>
 
             <!-- 訊息輸入區 -->
+            <input type="file" id="file-input" style="display:none"
+                accept="image/*,.pdf,.zip,.mp4,.mp3,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                onchange="handleFileSelected(this)">
             <div class="message-input-container">
+                <!-- 檔案預覽區 -->
+                <div id="file-preview-area" class="file-preview-area" style="display:none"></div>
                 <div class="message-input">
-                    <button class="btn-icon" title="上傳檔案">
+                    <button class="btn-icon" title="上傳檔案" onclick="document.getElementById('file-input').click()">
                         <i class="fas fa-plus-circle"></i>
                     </button>
                     <textarea id="message-input" placeholder="在此輸入訊息..." rows="1"

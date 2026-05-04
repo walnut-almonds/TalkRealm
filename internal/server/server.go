@@ -119,6 +119,8 @@ func New(cfg *config.Config) (*Server, error) {
 		fileRepo := repository.NewFileRepository(db)
 		fileService := service.NewFileService(fileRepo, minioClient, rdb, &cfg.Minio)
 		fileHandler = handler.NewFileHandler(fileService)
+		// 設定 FileService 到 MessageService（用於附件關聯）
+		messageService.SetFileService(fileService)
 	}
 
 	s := &Server{

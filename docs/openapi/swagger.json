@@ -2127,15 +2127,19 @@
         },
         "service.CreateMessageRequest": {
             "type": "object",
-            "required": [
-                "content"
-            ],
             "properties": {
                 "channel_id": {
                     "type": "integer"
                 },
                 "content": {
                     "type": "string"
+                },
+                "file_ids": {
+                    "description": "附加的已確認檔案 ID（可選）",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "nonce": {
                     "description": "client 產生的冪等 key（可選，建議 UUID v4）",

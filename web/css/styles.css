@@ -748,6 +748,131 @@ body {
     padding: 16px;
 }
 
+/* 檔案預覽區（位於輸入框上方） */
+.file-preview-area {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 4px 4px;
+}
+
+.file-preview-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-tertiary, #1e1f22);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
+    color: var(--text-primary);
+    max-width: 220px;
+}
+
+.file-preview-chip .chip-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 140px;
+}
+
+.file-preview-chip .chip-progress {
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 28px;
+    text-align: right;
+}
+
+.file-preview-chip--done {
+    border-color: var(--accent, #5865f2);
+}
+
+.chip-remove {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    line-height: 1;
+}
+
+.chip-remove:hover {
+    color: #f04747;
+}
+
+/* 訊息附件 */
+.message-attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.message-attachment--image img {
+    max-width: 360px;
+    max-height: 300px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: block;
+    object-fit: contain;
+}
+
+.message-attachment--image img:hover {
+    opacity: 0.9;
+}
+
+.message-attachment--file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-tertiary, #1e1f22);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px 12px;
+    max-width: 360px;
+}
+
+.message-attachment--file .fas {
+    font-size: 22px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.attachment-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.attachment-name {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-size {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.attachment-download {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+}
+
+.attachment-download:hover {
+    color: var(--text-primary);
+}
+
+
+
 .message-input {
     display: flex;
     align-items: center;
