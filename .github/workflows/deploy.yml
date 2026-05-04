@@ -55,10 +55,16 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URL: ${{ secrets.GOOGLE_REDIRECT_URL }}
         run: |
           test -n "$DB_PASSWORD"
           test -n "$REDIS_PASSWORD"
           test -n "$JWT_SECRET"
+          test -n "$GOOGLE_CLIENT_ID"
+          test -n "$GOOGLE_CLIENT_SECRET"
+          test -n "$GOOGLE_REDIRECT_URL"
           envsubst < configs/config.prod.yaml > config.yaml
           printf 'POSTGRES_PASSWORD=%s\nREDIS_PASSWORD=%s\n' "$DB_PASSWORD" "$REDIS_PASSWORD" > .env
 
