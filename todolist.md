@@ -33,7 +33,8 @@
 - [x] **訊息 Attachment 欄位**：Message 回應加入 `attachments []` 陣列
 - [x] **`PATCH /api/v1/users/me`**：更新暱稱 / avatar / status（plan.md 4.2 已定義，目前未實作）
 - [x] **`PUT /api/v1/channels/{id}/position`**：更新頻道排序（plan.md 4.4 已定義，未實作）
-- [x] **`GET /api/v1/messages/{id}`**：取得單一訊息詳情（plan.md 4.5 已定義，未實作）
+- [x] **`GET /api/v1/messages/{id}`**：取得單一訊息詳情（plan.md 4.5 已定義，未實作
+- [ ] **OAuth 登入整合**：支援第三方登入 provider、callback 處理與 JWT 發放
 
 ### 權限系統（RBAC）
 - [x] **Permission 中介層**：封裝 `RequireGuildRole(minRole)` middleware

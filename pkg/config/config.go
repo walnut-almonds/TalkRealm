@@ -15,6 +15,19 @@ type Config struct {
 	Redis    RedisConfig    `mapstructure:"redis"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Log      LogConfig      `mapstructure:"log"`
+	OAuth    OAuthConfig    `mapstructure:"oauth"`
+}
+
+// OAuthConfig OAuth 配置
+type OAuthConfig struct {
+	Google GoogleOAuthConfig `mapstructure:"google"`
+}
+
+// GoogleOAuthConfig Google OAuth 配置
+type GoogleOAuthConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
 }
 
 // ServerConfig 伺服器配置
@@ -122,4 +135,10 @@ func setDefaults() {
 
 	// Log 預設值
 	viper.SetDefault("log.level", "info")
+
+	// OAuth 預設值
+	viper.SetDefault(
+		"oauth.google.redirect_url",
+		"http://localhost:8080/api/v1/auth/google/callback",
+	)
 }

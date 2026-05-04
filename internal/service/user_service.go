@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
@@ -58,6 +60,15 @@ type UpdateUserRequest struct {
 	Status   string `json:"status"   binding:"omitempty,oneof=online offline busy away"`
 }
 
+// OAuthUserInfo OAuth 登入時由 provider 提供的使用者資訊
+type OAuthUserInfo struct {
+	Provider   string // e.g. "google", "github"
+	ProviderID string // 各家給的 subject ID
+	Email      string
+	Name       string
+	Avatar     string
+}
+
 // UserService 使用者服務介面
 type UserService interface {
 	Register(req *RegisterRequest) (*model.User, error)
@@ -68,24 +79,28 @@ type UserService interface {
 	UpdateStatus(id uint, status string) error
 	RefreshAccessToken(refreshToken string) (*LoginResponse, error)
 	RevokeRefreshToken(refreshToken string) error
+	OAuthLoginOrRegister(req *OAuthUserInfo) (*LoginResponse, error)
 }
 
 type userService struct {
-	repo             repository.UserRepository
-	refreshTokenRepo repository.RefreshTokenRepository
-	jwtManager       *auth.JWTManager
+	repo              repository.UserRepository
+	refreshTokenRepo  repository.RefreshTokenRepository
+	oauthProviderRepo repository.OAuthProviderRepository
+	jwtManager        *auth.JWTManager
 }
 
 // NewUserService 建立使用者服務
 func NewUserService(
 	repo repository.UserRepository,
 	refreshTokenRepo repository.RefreshTokenRepository,
+	oauthProviderRepo repository.OAuthProviderRepository,
 	jwtManager *auth.JWTManager,
 ) UserService {
 	return &userService{
-		repo:             repo,
-		refreshTokenRepo: refreshTokenRepo,
-		jwtManager:       jwtManager,
+		repo:              repo,
+		refreshTokenRepo:  refreshTokenRepo,
+		oauthProviderRepo: oauthProviderRepo,
+		jwtManager:        jwtManager,
 	}
 }
 
@@ -141,7 +156,10 @@ func (s *userService) Login(req *LoginRequest) (*LoginResponse, error) {
 	}
 
 	// 驗證密碼
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(user.Password),
+		[]byte(req.Password),
+	); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
@@ -311,4 +329,135 @@ func (s *userService) RefreshAccessToken(refreshToken string) (*LoginResponse, e
 // RevokeRefreshToken 撤銷 refresh token（登出）
 func (s *userService) RevokeRefreshToken(refreshToken string) error {
 	return s.refreshTokenRepo.RevokeByToken(refreshToken)
+}
+
+// OAuthLoginOrRegister 透過 OAuth 資訊登入或自動建立帳號
+func (s *userService) OAuthLoginOrRegister(info *OAuthUserInfo) (*LoginResponse, error) {
+	var user *model.User
+
+	// 查詢此 provider + provider_id 是否已綁定與某個帳號
+	link, err := s.oauthProviderRepo.FindByProvider(info.Provider, info.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+
+	if link != nil {
+		// 已綁定：直接取得對應使用者
+		user, err = s.repo.GetByID(link.UserID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// 找不到對應連結，嘗試以 email 匹配就有帳號（本地或其他 OAuth 帳號）
+		if info.Email != "" {
+			existing, _ := s.repo.GetByEmail(info.Email)
+			if existing != nil {
+				user = existing
+			}
+		}
+
+		// email 也找不到，自動建立新帳號
+		if user == nil {
+			username := generateUsernameFromEmail(info.Email)
+			base := username
+
+			for i := 1; ; i++ {
+				if u, _ := s.repo.GetByUsername(username); u == nil {
+					break
+				}
+
+				username = fmt.Sprintf("%s%d", base, i)
+			}
+
+			nickname := info.Name
+			if nickname == "" {
+				nickname = username
+			}
+
+			user = &model.User{
+				Username:  username,
+				Email:     info.Email,
+				Nickname:  nickname,
+				Avatar:    info.Avatar,
+				Status:    "offline",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			if err := s.repo.Create(user); err != nil {
+				return nil, err
+			}
+		}
+
+		// 建立新的 OAuth 連結記錄
+		newLink := &model.UserOAuthProvider{
+			UserID:     user.ID,
+			Provider:   info.Provider,
+			ProviderID: info.ProviderID,
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+		if err := s.oauthProviderRepo.Create(newLink); err != nil {
+			return nil, err
+		}
+	}
+
+	// 更新頭像（若沒有且 OAuth 有提供）
+	if user.Avatar == "" && info.Avatar != "" {
+		user.Avatar = info.Avatar
+		user.UpdatedAt = time.Now()
+		_ = s.repo.Update(user)
+	}
+
+	// 生成 access token
+	accessToken, err := s.jwtManager.GenerateToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	// 生成 refresh token
+	refreshToken, err := generateSecureToken()
+	if err != nil {
+		return nil, err
+	}
+
+	rt := &model.RefreshToken{
+		UserID:    user.ID,
+		Token:     refreshToken,
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+	if err := s.refreshTokenRepo.Create(rt); err != nil {
+		return nil, err
+	}
+
+	_ = s.repo.UpdateStatus(user.ID, "online")
+
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int(s.jwtManager.TokenDuration().Seconds()),
+		User:         user,
+	}, nil
+}
+
+// generateUsernameFromEmail 從 email 產生基礎 username（取 @ 前半段，去除特殊字元）
+func generateUsernameFromEmail(email string) string {
+	parts := strings.SplitN(email, "@", 2)
+	if len(parts) == 0 || parts[0] == "" {
+		return "user"
+	}
+	// 只保留英數字與底線
+	result := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			return r
+		}
+
+		return '_'
+	}, parts[0])
+	if len(result) < 3 {
+		result = result + "user"
+	}
+
+	return result
 }

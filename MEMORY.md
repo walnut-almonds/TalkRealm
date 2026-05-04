@@ -7,6 +7,7 @@
 - ORM: GORM + PostgreSQL (`gorm.io/driver/postgres`)
 - WebSocket: `gorilla/websocket`
 - Auth: `golang-jwt/jwt/v5`
+- OAuth: `golang.org/x/oauth2` (Google OAuth 已實作)
 - Config: Viper
 - Logger: `go.uber.org/zap`
 - 目前是 **monolith**，架構目標是漸進拆分為微服務（見 `plan.md`）
@@ -33,6 +34,8 @@ make check        # 全部檢查（lint + build + test）
 - `message_service.go` 中 WS Manager 以 interface 注入（避免循環依賴），需 `SetWebSocketManager()` 設定；另有 `CreateMessageWS()` 供 WS `send_message` op 呼叫（`MessageSender` interface 注入到 Manager）
 - handler.go 仍有 TODO stub functions（已被 user_handler.go 等各自的 handler 取代）
 - 部署到 VPS 使用 `docker-compose.prod.yml` 時，`POSTGRES_PASSWORD` / `REDIS_PASSWORD` 需由同目錄 `.env` 或 `--env-file` 提供；否則 Compose 會以空字串替代，造成 postgres healthcheck 失敗。
+- `golangci-lint --fix` + `whole-files: true` 坑：修改 `mocks.go` 會曝露所有既有的 nilnil 問題。已用 `//nolint:nilnil` 全部標記。新增 mock 方法必須一同加標記。
+- `golangci-lint --fix` 會重新格式化 oauth_handler.go，造成 `NewRequestWithContext` 行號改變；`wsl_v5` 需在 `if err != nil { c.JSON(); return }` 的 return 前加空行。
 
 ## Decisions
 - MQ 選擇 NATS JetStream（輕量，適合小團隊），備選 Kafka

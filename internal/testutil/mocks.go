@@ -37,7 +37,7 @@ func (m *MockUserRepository) GetByID(id uint) (*model.User, error) {
 		return m.GetByIDFn(id)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserRepository) GetByEmail(email string) (*model.User, error) {
@@ -45,7 +45,7 @@ func (m *MockUserRepository) GetByEmail(email string) (*model.User, error) {
 		return m.GetByEmailFn(email)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserRepository) GetByUsername(username string) (*model.User, error) {
@@ -53,7 +53,7 @@ func (m *MockUserRepository) GetByUsername(username string) (*model.User, error)
 		return m.GetByUsernameFn(username)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserRepository) Update(user *model.User) error {
@@ -116,7 +116,7 @@ func (m *MockRefreshTokenRepository) GetByToken(token string) (*model.RefreshTok
 		return m.GetByTokenFn(token)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockRefreshTokenRepository) RevokeByToken(token string) error {
@@ -138,6 +138,68 @@ func (m *MockRefreshTokenRepository) RevokeAllByUserID(userID uint) error {
 func (m *MockRefreshTokenRepository) DeleteExpired() error {
 	if m.DeleteExpiredFn != nil {
 		return m.DeleteExpiredFn()
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// MockOAuthProviderRepository
+// ---------------------------------------------------------------------------
+
+// MockOAuthProviderRepository is a test double for repository.OAuthProviderRepository.
+type MockOAuthProviderRepository struct {
+	FindByProviderFn            func(provider, providerID string) (*model.UserOAuthProvider, error)
+	CreateFn                    func(link *model.UserOAuthProvider) error
+	UpdateFn                    func(link *model.UserOAuthProvider) error
+	ListByUserIDFn              func(userID uint) ([]*model.UserOAuthProvider, error)
+	DeleteByUserIDAndProviderFn func(userID uint, provider string) error
+}
+
+var _ repository.OAuthProviderRepository = (*MockOAuthProviderRepository)(nil)
+
+func (m *MockOAuthProviderRepository) FindByProvider(
+	provider, providerID string,
+) (*model.UserOAuthProvider, error) {
+	if m.FindByProviderFn != nil {
+		return m.FindByProviderFn(provider, providerID)
+	}
+
+	return nil, nil //nolint:nilnil
+}
+
+func (m *MockOAuthProviderRepository) Create(link *model.UserOAuthProvider) error {
+	if m.CreateFn != nil {
+		return m.CreateFn(link)
+	}
+
+	return nil
+}
+
+func (m *MockOAuthProviderRepository) Update(link *model.UserOAuthProvider) error {
+	if m.UpdateFn != nil {
+		return m.UpdateFn(link)
+	}
+
+	return nil
+}
+
+func (m *MockOAuthProviderRepository) ListByUserID(
+	userID uint,
+) ([]*model.UserOAuthProvider, error) {
+	if m.ListByUserIDFn != nil {
+		return m.ListByUserIDFn(userID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockOAuthProviderRepository) DeleteByUserIDAndProvider(
+	userID uint,
+	provider string,
+) error {
+	if m.DeleteByUserIDAndProviderFn != nil {
+		return m.DeleteByUserIDAndProviderFn(userID, provider)
 	}
 
 	return nil
@@ -173,7 +235,7 @@ func (m *MockGuildRepository) GetByID(id uint) (*model.Guild, error) {
 		return m.GetByIDFn(id)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildRepository) Update(guild *model.Guild) error {
@@ -208,7 +270,10 @@ func (m *MockGuildRepository) GetByOwnerID(ownerID uint) ([]*model.Guild, error)
 	return nil, nil
 }
 
-func (m *MockGuildRepository) GetMemberGuilds(userID uint, offset, limit int) ([]*model.Guild, error) {
+func (m *MockGuildRepository) GetMemberGuilds(
+	userID uint,
+	offset, limit int,
+) ([]*model.Guild, error) {
 	if m.GetMemberGuildsFn != nil {
 		return m.GetMemberGuildsFn(userID, offset, limit)
 	}
@@ -248,7 +313,7 @@ func (m *MockGuildMemberRepository) GetByID(id uint) (*model.GuildMember, error)
 		return m.GetByIDFn(id)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildMemberRepository) Update(member *model.GuildMember) error {
@@ -288,7 +353,7 @@ func (m *MockGuildMemberRepository) GetMember(guildID, userID uint) (*model.Guil
 		return m.GetMemberFn(guildID, userID)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildMemberRepository) IsMember(guildID, userID uint) (bool, error) {
@@ -319,7 +384,7 @@ type MockMessageRepository struct {
 	UpdateFn               func(message *model.Message) error
 	DeleteFn               func(id uint) error
 	GetByChannelIDFn       func(channelID uint, offset, limit int) ([]*model.Message, error)
-	GetByChannelIDCursorFn func(channelID uint, before uint, limit int) ([]*model.Message, error)
+	GetByChannelIDCursorFn func(channelID, before uint, limit int) ([]*model.Message, error)
 	GetByUserIDFn          func(userID uint, offset, limit int) ([]*model.Message, error)
 }
 
@@ -338,7 +403,7 @@ func (m *MockMessageRepository) GetByID(id uint) (*model.Message, error) {
 		return m.GetByIDFn(id)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockMessageRepository) GetByNonce(userID uint, nonce string) (*model.Message, error) {
@@ -346,7 +411,7 @@ func (m *MockMessageRepository) GetByNonce(userID uint, nonce string) (*model.Me
 		return m.GetByNonceFn(userID, nonce)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockMessageRepository) Update(message *model.Message) error {
@@ -365,7 +430,10 @@ func (m *MockMessageRepository) Delete(id uint) error {
 	return nil
 }
 
-func (m *MockMessageRepository) GetByChannelID(channelID uint, offset, limit int) ([]*model.Message, error) {
+func (m *MockMessageRepository) GetByChannelID(
+	channelID uint,
+	offset, limit int,
+) ([]*model.Message, error) {
 	if m.GetByChannelIDFn != nil {
 		return m.GetByChannelIDFn(channelID, offset, limit)
 	}
@@ -373,7 +441,10 @@ func (m *MockMessageRepository) GetByChannelID(channelID uint, offset, limit int
 	return nil, nil
 }
 
-func (m *MockMessageRepository) GetByChannelIDCursor(channelID uint, before uint, limit int) ([]*model.Message, error) {
+func (m *MockMessageRepository) GetByChannelIDCursor(
+	channelID, before uint,
+	limit int,
+) ([]*model.Message, error) {
 	if m.GetByChannelIDCursorFn != nil {
 		return m.GetByChannelIDCursorFn(channelID, before, limit)
 	}
@@ -381,7 +452,10 @@ func (m *MockMessageRepository) GetByChannelIDCursor(channelID uint, before uint
 	return nil, nil
 }
 
-func (m *MockMessageRepository) GetByUserID(userID uint, offset, limit int) ([]*model.Message, error) {
+func (m *MockMessageRepository) GetByUserID(
+	userID uint,
+	offset, limit int,
+) ([]*model.Message, error) {
 	if m.GetByUserIDFn != nil {
 		return m.GetByUserIDFn(userID, offset, limit)
 	}
@@ -418,7 +492,7 @@ func (m *MockChannelRepository) GetByID(id uint) (*model.Channel, error) {
 		return m.GetByIDFn(id)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockChannelRepository) Update(channel *model.Channel) error {
@@ -445,7 +519,10 @@ func (m *MockChannelRepository) GetByGuildID(guildID uint) ([]*model.Channel, er
 	return nil, nil
 }
 
-func (m *MockChannelRepository) GetByType(guildID uint, channelType string) ([]*model.Channel, error) {
+func (m *MockChannelRepository) GetByType(
+	guildID uint,
+	channelType string,
+) ([]*model.Channel, error) {
 	if m.GetByTypeFn != nil {
 		return m.GetByTypeFn(guildID, channelType)
 	}
@@ -459,11 +536,11 @@ func (m *MockChannelRepository) GetByType(guildID uint, channelType string) ([]*
 
 // MockGuildInviteRepository is a test double for repository.GuildInviteRepository.
 type MockGuildInviteRepository struct {
-	CreateFn         func(invite *model.GuildInvite) error
-	GetByCodeFn      func(code string) (*model.GuildInvite, error)
-	ListByGuildIDFn  func(guildID uint) ([]*model.GuildInvite, error)
-	IncrementUsesFn  func(id uint) error
-	DeleteFn         func(id uint) error
+	CreateFn        func(invite *model.GuildInvite) error
+	GetByCodeFn     func(code string) (*model.GuildInvite, error)
+	ListByGuildIDFn func(guildID uint) ([]*model.GuildInvite, error)
+	IncrementUsesFn func(id uint) error
+	DeleteFn        func(id uint) error
 }
 
 var _ repository.GuildInviteRepository = (*MockGuildInviteRepository)(nil)
@@ -481,7 +558,7 @@ func (m *MockGuildInviteRepository) GetByCode(code string) (*model.GuildInvite, 
 		return m.GetByCodeFn(code)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildInviteRepository) ListByGuildID(guildID uint) ([]*model.GuildInvite, error) {
@@ -514,14 +591,15 @@ func (m *MockGuildInviteRepository) Delete(id uint) error {
 
 // MockUserService is a test double for service.UserService.
 type MockUserService struct {
-	RegisterFn           func(req *service.RegisterRequest) (*model.User, error)
-	LoginFn              func(req *service.LoginRequest) (*service.LoginResponse, error)
-	GetByIDFn            func(id uint) (*model.User, error)
-	GetPublicByIDFn      func(id uint) (*service.PublicUser, error)
-	UpdateFn             func(id uint, req *service.UpdateUserRequest) (*model.User, error)
-	UpdateStatusFn       func(id uint, status string) error
-	RefreshAccessTokenFn func(refreshToken string) (*service.LoginResponse, error)
-	RevokeRefreshTokenFn func(refreshToken string) error
+	RegisterFn             func(req *service.RegisterRequest) (*model.User, error)
+	LoginFn                func(req *service.LoginRequest) (*service.LoginResponse, error)
+	GetByIDFn              func(id uint) (*model.User, error)
+	GetPublicByIDFn        func(id uint) (*service.PublicUser, error)
+	UpdateFn               func(id uint, req *service.UpdateUserRequest) (*model.User, error)
+	UpdateStatusFn         func(id uint, status string) error
+	RefreshAccessTokenFn   func(refreshToken string) (*service.LoginResponse, error)
+	RevokeRefreshTokenFn   func(refreshToken string) error
+	OAuthLoginOrRegisterFn func(req *service.OAuthUserInfo) (*service.LoginResponse, error)
 }
 
 var _ service.UserService = (*MockUserService)(nil)
@@ -531,7 +609,7 @@ func (m *MockUserService) Register(req *service.RegisterRequest) (*model.User, e
 		return m.RegisterFn(req)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserService) Login(req *service.LoginRequest) (*service.LoginResponse, error) {
@@ -539,7 +617,7 @@ func (m *MockUserService) Login(req *service.LoginRequest) (*service.LoginRespon
 		return m.LoginFn(req)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserService) GetByID(id uint) (*model.User, error) {
@@ -547,7 +625,7 @@ func (m *MockUserService) GetByID(id uint) (*model.User, error) {
 		return m.GetByIDFn(id)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserService) GetPublicByID(id uint) (*service.PublicUser, error) {
@@ -555,7 +633,7 @@ func (m *MockUserService) GetPublicByID(id uint) (*service.PublicUser, error) {
 		return m.GetPublicByIDFn(id)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserService) Update(id uint, req *service.UpdateUserRequest) (*model.User, error) {
@@ -563,7 +641,7 @@ func (m *MockUserService) Update(id uint, req *service.UpdateUserRequest) (*mode
 		return m.UpdateFn(id, req)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserService) UpdateStatus(id uint, status string) error {
@@ -579,7 +657,7 @@ func (m *MockUserService) RefreshAccessToken(refreshToken string) (*service.Logi
 		return m.RefreshAccessTokenFn(refreshToken)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockUserService) RevokeRefreshToken(refreshToken string) error {
@@ -590,26 +668,39 @@ func (m *MockUserService) RevokeRefreshToken(refreshToken string) error {
 	return nil
 }
 
+func (m *MockUserService) OAuthLoginOrRegister(
+	req *service.OAuthUserInfo,
+) (*service.LoginResponse, error) {
+	if m.OAuthLoginOrRegisterFn != nil {
+		return m.OAuthLoginOrRegisterFn(req)
+	}
+
+	return nil, nil //nolint:nilnil
+}
+
 // MockGuildService is a test double for service.GuildService.
 type MockGuildService struct {
-	CreateGuildFn          func(ownerID uint, req *service.CreateGuildRequest) (*model.Guild, error)
-	GetGuildFn             func(guildID uint) (*model.Guild, error)
-	ListUserGuildsFn       func(userID uint) ([]*model.Guild, error)
-	UpdateGuildFn          func(guildID, userID uint, req *service.UpdateGuildRequest) (*model.Guild, error)
-	DeleteGuildFn          func(guildID, userID uint) error
-	IsGuildOwnerFn         func(guildID, userID uint) (bool, error)
-	IsGuildMemberFn        func(guildID, userID uint) (bool, error)
-	SetWebSocketManagerFn  func(m service.GuildEventBroadcaster)
+	CreateGuildFn         func(ownerID uint, req *service.CreateGuildRequest) (*model.Guild, error)
+	GetGuildFn            func(guildID uint) (*model.Guild, error)
+	ListUserGuildsFn      func(userID uint) ([]*model.Guild, error)
+	UpdateGuildFn         func(guildID, userID uint, req *service.UpdateGuildRequest) (*model.Guild, error)
+	DeleteGuildFn         func(guildID, userID uint) error
+	IsGuildOwnerFn        func(guildID, userID uint) (bool, error)
+	IsGuildMemberFn       func(guildID, userID uint) (bool, error)
+	SetWebSocketManagerFn func(m service.GuildEventBroadcaster)
 }
 
 var _ service.GuildService = (*MockGuildService)(nil)
 
-func (m *MockGuildService) CreateGuild(ownerID uint, req *service.CreateGuildRequest) (*model.Guild, error) {
+func (m *MockGuildService) CreateGuild(
+	ownerID uint,
+	req *service.CreateGuildRequest,
+) (*model.Guild, error) {
 	if m.CreateGuildFn != nil {
 		return m.CreateGuildFn(ownerID, req)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildService) GetGuild(guildID uint) (*model.Guild, error) {
@@ -617,7 +708,7 @@ func (m *MockGuildService) GetGuild(guildID uint) (*model.Guild, error) {
 		return m.GetGuildFn(guildID)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildService) ListUserGuilds(userID uint) ([]*model.Guild, error) {
@@ -628,12 +719,15 @@ func (m *MockGuildService) ListUserGuilds(userID uint) ([]*model.Guild, error) {
 	return nil, nil
 }
 
-func (m *MockGuildService) UpdateGuild(guildID, userID uint, req *service.UpdateGuildRequest) (*model.Guild, error) {
+func (m *MockGuildService) UpdateGuild(
+	guildID, userID uint,
+	req *service.UpdateGuildRequest,
+) (*model.Guild, error) {
 	if m.UpdateGuildFn != nil {
 		return m.UpdateGuildFn(guildID, userID, req)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildService) DeleteGuild(guildID, userID uint) error {
@@ -716,10 +810,13 @@ func (m *MockGuildMemberService) GetMember(guildID, userID uint) (*model.GuildMe
 		return m.GetMemberFn(guildID, userID)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
-func (m *MockGuildMemberService) UpdateMemberRole(guildID, targetUserID, operatorUserID uint, role string) error {
+func (m *MockGuildMemberService) UpdateMemberRole(
+	guildID, targetUserID, operatorUserID uint,
+	role string,
+) error {
 	if m.UpdateMemberRoleFn != nil {
 		return m.UpdateMemberRoleFn(guildID, targetUserID, operatorUserID, role)
 	}
@@ -743,12 +840,15 @@ type MockGuildInviteService struct {
 
 var _ service.GuildInviteService = (*MockGuildInviteService)(nil)
 
-func (m *MockGuildInviteService) CreateInvite(guildID, creatorID uint, req *service.CreateInviteRequest) (*model.GuildInvite, error) {
+func (m *MockGuildInviteService) CreateInvite(
+	guildID, creatorID uint,
+	req *service.CreateInviteRequest,
+) (*model.GuildInvite, error) {
 	if m.CreateInviteFn != nil {
 		return m.CreateInviteFn(guildID, creatorID, req)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildInviteService) GetInviteByCode(code string) (*model.GuildInvite, error) {
@@ -756,7 +856,7 @@ func (m *MockGuildInviteService) GetInviteByCode(code string) (*model.GuildInvit
 		return m.GetInviteByCodeFn(code)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockGuildInviteService) JoinByInvite(code string, userID uint) error {
@@ -786,12 +886,15 @@ type MockMessageService struct {
 
 var _ service.MessageService = (*MockMessageService)(nil)
 
-func (m *MockMessageService) CreateMessage(userID uint, req *service.CreateMessageRequest) (*model.Message, error) {
+func (m *MockMessageService) CreateMessage(
+	userID uint,
+	req *service.CreateMessageRequest,
+) (*model.Message, error) {
 	if m.CreateMessageFn != nil {
 		return m.CreateMessageFn(userID, req)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockMessageService) GetMessage(messageID, userID uint) (*model.Message, error) {
@@ -799,23 +902,30 @@ func (m *MockMessageService) GetMessage(messageID, userID uint) (*model.Message,
 		return m.GetMessageFn(messageID, userID)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
-func (m *MockMessageService) ListChannelMessages(channelID, userID uint, limit int, before uint) (*service.MessageListResponse, error) {
+func (m *MockMessageService) ListChannelMessages(
+	channelID, userID uint,
+	limit int,
+	before uint,
+) (*service.MessageListResponse, error) {
 	if m.ListChannelMessagesFn != nil {
 		return m.ListChannelMessagesFn(channelID, userID, limit, before)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
-func (m *MockMessageService) UpdateMessage(messageID, userID uint, req *service.UpdateMessageRequest) (*model.Message, error) {
+func (m *MockMessageService) UpdateMessage(
+	messageID, userID uint,
+	req *service.UpdateMessageRequest,
+) (*model.Message, error) {
 	if m.UpdateMessageFn != nil {
 		return m.UpdateMessageFn(messageID, userID, req)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockMessageService) DeleteMessage(messageID, userID uint) error {
@@ -832,12 +942,15 @@ func (m *MockMessageService) SetWebSocketManager(manager service.WebSocketManage
 	}
 }
 
-func (m *MockMessageService) CreateMessageWS(userID, channelID uint, content, contentType, nonce string) (any, error) {
+func (m *MockMessageService) CreateMessageWS(
+	userID, channelID uint,
+	content, contentType, nonce string,
+) (any, error) {
 	if m.CreateMessageWSFn != nil {
 		return m.CreateMessageWSFn(userID, channelID, content, contentType, nonce)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil
 }
 
 // ---------------------------------------------------------------------------
@@ -857,38 +970,49 @@ type MockChannelService struct {
 
 var _ service.ChannelService = (*MockChannelService)(nil)
 
-func (m *MockChannelService) CreateChannel(userID uint, req *service.CreateChannelRequest) (*model.Channel, error) {
+func (m *MockChannelService) CreateChannel(
+	userID uint,
+	req *service.CreateChannelRequest,
+) (*model.Channel, error) {
 	if m.CreateChannelFn != nil {
 		return m.CreateChannelFn(userID, req)
 	}
-	return nil, nil
+
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockChannelService) GetChannel(channelID, userID uint) (*model.Channel, error) {
 	if m.GetChannelFn != nil {
 		return m.GetChannelFn(channelID, userID)
 	}
-	return nil, nil
+
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockChannelService) ListGuildChannels(guildID, userID uint) ([]*model.Channel, error) {
 	if m.ListGuildChannelsFn != nil {
 		return m.ListGuildChannelsFn(guildID, userID)
 	}
+
 	return nil, nil
 }
 
-func (m *MockChannelService) UpdateChannel(channelID, userID uint, req *service.UpdateChannelRequest) (*model.Channel, error) {
+func (m *MockChannelService) UpdateChannel(
+	channelID, userID uint,
+	req *service.UpdateChannelRequest,
+) (*model.Channel, error) {
 	if m.UpdateChannelFn != nil {
 		return m.UpdateChannelFn(channelID, userID, req)
 	}
-	return nil, nil
+
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockChannelService) DeleteChannel(channelID, userID uint) error {
 	if m.DeleteChannelFn != nil {
 		return m.DeleteChannelFn(channelID, userID)
 	}
+
 	return nil
 }
 
@@ -896,6 +1020,7 @@ func (m *MockChannelService) UpdateChannelPosition(channelID, userID uint, posit
 	if m.UpdateChannelPositionFn != nil {
 		return m.UpdateChannelPositionFn(channelID, userID, position)
 	}
+
 	return nil
 }
 

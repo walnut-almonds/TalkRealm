@@ -20,8 +20,10 @@ func newTestJWTManager() *auth.JWTManager {
 
 func hashedPassword(t *testing.T, pw string) string {
 	t.Helper()
+
 	h, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.MinCost)
 	require.NoError(t, err)
+
 	return string(h)
 }
 
@@ -36,7 +38,12 @@ func TestUserService_Register_Success(t *testing.T) {
 		CreateFn:        func(user *model.User) error { user.ID = 1; return nil },
 	}
 	mockRTRepo := &testutil.MockRefreshTokenRepository{}
-	svc := service.NewUserService(mockRepo, mockRTRepo, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		mockRTRepo,
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	user, err := svc.Register(&service.RegisterRequest{
 		Username: "testuser",
@@ -56,7 +63,12 @@ func TestUserService_Register_NicknameSet(t *testing.T) {
 		GetByUsernameFn: func(username string) (*model.User, error) { return nil, errors.New("not found") },
 		CreateFn:        func(user *model.User) error { user.ID = 2; return nil },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	user, err := svc.Register(&service.RegisterRequest{
 		Username: "alice",
@@ -74,7 +86,12 @@ func TestUserService_Register_DuplicateEmail(t *testing.T) {
 	mockRepo := &testutil.MockUserRepository{
 		GetByEmailFn: func(email string) (*model.User, error) { return existing, nil },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	_, err := svc.Register(&service.RegisterRequest{
 		Username: "other",
@@ -91,7 +108,12 @@ func TestUserService_Register_DuplicateUsername(t *testing.T) {
 		GetByEmailFn:    func(email string) (*model.User, error) { return nil, errors.New("not found") },
 		GetByUsernameFn: func(username string) (*model.User, error) { return existing, nil },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	_, err := svc.Register(&service.RegisterRequest{
 		Username: "testuser",
@@ -117,7 +139,12 @@ func TestUserService_Login_Success(t *testing.T) {
 	mockRTRepo := &testutil.MockRefreshTokenRepository{
 		CreateFn: func(token *model.RefreshToken) error { return nil },
 	}
-	svc := service.NewUserService(mockRepo, mockRTRepo, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		mockRTRepo,
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	resp, err := svc.Login(&service.LoginRequest{Email: "bob@example.com", Password: "correct-pw"})
 
@@ -134,7 +161,12 @@ func TestUserService_Login_WrongPassword(t *testing.T) {
 	mockRepo := &testutil.MockUserRepository{
 		GetByEmailFn: func(email string) (*model.User, error) { return existingUser, nil },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	_, err := svc.Login(&service.LoginRequest{Email: "bob@example.com", Password: "wrong-pw"})
 
@@ -145,7 +177,12 @@ func TestUserService_Login_UserNotFound(t *testing.T) {
 	mockRepo := &testutil.MockUserRepository{
 		GetByEmailFn: func(email string) (*model.User, error) { return nil, errors.New("not found") },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	_, err := svc.Login(&service.LoginRequest{Email: "missing@example.com", Password: "pw"})
 
@@ -161,7 +198,12 @@ func TestUserService_GetByID_Success(t *testing.T) {
 	mockRepo := &testutil.MockUserRepository{
 		GetByIDFn: func(id uint) (*model.User, error) { return user, nil },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	got, err := svc.GetByID(5)
 	require.NoError(t, err)
@@ -172,7 +214,12 @@ func TestUserService_GetByID_NotFound(t *testing.T) {
 	mockRepo := &testutil.MockUserRepository{
 		GetByIDFn: func(id uint) (*model.User, error) { return nil, errors.New("user not found") },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	_, err := svc.GetByID(999)
 	assert.ErrorIs(t, err, service.ErrUserNotFound)
@@ -187,7 +234,12 @@ func TestUserService_GetPublicByID_Success(t *testing.T) {
 	mockRepo := &testutil.MockUserRepository{
 		GetByIDFn: func(id uint) (*model.User, error) { return user, nil },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	pub, err := svc.GetPublicByID(3)
 	require.NoError(t, err)
@@ -205,7 +257,12 @@ func TestUserService_Update_Success(t *testing.T) {
 		GetByIDFn: func(id uint) (*model.User, error) { return user, nil },
 		UpdateFn:  func(u *model.User) error { return nil },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	updated, err := svc.Update(1, &service.UpdateUserRequest{Nickname: "Eve Updated"})
 	require.NoError(t, err)
@@ -216,7 +273,12 @@ func TestUserService_Update_UserNotFound(t *testing.T) {
 	mockRepo := &testutil.MockUserRepository{
 		GetByIDFn: func(id uint) (*model.User, error) { return nil, errors.New("not found") },
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	_, err := svc.Update(999, &service.UpdateUserRequest{Nickname: "New"})
 	assert.ErrorIs(t, err, service.ErrUserNotFound)
@@ -243,7 +305,12 @@ func TestUserService_RefreshAccessToken_Success(t *testing.T) {
 		RevokeByTokenFn: func(token string) error { return nil },
 		CreateFn:        func(token *model.RefreshToken) error { return nil },
 	}
-	svc := service.NewUserService(mockRepo, mockRTRepo, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		mockRTRepo,
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	resp, err := svc.RefreshAccessToken("valid-rt")
 	require.NoError(t, err)
@@ -257,18 +324,32 @@ func TestUserService_RefreshAccessToken_RevokedToken(t *testing.T) {
 	mockRTRepo := &testutil.MockRefreshTokenRepository{
 		GetByTokenFn: func(token string) (*model.RefreshToken, error) { return rt, nil },
 	}
-	svc := service.NewUserService(&testutil.MockUserRepository{}, mockRTRepo, newTestJWTManager())
+	svc := service.NewUserService(
+		&testutil.MockUserRepository{},
+		mockRTRepo,
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	_, err := svc.RefreshAccessToken("revoked-rt")
 	assert.ErrorIs(t, err, service.ErrInvalidCredentials)
 }
 
 func TestUserService_RefreshAccessToken_ExpiredToken(t *testing.T) {
-	rt := &model.RefreshToken{Token: "expired-rt", Revoked: false, ExpiresAt: time.Now().Add(-time.Hour)}
+	rt := &model.RefreshToken{
+		Token:     "expired-rt",
+		Revoked:   false,
+		ExpiresAt: time.Now().Add(-time.Hour),
+	}
 	mockRTRepo := &testutil.MockRefreshTokenRepository{
 		GetByTokenFn: func(token string) (*model.RefreshToken, error) { return rt, nil },
 	}
-	svc := service.NewUserService(&testutil.MockUserRepository{}, mockRTRepo, newTestJWTManager())
+	svc := service.NewUserService(
+		&testutil.MockUserRepository{},
+		mockRTRepo,
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	_, err := svc.RefreshAccessToken("expired-rt")
 	assert.ErrorIs(t, err, service.ErrInvalidCredentials)
@@ -283,7 +364,12 @@ func TestUserService_RevokeRefreshToken(t *testing.T) {
 	mockRTRepo := &testutil.MockRefreshTokenRepository{
 		RevokeByTokenFn: func(token string) error { called = true; return nil },
 	}
-	svc := service.NewUserService(&testutil.MockUserRepository{}, mockRTRepo, newTestJWTManager())
+	svc := service.NewUserService(
+		&testutil.MockUserRepository{},
+		mockRTRepo,
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	err := svc.RevokeRefreshToken("some-token")
 	require.NoError(t, err)
@@ -295,16 +381,25 @@ func TestUserService_RevokeRefreshToken(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestUserService_UpdateStatus(t *testing.T) {
-	var gotID uint
-	var gotStatus string
+	var (
+		gotID     uint
+		gotStatus string
+	)
+
 	mockRepo := &testutil.MockUserRepository{
 		UpdateStatusFn: func(id uint, status string) error {
 			gotID = id
 			gotStatus = status
+
 			return nil
 		},
 	}
-	svc := service.NewUserService(mockRepo, &testutil.MockRefreshTokenRepository{}, newTestJWTManager())
+	svc := service.NewUserService(
+		mockRepo,
+		&testutil.MockRefreshTokenRepository{},
+		&testutil.MockOAuthProviderRepository{},
+		newTestJWTManager(),
+	)
 
 	err := svc.UpdateStatus(42, "online")
 	require.NoError(t, err)

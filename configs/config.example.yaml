@@ -29,3 +29,9 @@ jwt:
 
 log:
   level: debug  # debug, info, warn, error
+
+oauth:
+  google:
+    client_id: "your-google-client-id.apps.googleusercontent.com"
+    client_secret: "your-google-client-secret"
+    redirect_url: "http://localhost:8080/api/v1/auth/google/callback"

@@ -9,12 +9,23 @@ type User struct {
 	ID        uint      `gorm:"primarykey"           json:"id"`
 	Username  string    `gorm:"uniqueIndex;not null" json:"username"`
 	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
-	Password  string    `gorm:"not null"             json:"-"`
+	Password  string    `gorm:"default:null"         json:"-"`
 	Nickname  string    `                            json:"nickname"`
 	Avatar    string    `                            json:"avatar"`
 	Status    string    `gorm:"default:'offline'"    json:"status"` // online, offline, busy, away
 	CreatedAt time.Time `                            json:"created_at"`
 	UpdatedAt time.Time `                            json:"updated_at"`
+}
+
+// UserOAuthProvider 使用者 OAuth 連結（一個帳號可綁多個 OAuth 廠商）
+type UserOAuthProvider struct {
+	ID         uint      `gorm:"primarykey"        json:"id"`
+	UserID     uint      `gorm:"not null;index"    json:"user_id"`
+	User       User      `gorm:"foreignKey:UserID" json:"-"`
+	Provider   string    `gorm:"not null"          json:"provider"`    // google, github, discord ...
+	ProviderID string    `gorm:"not null"          json:"provider_id"` // 各家給的 subject ID
+	CreatedAt  time.Time `                         json:"created_at"`
+	UpdatedAt  time.Time `                         json:"updated_at"`
 }
 
 // Guild 社群/伺服器模型

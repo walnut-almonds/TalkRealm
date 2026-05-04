@@ -138,9 +138,34 @@
                 }
             }
         },
-        "/api/v1/channels": {
+        "/api/v1/auth/google": {
             "get": {
-                "description": "列出指定社群的所有頻道",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Google OAuth 登入",
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/google/callback": {
+            "get": {
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Google OAuth Callback",
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -148,50 +173,35 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Channel"
+                    "auth"
                 ],
-                "summary": "列出社群的頻道",
+                "summary": "登出",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "社群 ID",
-                        "name": "guild_id",
-                        "in": "query",
-                        "required": true
+                        "description": "refresh token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RefreshTokenRequest"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/model.Channel"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
                             }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     }
                 }
-            },
+            }
+        },
+        "/api/v1/auth/refresh": {
             "post": {
-                "description": "在社群中建立新的文字或語音頻道（僅擁有者或管理員）",
                 "consumes": [
                     "application/json"
                 ],
@@ -199,43 +209,25 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Channel"
+                    "auth"
                 ],
-                "summary": "建立頻道",
+                "summary": "換發 access token",
                 "parameters": [
                     {
-                        "description": "建立頻道請求",
+                        "description": "refresh token",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.CreateChannelRequest"
+                            "$ref": "#/definitions/handler.RefreshTokenRequest"
                         }
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/model.Channel"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
+                            "$ref": "#/definitions/service.LoginResponse"
                         }
                     }
                 }
@@ -408,6 +400,132 @@
                 }
             }
         },
+        "/api/v1/channels/{id}/messages": {
+            "get": {
+                "description": "列出指定頻道的訊息（cursor-based 分頁）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "messages"
+                ],
+                "summary": "列出頻道訊息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "頻道 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "訊息 ID，取得此 ID 之前的訊息",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "每次取得數量 (1-100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.MessageListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "在指定頻道中建立新訊息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "messages"
+                ],
+                "summary": "建立訊息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "頻道 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "建立訊息請求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.CreateMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/model.Message"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/channels/{id}/position": {
             "put": {
                 "description": "更新頻道在列表中的位置（僅擁有者或管理員）",
@@ -542,6 +660,52 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/guilds/join-by-invite": {
+            "post": {
+                "description": "使用邀請碼加入一個社群",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GuildInvite"
+                ],
+                "summary": "透過邀請碼加入社群",
+                "parameters": [
+                    {
+                        "description": "加入請求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.JoinByInviteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/handler.ErrorResponse"
                         }
@@ -703,6 +867,168 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/guilds/{id}/channels": {
+            "get": {
+                "description": "列出指定社群的所有頻道",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Channel"
+                ],
+                "summary": "列出社群的頻道",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "社群 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.Channel"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "在社群中建立新的文字或語音頻道（僅擁有者或管理員）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Channel"
+                ],
+                "summary": "建立頻道",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "社群 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "建立頻道請求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.CreateChannelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/model.Channel"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/guilds/{id}/invites": {
+            "post": {
+                "description": "建立指定社群的邀請碼",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GuildInvite"
+                ],
+                "summary": "建立社群邀請碼",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "社群 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "建立邀請碼請求",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/service.CreateInviteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/model.GuildInvite"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/handler.ErrorResponse"
                         }
@@ -986,121 +1312,36 @@
                 }
             }
         },
-        "/api/v1/messages": {
+        "/api/v1/invites/{code}": {
             "get": {
-                "description": "列出指定頻道的所有訊息（分頁）",
+                "description": "透過邀請碼取得社群資訊",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "messages"
+                    "GuildInvite"
                 ],
-                "summary": "列出頻道訊息",
+                "summary": "查詢邀請碼資訊",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "頻道 ID",
-                        "name": "channel_id",
-                        "in": "query",
+                        "type": "string",
+                        "description": "邀請碼",
+                        "name": "code",
+                        "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "頁碼",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 50,
-                        "description": "每頁數量",
-                        "name": "page_size",
-                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/service.MessageListResponse"
+                            "$ref": "#/definitions/model.GuildInvite"
                         }
                     },
-                    "400": {
-                        "description": "Bad Request",
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "在指定頻道中建立新訊息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "messages"
-                ],
-                "summary": "建立訊息",
-                "parameters": [
-                    {
-                        "description": "建立訊息請求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/service.CreateMessageRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/model.Message"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     }
                 }
@@ -1263,6 +1504,43 @@
                     }
                 }
             }
+        },
+        "/api/v1/users/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "取得使用者公開資料",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "使用者 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.PublicUser"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1270,6 +1548,17 @@
             "type": "object",
             "properties": {
                 "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.JoinByInviteRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
                     "type": "string"
                 }
             }
@@ -1283,6 +1572,17 @@
                 "position": {
                     "type": "integer",
                     "minimum": 0
+                }
+            }
+        },
+        "handler.RefreshTokenRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
                 }
             }
         },
@@ -1315,9 +1615,6 @@
             "properties": {
                 "created_at": {
                     "type": "string"
-                },
-                "guild": {
-                    "$ref": "#/definitions/model.Guild"
                 },
                 "guild_id": {
                     "type": "integer"
@@ -1372,14 +1669,51 @@
                 }
             }
         },
+        "model.GuildInvite": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "creator": {
+                    "$ref": "#/definitions/model.User"
+                },
+                "creator_id": {
+                    "type": "integer"
+                },
+                "expires_at": {
+                    "description": "nil = no expiry",
+                    "type": "string"
+                },
+                "guild": {
+                    "$ref": "#/definitions/model.Guild"
+                },
+                "guild_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "max_uses": {
+                    "description": "0 = unlimited",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "uses": {
+                    "type": "integer"
+                }
+            }
+        },
         "model.GuildMember": {
             "type": "object",
             "properties": {
                 "created_at": {
                     "type": "string"
-                },
-                "guild": {
-                    "$ref": "#/definitions/model.Guild"
                 },
                 "guild_id": {
                     "type": "integer"
@@ -1411,8 +1745,12 @@
         "model.Message": {
             "type": "object",
             "properties": {
-                "channel": {
-                    "$ref": "#/definitions/model.Channel"
+                "attachments": {
+                    "description": "附件（預留）",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "channel_id": {
                     "type": "integer"
@@ -1425,6 +1763,14 @@
                 },
                 "id": {
                     "type": "integer"
+                },
+                "is_edited": {
+                    "description": "是否被編輯過",
+                    "type": "boolean"
+                },
+                "nonce": {
+                    "description": "client 產生的冪等 key（可選）",
+                    "type": "string"
                 },
                 "type": {
                     "description": "text, image, file",
@@ -1474,7 +1820,6 @@
         "service.CreateChannelRequest": {
             "type": "object",
             "required": [
-                "guild_id",
                 "name",
                 "type"
             ],
@@ -1524,10 +1869,22 @@
                 }
             }
         },
+        "service.CreateInviteRequest": {
+            "type": "object",
+            "properties": {
+                "expires_in": {
+                    "description": "秒數，0 = 永不過期",
+                    "type": "integer"
+                },
+                "max_uses": {
+                    "description": "0 = unlimited",
+                    "type": "integer"
+                }
+            }
+        },
         "service.CreateMessageRequest": {
             "type": "object",
             "required": [
-                "channel_id",
                 "content"
             ],
             "properties": {
@@ -1535,6 +1892,10 @@
                     "type": "integer"
                 },
                 "content": {
+                    "type": "string"
+                },
+                "nonce": {
+                    "description": "client 產生的冪等 key（可選，建議 UUID v4）",
                     "type": "string"
                 },
                 "type": {
@@ -1561,7 +1922,17 @@
         "service.LoginResponse": {
             "type": "object",
             "properties": {
-                "token": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "description": "秒數",
+                    "type": "integer"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "token_type": {
                     "type": "string"
                 },
                 "user": {
@@ -1572,23 +1943,37 @@
         "service.MessageListResponse": {
             "type": "object",
             "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
                 "messages": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/model.Message"
                     }
+                }
+            }
+        },
+        "service.PublicUser": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
                 },
-                "page": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
                     "type": "integer"
                 },
-                "page_size": {
-                    "type": "integer"
+                "nickname": {
+                    "type": "string"
                 },
-                "total": {
-                    "type": "integer"
+                "status": {
+                    "type": "string"
                 },
-                "total_pages": {
-                    "type": "integer"
+                "username": {
+                    "type": "string"
                 }
             }
         },

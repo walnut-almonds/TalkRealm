@@ -26,6 +26,7 @@ type Server struct {
 	guildHandler    *handler.GuildHandler
 	channelHandler  *handler.ChannelHandler
 	messageHandler  *handler.MessageHandler
+	oauthHandler    *handler.OAuthHandler
 	rdb             *goredis.Client
 	guildMemberRepo repository.GuildMemberRepository
 }
@@ -68,18 +69,21 @@ func New(cfg *config.Config) (*Server, error) {
 	messageRepo := repository.NewMessageRepository(db)
 	guildInviteRepo := repository.NewGuildInviteRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
+	oauthProviderRepo := repository.NewOAuthProviderRepository(db)
 
 	// 初始化 WebSocket 管理器（傳入 jwtManager，用於 identify op 驗證）
 	wsManager := websocket.NewManager(jwtManager)
 	// GuildLookup 讓 WS manager 在 identify 時訂閱使用者的所有 guild（Redis 可選）
 	wsManager.SetGuildLookup(guildMemberRepo)
+
 	if rdb != nil {
 		wsManager.SetRedis(rdb)
 	}
+
 	go wsManager.Run() // 啟動 WebSocket 管理器
 
 	// 初始化 Service
-	userService := service.NewUserService(userRepo, refreshTokenRepo, jwtManager)
+	userService := service.NewUserService(userRepo, refreshTokenRepo, oauthProviderRepo, jwtManager)
 	guildService := service.NewGuildService(guildRepo, guildMemberRepo)
 	guildMemberService := service.NewGuildMemberService(guildRepo, guildMemberRepo)
 	guildInviteService := service.NewGuildInviteService(guildInviteRepo, guildRepo, guildMemberRepo)
@@ -101,6 +105,7 @@ func New(cfg *config.Config) (*Server, error) {
 	guildHandler := handler.NewGuildHandler(guildService, guildMemberService, guildInviteService)
 	channelHandler := handler.NewChannelHandler(channelService)
 	messageHandler := handler.NewMessageHandler(messageService)
+	oauthHandler := handler.NewOAuthHandler(userService, cfg)
 
 	s := &Server{
 		config:          cfg,
@@ -111,6 +116,7 @@ func New(cfg *config.Config) (*Server, error) {
 		guildHandler:    guildHandler,
 		channelHandler:  channelHandler,
 		messageHandler:  messageHandler,
+		oauthHandler:    oauthHandler,
 		rdb:             rdb,
 		guildMemberRepo: guildMemberRepo,
 	}
@@ -151,6 +157,10 @@ func (s *Server) setupRoutes() {
 			auth.POST("/login", s.userHandler.Login)
 			auth.POST("/refresh", s.userHandler.RefreshToken)
 			auth.POST("/logout", s.userHandler.Logout)
+
+			// Google OAuth
+			auth.GET("/google", s.oauthHandler.GoogleLogin)
+			auth.GET("/google/callback", s.oauthHandler.GoogleCallback)
 		}
 
 		// 公開路由 - 使用者公開資料
