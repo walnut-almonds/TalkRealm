@@ -82,20 +82,6 @@ func Close() error {
 func AutoMigrate() error {
 	logger.Info("Running database migrations...")
 
-	// 清除舊表（線上無真實用戶時使用，確保 schema 乾淨重建）
-	if err := db.Exec(`DROP TABLE IF EXISTS
-		user_oauth_providers,
-		refresh_tokens,
-		guild_invites,
-		guild_members,
-		messages,
-		channels,
-		guilds,
-		users
-		CASCADE`).Error; err != nil {
-		return fmt.Errorf("failed to drop tables: %w", err)
-	}
-
 	err := db.AutoMigrate(
 		&model.User{},
 		&model.Guild{},

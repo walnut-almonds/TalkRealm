@@ -142,9 +142,11 @@ func getRequestOrigin(r *http.Request) string {
 	if r.TLS != nil {
 		scheme = "https"
 	}
+
 	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
 		scheme = proto
 	}
+
 	return fmt.Sprintf("%s://%s", scheme, r.Host)
 }
 

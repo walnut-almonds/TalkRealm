@@ -118,6 +118,9 @@
 - [ ] `GET /api/v1/files/{id}/url`：生成 Download Pre-signed URL（私有檔案）
 - [ ] `DELETE /api/v1/files/{id}`：刪除檔案（Minio + DB）
 - [ ] **WS file 訊息類型**：`send_message` op 支援 `type: "file"`，帶 `file_id`
+- [ ] **檔案類型限制**：允許圖片與檔案上傳，並以 `content_type` 或副檔名限制可接受類型
+- [ ] **上傳次數/大小限制**：支援 per-user quota，限制單次上傳最大大小與每日上傳次數／總流量
+- [ ] **過期與清理策略**：支援 TTL 欄位與定期刪除；可選 LRU / 最長未使用清理機制
 
 ### LiveKit 語音整合
 - [ ] **引入 LiveKit SDK**：`pkg/voice/` 封裝 token 生成
