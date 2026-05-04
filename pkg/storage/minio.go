@@ -13,9 +13,10 @@ import (
 )
 
 type Client struct {
-	mc     *minio.Client
-	bucket string
-	cfg    *config.MinioConfig
+	mc        *minio.Client // internal client – used for admin ops (bucket, stat, delete)
+	presignMC *minio.Client // presign client – signs URLs against the public endpoint
+	bucket    string
+	cfg       *config.MinioConfig
 }
 
 func NewClient(cfg *config.MinioConfig) (*Client, error) {
@@ -44,37 +45,41 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 
 	logger.Info("Minio connected", "endpoint", cfg.Endpoint, "bucket", cfg.Bucket)
 
-	return &Client{mc: mc, bucket: cfg.Bucket, cfg: cfg}, nil
-}
+	// Build a second client for presigning whose endpoint matches what the
+	// browser will call.  Presigned URLs embed the host in the AWS v4
+	// signature (X-Amz-SignedHeaders=host), so the signing endpoint MUST equal
+	// the URL the browser sends the request to.
+	presignMC := mc // default: reuse internal client when no public endpoint set
+	if cfg.PublicEndpoint != "" {
+		pub, parseErr := url.Parse(cfg.PublicEndpoint)
+		if parseErr != nil {
+			return nil, fmt.Errorf(
+				"minio: invalid public_endpoint %q: %w",
+				cfg.PublicEndpoint,
+				parseErr,
+			)
+		}
 
-// rewritePublicURL replaces the host (and scheme) of a presigned URL with the
-// configured public endpoint so that browser clients always receive an
-// externally-reachable HTTPS URL even when the MinIO SDK signs against an
-// internal address (e.g. "minio:9000").
-func (c *Client) rewritePublicURL(u *url.URL) string {
-	if c.cfg.PublicEndpoint == "" {
-		return u.String()
+		presignMC, err = minio.New(pub.Host, &minio.Options{
+			Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+			Secure: pub.Scheme == "https",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("minio: presign client init failed: %w", err)
+		}
+
+		logger.Info(
+			"Minio presign client using public endpoint",
+			"public_endpoint",
+			cfg.PublicEndpoint,
+		)
 	}
 
-	pub, err := url.Parse(c.cfg.PublicEndpoint)
-	if err != nil {
-		return u.String()
-	}
-
-	rewritten := *u
-	rewritten.Scheme = pub.Scheme
-	rewritten.Host = pub.Host
-
-	return rewritten.String()
+	return &Client{mc: mc, presignMC: presignMC, bucket: cfg.Bucket, cfg: cfg}, nil
 }
 
 func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, error) {
-	params := url.Values{}
-	if contentType != "" {
-		params.Set("Content-Type", contentType)
-	}
-
-	u, err := c.mc.PresignedPutObject(
+	u, err := c.presignMC.PresignedPutObject(
 		context.Background(),
 		c.bucket,
 		key,
@@ -84,11 +89,11 @@ func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, err
 		return "", fmt.Errorf("minio: presign put failed: %w", err)
 	}
 
-	return c.rewritePublicURL(u), nil
+	return u.String(), nil
 }
 
 func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
-	u, err := c.mc.PresignedGetObject(
+	u, err := c.presignMC.PresignedGetObject(
 		context.Background(),
 		c.bucket,
 		key,
@@ -99,7 +104,7 @@ func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
 		return "", fmt.Errorf("minio: presign get failed: %w", err)
 	}
 
-	return c.rewritePublicURL(u), nil
+	return u.String(), nil
 }
 
 func (c *Client) DeleteObject(key string) error {
