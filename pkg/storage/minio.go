@@ -13,10 +13,9 @@ import (
 )
 
 type Client struct {
-	mc        *minio.Client // internal client – used for admin ops (bucket, stat, delete)
-	presignMC *minio.Client // presign client – signs URLs against the public endpoint
-	bucket    string
-	cfg       *config.MinioConfig
+	mc     *minio.Client // internal client – all MinIO operations
+	bucket string
+	cfg    *config.MinioConfig
 }
 
 func NewClient(cfg *config.MinioConfig) (*Client, error) {
@@ -47,42 +46,36 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 
 	logger.Info("Minio connected", "endpoint", cfg.Endpoint, "bucket", cfg.Bucket)
 
-	// Build a dedicated presign client whose endpoint is the public URL that
-	// the browser will PUT/GET against.  AWS v4 signs the Host header, so the
-	// signing endpoint must equal the host the browser sends the request to.
-	//
-	// Region + BucketLookupPath prevent the SDK from making any outbound
-	// network requests during presign (it would otherwise call the public host
-	// for a bucket-region probe, which can time out inside the container).
-	presignMC := mc
-	if cfg.PublicEndpoint != "" {
-		pub, parseErr := url.Parse(cfg.PublicEndpoint)
-		if parseErr != nil {
-			return nil, fmt.Errorf(
-				"minio: invalid public_endpoint %q: %w",
-				cfg.PublicEndpoint,
-				parseErr,
-			)
-		}
+	return &Client{mc: mc, bucket: cfg.Bucket, cfg: cfg}, nil
+}
 
-		presignMC, err = minio.New(pub.Host, &minio.Options{
-			Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-			Secure:       pub.Scheme == "https",
-			Region:       "us-east-1",            // skip region auto-detect (no outbound call)
-			BucketLookup: minio.BucketLookupPath, // path-style; no per-bucket DNS lookup
-		})
-		if err != nil {
-			return nil, fmt.Errorf("minio: presign client init failed: %w", err)
-		}
-
-		logger.Info("Minio presign client", "public_endpoint", cfg.PublicEndpoint)
+// rewritePublicURL replaces the scheme+host of an internally-signed presigned
+// URL with the configured public endpoint.
+//
+// AWS v4 signature validation on the MinIO side is made possible by setting
+// MINIO_SERVER_URL=<public_endpoint> in MinIO's environment: MinIO will
+// normalise the Host header against its server URL before verifying the
+// signature, so a URL signed with "minio:9000" but served via
+// "media.qrumi.org" will still pass validation.
+func (c *Client) rewritePublicURL(u *url.URL) string {
+	if c.cfg.PublicEndpoint == "" {
+		return u.String()
 	}
 
-	return &Client{mc: mc, presignMC: presignMC, bucket: cfg.Bucket, cfg: cfg}, nil
+	pub, err := url.Parse(c.cfg.PublicEndpoint)
+	if err != nil {
+		return u.String()
+	}
+
+	out := *u
+	out.Scheme = pub.Scheme
+	out.Host = pub.Host
+
+	return out.String()
 }
 
 func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, error) {
-	u, err := c.presignMC.PresignedPutObject(
+	u, err := c.mc.PresignedPutObject(
 		context.Background(),
 		c.bucket,
 		key,
@@ -92,11 +85,11 @@ func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, err
 		return "", fmt.Errorf("minio: presign put failed: %w", err)
 	}
 
-	return u.String(), nil
+	return c.rewritePublicURL(u), nil
 }
 
 func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
-	u, err := c.presignMC.PresignedGetObject(
+	u, err := c.mc.PresignedGetObject(
 		context.Background(),
 		c.bucket,
 		key,
@@ -107,7 +100,7 @@ func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
 		return "", fmt.Errorf("minio: presign get failed: %w", err)
 	}
 
-	return u.String(), nil
+	return c.rewritePublicURL(u), nil
 }
 
 func (c *Client) DeleteObject(key string) error {
