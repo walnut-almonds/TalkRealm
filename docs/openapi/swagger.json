@@ -591,6 +591,205 @@
                 }
             }
         },
+        "/api/v1/files/presign": {
+            "post": {
+                "description": "驗證檔案類型與 quota，回傳 Minio Pre-signed PUT URL",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "申請上傳 URL",
+                "parameters": [
+                    {
+                        "description": "上傳申請",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.PresignUploadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.PresignUploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/files/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "取得檔案資訊",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "File ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.File"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "刪除檔案",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "File ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/files/{id}/confirm": {
+            "post": {
+                "description": "客戶端上傳完成後呼叫，驗證物件存在並將狀態改為 active",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "確認上傳完成",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "File ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.File"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/files/{id}/url": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "取得下載 URL",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "File ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/guilds": {
             "get": {
                 "description": "列出當前使用者所屬的所有社群",
@@ -1640,6 +1839,50 @@
                 }
             }
         },
+        "model.File": {
+            "type": "object",
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "description": "nil = 永久",
+                    "type": "string"
+                },
+                "filename": {
+                    "description": "原始檔名",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_accessed_at": {
+                    "description": "LRU 依據",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "bytes",
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "pending, active, deleted",
+                    "type": "string"
+                },
+                "storage_key": {
+                    "description": "Minio object key",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "model.Guild": {
             "type": "object",
             "properties": {
@@ -1951,6 +2194,43 @@
                     "items": {
                         "$ref": "#/definitions/model.Message"
                     }
+                }
+            }
+        },
+        "service.PresignUploadRequest": {
+            "type": "object",
+            "required": [
+                "content_type",
+                "filename",
+                "size"
+            ],
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.PresignUploadResponse": {
+            "type": "object",
+            "properties": {
+                "expires_in": {
+                    "description": "秒",
+                    "type": "integer"
+                },
+                "file_id": {
+                    "type": "integer"
+                },
+                "storage_key": {
+                    "type": "string"
+                },
+                "upload_url": {
+                    "type": "string"
                 }
             }
         },

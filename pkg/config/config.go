@@ -16,6 +16,7 @@ type Config struct {
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Log      LogConfig      `mapstructure:"log"`
 	OAuth    OAuthConfig    `mapstructure:"oauth"`
+	Minio    MinioConfig    `mapstructure:"minio"`
 }
 
 // OAuthConfig OAuth 配置
@@ -59,6 +60,21 @@ type RedisConfig struct {
 	Port     int    `mapstructure:"port"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
+}
+
+// MinioConfig Minio 物件儲存配置
+type MinioConfig struct {
+	Endpoint        string `mapstructure:"endpoint"`
+	AccessKey       string `mapstructure:"access_key"`
+	SecretKey       string `mapstructure:"secret_key"`
+	Bucket          string `mapstructure:"bucket"`
+	UseSSL          bool   `mapstructure:"use_ssl"`
+	PresignExpiry   int    `mapstructure:"presign_expiry"`     // 分鐘，預設 15
+	MaxFileSizeMB   int64  `mapstructure:"max_file_size_mb"`   // 單檔上限，預設 50MB
+	DailyUploadMax  int    `mapstructure:"daily_upload_max"`   // 每日上傳次數上限，預設 20
+	DailyBytesMaxMB int64  `mapstructure:"daily_bytes_max_mb"` // 每日上傳總量上限 MB，預設 500
+	FileTTLDays     int    `mapstructure:"file_ttl_days"`      // 檔案 TTL（天），0 = 永久
+	LRUEvictEnabled bool   `mapstructure:"lru_evict_enabled"`  // 開啟 LRU 清理
 }
 
 // JWTConfig JWT 配置
@@ -141,4 +157,15 @@ func setDefaults() {
 		"oauth.google.redirect_url",
 		"http://localhost:8080/api/v1/auth/google/callback",
 	)
+
+	// Minio 預設值
+	viper.SetDefault("minio.endpoint", "localhost:9000")
+	viper.SetDefault("minio.bucket", "talkrealm")
+	viper.SetDefault("minio.use_ssl", false)
+	viper.SetDefault("minio.presign_expiry", 15)
+	viper.SetDefault("minio.max_file_size_mb", 50)
+	viper.SetDefault("minio.daily_upload_max", 20)
+	viper.SetDefault("minio.daily_bytes_max_mb", 500)
+	viper.SetDefault("minio.file_ttl_days", 0)
+	viper.SetDefault("minio.lru_evict_enabled", true)
 }

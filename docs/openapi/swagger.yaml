@@ -62,6 +62,37 @@ definitions:
       updated_at:
         type: string
     type: object
+  model.File:
+    properties:
+      content_type:
+        type: string
+      created_at:
+        type: string
+      expires_at:
+        description: nil = 永久
+        type: string
+      filename:
+        description: 原始檔名
+        type: string
+      id:
+        type: integer
+      last_accessed_at:
+        description: LRU 依據
+        type: string
+      size:
+        description: bytes
+        type: integer
+      status:
+        description: pending, active, deleted
+        type: string
+      storage_key:
+        description: Minio object key
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
   model.Guild:
     properties:
       created_at:
@@ -274,6 +305,31 @@ definitions:
         items:
           $ref: '#/definitions/model.Message'
         type: array
+    type: object
+  service.PresignUploadRequest:
+    properties:
+      content_type:
+        type: string
+      filename:
+        type: string
+      size:
+        type: integer
+    required:
+    - content_type
+    - filename
+    - size
+    type: object
+  service.PresignUploadResponse:
+    properties:
+      expires_in:
+        description: 秒
+        type: integer
+      file_id:
+        type: integer
+      storage_key:
+        type: string
+      upload_url:
+        type: string
     type: object
   service.PublicUser:
     properties:
@@ -749,6 +805,136 @@ paths:
       summary: 更新頻道位置
       tags:
       - Channel
+  /api/v1/files/{id}:
+    delete:
+      parameters:
+      - description: File ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 刪除檔案
+      tags:
+      - files
+    get:
+      parameters:
+      - description: File ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.File'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 取得檔案資訊
+      tags:
+      - files
+  /api/v1/files/{id}/confirm:
+    post:
+      description: 客戶端上傳完成後呼叫，驗證物件存在並將狀態改為 active
+      parameters:
+      - description: File ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.File'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 確認上傳完成
+      tags:
+      - files
+  /api/v1/files/{id}/url:
+    get:
+      parameters:
+      - description: File ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 取得下載 URL
+      tags:
+      - files
+  /api/v1/files/presign:
+    post:
+      consumes:
+      - application/json
+      description: 驗證檔案類型與 quota，回傳 Minio Pre-signed PUT URL
+      parameters:
+      - description: 上傳申請
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.PresignUploadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.PresignUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 申請上傳 URL
+      tags:
+      - files
   /api/v1/guilds:
     get:
       consumes:

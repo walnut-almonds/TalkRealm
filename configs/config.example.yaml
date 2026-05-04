@@ -35,3 +35,16 @@ oauth:
     client_id: "your-google-client-id.apps.googleusercontent.com"
     client_secret: "your-google-client-secret"
     redirect_url: "http://localhost:8080/api/v1/auth/google/callback"
+
+minio:
+  endpoint: "localhost:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "talkrealm"
+  use_ssl: false
+  presign_expiry: 15        # Pre-signed URL 有效分鐘數
+  max_file_size_mb: 50      # 單檔最大 MB
+  daily_upload_max: 20      # 每日上傳次數上限
+  daily_bytes_max_mb: 500   # 每日上傳總量 MB 上限
+  file_ttl_days: 0          # 檔案 TTL（天），0 = 永久
+  lru_evict_enabled: true   # 啟用 LRU 清理

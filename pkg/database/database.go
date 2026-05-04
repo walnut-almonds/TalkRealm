@@ -91,6 +91,8 @@ func AutoMigrate() error {
 		&model.GuildInvite{},
 		&model.RefreshToken{},
 		&model.UserOAuthProvider{},
+		&model.File{},
+		&model.MessageAttachment{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)

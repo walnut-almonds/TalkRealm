@@ -14,6 +14,7 @@ import (
 	"github.com/walnut-almonds/talkrealm/pkg/config"
 	"github.com/walnut-almonds/talkrealm/pkg/database"
 	pkgredis "github.com/walnut-almonds/talkrealm/pkg/redis"
+	"github.com/walnut-almonds/talkrealm/pkg/storage"
 )
 
 // Server 代表應用程式伺服器
@@ -27,6 +28,7 @@ type Server struct {
 	channelHandler  *handler.ChannelHandler
 	messageHandler  *handler.MessageHandler
 	oauthHandler    *handler.OAuthHandler
+	fileHandler     *handler.FileHandler
 	rdb             *goredis.Client
 	guildMemberRepo repository.GuildMemberRepository
 }
@@ -107,6 +109,18 @@ func New(cfg *config.Config) (*Server, error) {
 	messageHandler := handler.NewMessageHandler(messageService)
 	oauthHandler := handler.NewOAuthHandler(userService, cfg)
 
+	// 初始化 File Service（Minio 可選，失敗時記錄 warning）
+	var fileHandler *handler.FileHandler
+
+	minioClient, minioErr := storage.NewClient(&cfg.Minio)
+	if minioErr != nil {
+		_ = minioErr // 非致命，File API 在 Minio 未設定時不可用
+	} else {
+		fileRepo := repository.NewFileRepository(db)
+		fileService := service.NewFileService(fileRepo, minioClient, rdb, &cfg.Minio)
+		fileHandler = handler.NewFileHandler(fileService)
+	}
+
 	s := &Server{
 		config:          cfg,
 		router:          router,
@@ -117,6 +131,7 @@ func New(cfg *config.Config) (*Server, error) {
 		channelHandler:  channelHandler,
 		messageHandler:  messageHandler,
 		oauthHandler:    oauthHandler,
+		fileHandler:     fileHandler,
 		rdb:             rdb,
 		guildMemberRepo: guildMemberRepo,
 	}
@@ -246,6 +261,18 @@ func (s *Server) setupRoutes() {
 				messages.PUT("/:id", s.messageHandler.UpdateMessage)
 				messages.PATCH("/:id", s.messageHandler.UpdateMessage)
 				messages.DELETE("/:id", s.messageHandler.DeleteMessage)
+			}
+		}
+
+		// 檔案服務（需要 Minio 啟動，否則 handler 為 nil）
+		if s.fileHandler != nil {
+			files := protected.Group("/files")
+			{
+				files.POST("/presign", s.fileHandler.PresignUpload)
+				files.POST("/:id/confirm", s.fileHandler.ConfirmUpload)
+				files.GET("/:id", s.fileHandler.GetFile)
+				files.GET("/:id/url", s.fileHandler.GetDownloadURL)
+				files.DELETE("/:id", s.fileHandler.DeleteFile)
 			}
 		}
 

@@ -6,6 +6,7 @@ resources:
   - ./talk-realm
   - ./postgres
   - ./redis
+  - ./minio
 
 namespace: talk-realm-local
 

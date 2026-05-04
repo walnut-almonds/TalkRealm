@@ -34,6 +34,24 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    container_name: talkrealm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    networks:
+      - talkrealm-network
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   app:
     image: ghcr.io/walnut-almonds/talkrealm:latest
     container_name: talkrealm-app
@@ -67,6 +85,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
 
 networks:
   talkrealm-network:

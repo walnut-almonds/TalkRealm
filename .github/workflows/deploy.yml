@@ -58,6 +58,9 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URL: ${{ secrets.GOOGLE_REDIRECT_URL }}
+          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          MINIO_BUCKET: ${{ secrets.MINIO_BUCKET }}
         run: |
           test -n "$DB_PASSWORD"
           test -n "$REDIS_PASSWORD"
@@ -65,6 +68,9 @@ jobs:
           test -n "$GOOGLE_CLIENT_ID"
           test -n "$GOOGLE_CLIENT_SECRET"
           test -n "$GOOGLE_REDIRECT_URL"
+          test -n "$MINIO_ACCESS_KEY"
+          test -n "$MINIO_SECRET_KEY"
+          test -n "$MINIO_BUCKET"
           envsubst < configs/config.prod.yaml > config.yaml
           printf 'POSTGRES_PASSWORD=%s\nREDIS_PASSWORD=%s\n' "$DB_PASSWORD" "$REDIS_PASSWORD" > .env
 

@@ -44,7 +44,18 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
-2026-05-02 — 對齊 design-all-v2.png 架構圖，更新 plan.md / todolist.md：
+2026-05-04 — File Access Service（Phase 3）實作完成：
+- **`pkg/storage/minio.go`**：`NewClient`, `PresignPutURL`, `PresignGetURL`, `DeleteObject`, `ObjectExists`；Minio 不可用時 File API 整體跳過，不影響啟動
+- **`internal/model/user.go`**：新增 `File`（含 `status`, `expires_at`, `last_accessed_at`）、`MessageAttachment` 模型
+- **`pkg/config/config.go`**：新增 `MinioConfig`（endpoint/bucket/ssl/presign_expiry/max_file_size_mb/daily_upload_max/daily_bytes_max_mb/file_ttl_days/lru_evict_enabled）
+- **`internal/repository/file_repository.go`**：CRUD + `CountByUserToday`, `SumBytesByUserToday`, `FindExpired`, `FindLRUByUser`, `TouchLastAccessed`, attachment CRUD
+- **`internal/service/file_service.go`**：副檔名白名單驗證、單檔大小限制、每日 quota（Redis pipeline 優先 + DB fallback）、Pre-signed upload 流程（presign→pending→confirm→active）、TTL CleanupExpired
+- **`internal/handler/file_handler.go`**：`PresignUpload`, `ConfirmUpload`, `GetFile`, `GetDownloadURL`, `DeleteFile`
+- **Routes**：`POST /presign`, `POST /{id}/confirm`, `GET /{id}`, `GET /{id}/url`, `DELETE /{id}` 掛於 `/api/v1/files`（need Auth middleware）
+- **DB AutoMigrate**：`File`, `MessageAttachment` 加入 `pkg/database/database.go`
+- **`configs/config.example.yaml`**：新增完整 minio 區段
+- **依賴新增**：`github.com/minio/minio-go/v7`, `github.com/google/uuid`
+- **未完成**：WS `type: "file"` send_message、background LRU cleanup goroutine
 - **新增 Notification Service**：獨立服務，消費 `topic:notification`，呼叫 Push Gateway (FCM/APNs)，寫 DB
 - **新增 Translation Service**：獨立服務，由 Message Persistence Service 非同步派發，DeepL/GPT-4o，結果存 **Cassandra**（非 PostgreSQL 欄位）
 - **MQ Topic 命名統一**：`topic:record`、`topic:server.{id}`、`topic:notification`（對齊圖示；實作選 NATS JetStream，圖示標 Kafka，等效替代）

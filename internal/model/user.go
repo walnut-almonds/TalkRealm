@@ -69,6 +69,32 @@ type Message struct {
 	UpdatedAt   time.Time `                                               json:"updated_at"`
 }
 
+// File 檔案儲存記錄
+type File struct {
+	ID             uint       `gorm:"primarykey"           json:"id"`
+	UserID         uint       `gorm:"not null;index"       json:"user_id"`
+	User           User       `gorm:"foreignKey:UserID"    json:"-"`
+	Filename       string     `gorm:"not null"             json:"filename"`    // 原始檔名
+	StorageKey     string     `gorm:"not null;uniqueIndex" json:"storage_key"` // Minio object key
+	ContentType    string     `gorm:"not null"             json:"content_type"`
+	Size           int64      `gorm:"not null"             json:"size"`             // bytes
+	Status         string     `gorm:"default:'pending'"    json:"status"`           // pending, active, deleted
+	ExpiresAt      *time.Time `                            json:"expires_at"`       // nil = 永久
+	LastAccessedAt time.Time  `gorm:"default:now()"        json:"last_accessed_at"` // LRU 依據
+	CreatedAt      time.Time  `                            json:"created_at"`
+	UpdatedAt      time.Time  `                            json:"updated_at"`
+}
+
+// MessageAttachment 訊息附件關聯表
+type MessageAttachment struct {
+	ID        uint      `gorm:"primarykey"           json:"id"`
+	MessageID uint      `gorm:"not null;index"       json:"message_id"`
+	Message   Message   `gorm:"foreignKey:MessageID" json:"-"`
+	FileID    uint      `gorm:"not null"             json:"file_id"`
+	File      File      `gorm:"foreignKey:FileID"    json:"file"`
+	CreatedAt time.Time `                            json:"created_at"`
+}
+
 // GuildMember 社群成員模型
 type GuildMember struct {
 	ID        uint      `gorm:"primarykey"         json:"id"`

@@ -111,16 +111,18 @@
 ## 🟠 Phase 3 — File Service & Voice（中期）
 
 ### File Access Service（`/api/v1/files`）
-- [ ] **Minio 整合**：`pkg/storage/` 封裝 Minio SDK，config 加入 Minio 設定
-- [ ] **DB migration**：`files` 表、`message_attachments` 表
-- [ ] `POST /api/v1/files/presign`：生成 Upload Pre-signed URL（15 min 有效）
-- [ ] `GET /api/v1/files/{id}`：取得檔案 metadata
-- [ ] `GET /api/v1/files/{id}/url`：生成 Download Pre-signed URL（私有檔案）
-- [ ] `DELETE /api/v1/files/{id}`：刪除檔案（Minio + DB）
+- [x] **Minio 整合**：`pkg/storage/` 封裝 Minio SDK，config 加入 Minio 設定
+- [x] **DB migration**：`files` 表、`message_attachments` 表
+- [x] **檔案類型限制**：允許圖片與檔案上傳，並以副檔名限制可接受類型（`.jpg/.png/.gif/.webp/.svg` 等圖片；`.pdf/.zip/.mp4` 等檔案）
+- [x] **上傳次數/大小限制**：per-user quota（Redis 優先 + DB fallback）：單檔最大 MB、每日上傳次數、每日總量 MB 上限
+- [x] `POST /api/v1/files/presign`：生成 Upload Pre-signed URL（15 min 有效）
+- [x] `POST /api/v1/files/{id}/confirm`：客戶端上傳完成後呼叫，驗證物件存在於 Minio 後更新 status → active
+- [x] `GET /api/v1/files/{id}`：取得檔案 metadata
+- [x] `GET /api/v1/files/{id}/url`：生成 Download Pre-signed URL（私有檔案，更新 last_accessed_at）
+- [x] `DELETE /api/v1/files/{id}`：刪除檔案（Minio + DB）
+- [x] **過期與清理策略**：`expires_at` TTL 欄位 + `CleanupExpired()` 定期清理；`last_accessed_at` LRU 欄位 + `FindLRUByUser()` 供清理呼叫
 - [ ] **WS file 訊息類型**：`send_message` op 支援 `type: "file"`，帶 `file_id`
-- [ ] **檔案類型限制**：允許圖片與檔案上傳，並以 `content_type` 或副檔名限制可接受類型
-- [ ] **上傳次數/大小限制**：支援 per-user quota，限制單次上傳最大大小與每日上傳次數／總流量
-- [ ] **過期與清理策略**：支援 TTL 欄位與定期刪除；可選 LRU / 最長未使用清理機制
+- [ ] **LRU background job**：定時呼叫 `CleanupExpired()` + 超量用戶 LRU 清理 goroutine
 
 ### LiveKit 語音整合
 - [ ] **引入 LiveKit SDK**：`pkg/voice/` 封裝 token 生成
@@ -158,7 +160,7 @@
 - [x] Docker Compose 本地環境（Postgres + Redis）
 - [x] Kubernetes Kustomize Base & Overlays
 - [ ] **Docker Compose 加入 NATS**：`nats:latest` with JetStream enabled
-- [ ] **Docker Compose 加入 Minio**：`minio/minio` latest
+- [x] **Docker Compose 加入 Minio**：`minio/minio` latest（dev + prod compose；K8s base + local/dev overlays）
 - [ ] **Docker Compose 加入 LiveKit**：`livekit/livekit-server`
 - [ ] **CI/CD**：GitHub Actions — lint + test + build + push Docker image
 - [ ] **K8s Secrets 管理**：使用 Sealed Secrets 或 External Secrets Operator
