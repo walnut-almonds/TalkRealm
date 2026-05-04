@@ -62,18 +62,27 @@ jobs:
           MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           MINIO_BUCKET: ${{ secrets.MINIO_BUCKET }}
         run: |
+          test -n "$DB_PASSWORD"
+          test -n "$REDIS_PASSWORD"
+          test -n "$JWT_SECRET"
+          test -n "$GOOGLE_CLIENT_ID"
+          test -n "$GOOGLE_CLIENT_SECRET"
+          test -n "$GOOGLE_REDIRECT_URL"
+          test -n "$MINIO_ACCESS_KEY"
+          test -n "$MINIO_SECRET_KEY"
+          test -n "$MINIO_BUCKET"
           envsubst < configs/config.prod.yaml > config.yaml
-          cat > .env <<EOF
-POSTGRES_PASSWORD=${DB_PASSWORD}
-REDIS_PASSWORD=${REDIS_PASSWORD}
-MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
-MINIO_BUCKET=${MINIO_BUCKET}
-JWT_SECRET=${JWT_SECRET}
-GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL}
-EOF
+          {
+            echo "POSTGRES_PASSWORD=$DB_PASSWORD"
+            echo "REDIS_PASSWORD=$REDIS_PASSWORD"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
+            echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET"
+            echo "GOOGLE_REDIRECT_URL=$GOOGLE_REDIRECT_URL"
+            echo "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY"
+            echo "MINIO_SECRET_KEY=$MINIO_SECRET_KEY"
+            echo "MINIO_BUCKET=$MINIO_BUCKET"
+          } > .env
 
       - name: Upload compose, config and .env to VPS
         uses: appleboy/scp-action@v0.1.7
