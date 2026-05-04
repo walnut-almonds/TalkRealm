@@ -185,7 +185,55 @@ body {
     text-decoration: underline;
 }
 
-/* 主應用程式佈局 */
+.auth-divider {
+    display: flex;
+    align-items: center;
+    margin: 16px 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: var(--bg-modifier-accent);
+}
+
+.auth-divider span {
+    padding: 0 10px;
+}
+
+.btn-oauth {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px;
+    border-radius: 4px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    border: 1px solid var(--bg-modifier-accent);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.btn-oauth:hover {
+    background-color: var(--hover-bg);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.oauth-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
 .app-container {
     display: flex;
     height: 100vh;

@@ -18,6 +18,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 檢查認證狀態
 function checkAuth() {
+    // OAuth callback：後端將 token 帶在 query string 中
+    const params = new URLSearchParams(window.location.search);
+    const oauthAccessToken = params.get('access_token');
+    const oauthRefreshToken = params.get('refresh_token');
+
+    if (oauthAccessToken) {
+        api.setToken(oauthAccessToken);
+        localStorage.setItem(STORAGE_KEYS.TOKEN, oauthAccessToken);
+        if (oauthRefreshToken) {
+            api.setRefreshToken(oauthRefreshToken);
+            localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, oauthRefreshToken);
+        }
+        // 清除 URL 中的 token 參數
+        window.history.replaceState({}, document.title, window.location.pathname);
+        loadUserData();
+        return;
+    }
+
     const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
 
     if (token) {
@@ -26,6 +44,11 @@ function checkAuth() {
     } else {
         showAuthPage();
     }
+}
+
+// Google OAuth 登入
+function loginWithGoogle() {
+    window.location.href = '/api/v1/auth/google';
 }
 
 // 載入使用者資料
