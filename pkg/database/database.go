@@ -96,6 +96,16 @@ func AutoMigrate() error {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
+	// 允許 password 為 NULL（支援 OAuth 純帳號）
+	// GORM AutoMigrate 不會自動移除已存在的 NOT NULL 約束，需手動修正
+	if err := db.Exec(`ALTER TABLE users ALTER COLUMN password DROP NOT NULL`).Error; err != nil {
+		logger.Info(
+			"Note: could not drop NOT NULL on users.password (may already be nullable)",
+			"err",
+			err,
+		)
+	}
+
 	logger.Info("Database migrations completed successfully")
 
 	return nil
