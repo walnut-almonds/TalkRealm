@@ -21,8 +21,10 @@ type Client struct {
 
 func NewClient(cfg *config.MinioConfig) (*Client, error) {
 	mc, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-		Secure: cfg.UseSSL,
+		Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+		Secure:       cfg.UseSSL,
+		Region:       "us-east-1",
+		BucketLookup: minio.BucketLookupPath,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("minio: connect failed: %w", err)
@@ -61,8 +63,10 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 		}
 
 		presignMC, err = minio.New(pub.Host, &minio.Options{
-			Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-			Secure: pub.Scheme == "https",
+			Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+			Secure:       pub.Scheme == "https",
+			Region:       "us-east-1",            // skip region auto-detect (network call)
+			BucketLookup: minio.BucketLookupPath, // path-style: no DNS lookup per bucket
 		})
 		if err != nil {
 			return nil, fmt.Errorf("minio: presign client init failed: %w", err)
