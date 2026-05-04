@@ -47,27 +47,39 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 
 	logger.Info("Minio connected", "endpoint", cfg.Endpoint, "bucket", cfg.Bucket)
 
-	return &Client{mc: mc, presignMC: mc, bucket: cfg.Bucket, cfg: cfg}, nil
-}
+	// Build a second client for presigning whose endpoint matches what the
+	// browser will call.  Presigned URLs embed the host in the AWS v4
+	// signature (X-Amz-SignedHeaders=host), so the signing endpoint MUST equal
+	// the URL the browser sends the request to.
+	presignMC := mc // default: reuse internal client when no public endpoint set
+	if cfg.PublicEndpoint != "" {
+		pub, parseErr := url.Parse(cfg.PublicEndpoint)
+		if parseErr != nil {
+			return nil, fmt.Errorf(
+				"minio: invalid public_endpoint %q: %w",
+				cfg.PublicEndpoint,
+				parseErr,
+			)
+		}
 
-// rewritePublicURL swaps the scheme+host of a presigned URL to the configured
-// public endpoint.  The signature stays valid because nginx forwards requests
-// to MinIO with Host: <internal endpoint>, which matches what was signed.
-func (c *Client) rewritePublicURL(u *url.URL) string {
-	if c.cfg.PublicEndpoint == "" {
-		return u.String()
+		presignMC, err = minio.New(pub.Host, &minio.Options{
+			Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+			Secure:       pub.Scheme == "https",
+			Region:       "us-east-1",            // skip region auto-detect (network call)
+			BucketLookup: minio.BucketLookupPath, // path-style: no DNS lookup per bucket
+		})
+		if err != nil {
+			return nil, fmt.Errorf("minio: presign client init failed: %w", err)
+		}
+
+		logger.Info(
+			"Minio presign client using public endpoint",
+			"public_endpoint",
+			cfg.PublicEndpoint,
+		)
 	}
 
-	pub, err := url.Parse(c.cfg.PublicEndpoint)
-	if err != nil {
-		return u.String()
-	}
-
-	out := *u
-	out.Scheme = pub.Scheme
-	out.Host = pub.Host
-
-	return out.String()
+	return &Client{mc: mc, presignMC: presignMC, bucket: cfg.Bucket, cfg: cfg}, nil
 }
 
 func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, error) {
@@ -81,7 +93,7 @@ func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, err
 		return "", fmt.Errorf("minio: presign put failed: %w", err)
 	}
 
-	return c.rewritePublicURL(u), nil
+	return u.String(), nil
 }
 
 func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
@@ -96,7 +108,7 @@ func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
 		return "", fmt.Errorf("minio: presign get failed: %w", err)
 	}
 
-	return c.rewritePublicURL(u), nil
+	return u.String(), nil
 }
 
 func (c *Client) DeleteObject(key string) error {
