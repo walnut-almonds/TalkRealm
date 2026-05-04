@@ -99,6 +99,11 @@ async function selectGuild(guildId) {
         const members = await api.getGuildMembers(guildId);
         appState.members = Array.isArray(members) ? members : (members.members || []);
 
+        // 預先填入成員用戶資料到快取
+        userCache.clear();
+        appState.members.forEach(m => { if (m.user) cacheUser(m.user); });
+        if (appState.user) cacheUser(appState.user);
+
         // 更新 UI
         updateGuildHeader();
         renderChannels();
@@ -568,15 +573,44 @@ function renderMembers() {
     });
 }
 
-// 透過 user_id 從已快取的成員清單或當前使用者解析用戶資料
+// 本地用戶快取（覆蓋非成員的歷史訊息發送者）
+const userCache = new Map();
+
+// 將用戶資料存入快取
+function cacheUser(user) {
+    if (user && user.id) userCache.set(user.id, user);
+}
+
+// 同步版本：從成員列表 / 自身 / 本地快取取得用戶資料
+// 若找不到，回傳 null 並非同步取回後觸發重渲染
 function resolveMessageUser(userId) {
-    // 先從成員列表找（member.user 由 /guilds/:id/members 預先載入）
+    // 1. 快取（包含先前 API 取回的離群用戶）
+    if (userCache.has(userId)) return userCache.get(userId);
+    // 2. 成員列表
     const member = appState.members.find(m => m.user_id === userId);
-    if (member && member.user) return member.user;
-    // 若是自己（發送者已不在成員中，但就是本人）
-    if (appState.user && appState.user.id === userId) return appState.user;
-    // 找不到：顯示 Unknown
-    return { id: userId, username: 'Unknown', nickname: 'Unknown', avatar: null };
+    if (member && member.user) { cacheUser(member.user); return member.user; }
+    // 3. 自己
+    if (appState.user && appState.user.id === userId) { cacheUser(appState.user); return appState.user; }
+    // 4. 找不到：非同步取回，取回後重渲染
+    fetchAndCacheUser(userId);
+    return null;
+}
+
+// 非同步取回離群用戶資料，完成後重渲染訊息
+async function fetchAndCacheUser(userId) {
+    // 防止重複請求同一個 userId
+    if (userCache.has(`pending:${userId}`)) return;
+    userCache.set(`pending:${userId}`, true);
+    try {
+        const user = await api.getPublicUser(userId);
+        cacheUser(user);
+        renderMessages();
+    } catch (_) {
+        // 取回失敗（用戶已刪除等）：放入 Unknown placeholder 避免無限重試
+        cacheUser({ id: userId, username: 'Unknown', nickname: 'Unknown', avatar: null });
+    } finally {
+        userCache.delete(`pending:${userId}`);
+    }
 }
 
 // 渲染訊息列表
@@ -615,7 +649,7 @@ function renderMessages() {
         messageElement.setAttribute('data-message-id', message.id || '');
         if (message.nonce) messageElement.setAttribute('data-nonce', message.nonce);
 
-        const user = resolveMessageUser(message.user_id);
+        const user = resolveMessageUser(message.user_id) || { username: 'Unknown', nickname: 'Unknown', avatar: null };
         const nickname = user.nickname || user.username || 'Unknown';
         const avatar = user.avatar;
         const timestamp = formatTimestamp(message.created_at);
