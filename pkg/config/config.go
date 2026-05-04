@@ -65,16 +65,17 @@ type RedisConfig struct {
 // MinioConfig Minio 物件儲存配置
 type MinioConfig struct {
 	Endpoint        string `mapstructure:"endpoint"`
+	PublicEndpoint  string `mapstructure:"public_endpoint"`  // 公開 URL 前綴（留空則沿用 Endpoint）
 	AccessKey       string `mapstructure:"access_key"`
 	SecretKey       string `mapstructure:"secret_key"`
 	Bucket          string `mapstructure:"bucket"`
 	UseSSL          bool   `mapstructure:"use_ssl"`
-	PresignExpiry   int    `mapstructure:"presign_expiry"`     // 分鐘，預設 15
-	MaxFileSizeMB   int64  `mapstructure:"max_file_size_mb"`   // 單檔上限，預設 50MB
-	DailyUploadMax  int    `mapstructure:"daily_upload_max"`   // 每日上傳次數上限，預設 20
+	PresignExpiry   int    `mapstructure:"presign_expiry"`    // 分鐘，預設 15
+	MaxFileSizeMB   int64  `mapstructure:"max_file_size_mb"` // 單檔上限，預設 50MB
+	DailyUploadMax  int    `mapstructure:"daily_upload_max"` // 每日上傳次數上限，預設 20
 	DailyBytesMaxMB int64  `mapstructure:"daily_bytes_max_mb"` // 每日上傳總量上限 MB，預設 500
-	FileTTLDays     int    `mapstructure:"file_ttl_days"`      // 檔案 TTL（天），0 = 永久
-	LRUEvictEnabled bool   `mapstructure:"lru_evict_enabled"`  // 開啟 LRU 清理
+	FileTTLDays     int    `mapstructure:"file_ttl_days"`    // 檔案 TTL（天），0 = 永久
+	LRUEvictEnabled bool   `mapstructure:"lru_evict_enabled"` // 開啟 LRU 清理
 }
 
 // JWTConfig JWT 配置

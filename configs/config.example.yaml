@@ -38,6 +38,7 @@ oauth:
 
 minio:
   endpoint: "localhost:9000"
+  public_endpoint: ""              # 留空則與 endpoint 相同；生產環境設為公開 HTTPS URL，例如 https://media.example.com
   access_key: "minioadmin"
   secret_key: "minioadmin"
   bucket: "talkrealm"

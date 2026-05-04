@@ -47,6 +47,27 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 	return &Client{mc: mc, bucket: cfg.Bucket, cfg: cfg}, nil
 }
 
+// rewritePublicURL replaces the host (and scheme) of a presigned URL with the
+// configured public endpoint so that browser clients always receive an
+// externally-reachable HTTPS URL even when the MinIO SDK signs against an
+// internal address (e.g. "minio:9000").
+func (c *Client) rewritePublicURL(u *url.URL) string {
+	if c.cfg.PublicEndpoint == "" {
+		return u.String()
+	}
+
+	pub, err := url.Parse(c.cfg.PublicEndpoint)
+	if err != nil {
+		return u.String()
+	}
+
+	rewritten := *u
+	rewritten.Scheme = pub.Scheme
+	rewritten.Host = pub.Host
+
+	return rewritten.String()
+}
+
 func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, error) {
 	params := url.Values{}
 	if contentType != "" {
@@ -63,7 +84,7 @@ func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, err
 		return "", fmt.Errorf("minio: presign put failed: %w", err)
 	}
 
-	return u.String(), nil
+	return c.rewritePublicURL(u), nil
 }
 
 func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
@@ -78,7 +99,7 @@ func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
 		return "", fmt.Errorf("minio: presign get failed: %w", err)
 	}
 
-	return u.String(), nil
+	return c.rewritePublicURL(u), nil
 }
 
 func (c *Client) DeleteObject(key string) error {

@@ -61,6 +61,7 @@ jobs:
           MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
           MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           MINIO_BUCKET: ${{ secrets.MINIO_BUCKET }}
+          MINIO_PUBLIC_ENDPOINT: ${{ secrets.MINIO_PUBLIC_ENDPOINT }}
         run: |
           test -n "$DB_PASSWORD"
           test -n "$REDIS_PASSWORD"
@@ -71,6 +72,7 @@ jobs:
           test -n "$MINIO_ACCESS_KEY"
           test -n "$MINIO_SECRET_KEY"
           test -n "$MINIO_BUCKET"
+          test -n "$MINIO_PUBLIC_ENDPOINT"
           envsubst < configs/config.prod.yaml > config.yaml
           {
             echo "POSTGRES_PASSWORD=$DB_PASSWORD"
@@ -82,6 +84,7 @@ jobs:
             echo "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY"
             echo "MINIO_SECRET_KEY=$MINIO_SECRET_KEY"
             echo "MINIO_BUCKET=$MINIO_BUCKET"
+            echo "MINIO_PUBLIC_ENDPOINT=$MINIO_PUBLIC_ENDPOINT"
           } > .env
 
       - name: Upload compose, config and .env to VPS

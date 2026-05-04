@@ -38,6 +38,7 @@ oauth:
 
 minio:
   endpoint: "minio:9000"
+  public_endpoint: ${MINIO_PUBLIC_ENDPOINT}  # e.g. https://media.qrumi.org
   access_key: ${MINIO_ACCESS_KEY}
   secret_key: ${MINIO_SECRET_KEY}
   bucket: ${MINIO_BUCKET}
