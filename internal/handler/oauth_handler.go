@@ -38,13 +38,10 @@ func NewOAuthHandler(userService service.UserService, cfg *config.Config) *OAuth
 		Endpoint:     google.Endpoint,
 	}
 
-	// frontendURL 用於 callback 後重導向前端（攜帶 token）
-	frontendURL := fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
-
 	return &OAuthHandler{
 		userService:  userService,
 		googleConfig: googleCfg,
-		frontendURL:  frontendURL,
+		frontendURL:  "",
 	}
 }
 
@@ -127,12 +124,28 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 	}
 
 	// 重導向前端並帶上 token（前端可以從 query string 讀取後存入 localStorage）
+	frontendURL := h.frontendURL
+	if frontendURL == "" {
+		frontendURL = getRequestOrigin(c.Request)
+	}
+
 	redirectURL := fmt.Sprintf("%s/?access_token=%s&refresh_token=%s",
-		h.frontendURL,
+		frontendURL,
 		resp.AccessToken,
 		resp.RefreshToken,
 	)
 	c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+}
+
+func getRequestOrigin(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	return fmt.Sprintf("%s://%s", scheme, r.Host)
 }
 
 // googleUserInfo Google userinfo 回應

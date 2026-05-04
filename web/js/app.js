@@ -11,15 +11,16 @@ const appState = {
 };
 
 // 初始化應用程式
-document.addEventListener('DOMContentLoaded', () => {
-    checkAuth();
+document.addEventListener('DOMContentLoaded', async () => {
+    await checkAuth();
     setupWebSocketHandlers();
 });
 
 // 檢查認證狀態
-function checkAuth() {
-    // OAuth callback：後端將 token 帶在 query string 中
-    const params = new URLSearchParams(window.location.search);
+async function checkAuth() {
+    // OAuth callback：後端將 token 帶在 query string 或 fragment 中
+    const rawSearch = window.location.search || window.location.hash.replace(/^#/, '?');
+    const params = new URLSearchParams(rawSearch);
     const oauthAccessToken = params.get('access_token');
     const oauthRefreshToken = params.get('refresh_token');
 
@@ -32,15 +33,26 @@ function checkAuth() {
         }
         // 清除 URL 中的 token 參數
         window.history.replaceState({}, document.title, window.location.pathname);
-        loadUserData();
-        return;
+        try {
+            await loadUserData();
+            return;
+        } catch (error) {
+            console.error('OAuth login callback failed:', error);
+            showAuthPage();
+            return;
+        }
     }
 
     const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
 
     if (token) {
         api.setToken(token);
-        loadUserData();
+        try {
+            await loadUserData();
+        } catch (error) {
+            console.error('Stored token failed:', error);
+            showAuthPage();
+        }
     } else {
         showAuthPage();
     }
