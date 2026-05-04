@@ -48,7 +48,7 @@ type Message struct {
 	ChannelID   uint      `gorm:"not null"                                json:"channel_id"`
 	Channel     Channel   `gorm:"foreignKey:ChannelID"                    json:"-"`
 	UserID      uint      `gorm:"not null"                                json:"user_id"`
-	User        User      `gorm:"foreignKey:UserID"                       json:"-"`
+	User        User      `gorm:"foreignKey:UserID"                       json:"user"`
 	Content     string    `gorm:"not null"                                json:"content"`
 	Type        string    `gorm:"default:'text'"                          json:"type"`        // text, image, file
 	IsEdited    bool      `gorm:"default:false"                           json:"is_edited"`   // 是否被編輯過
