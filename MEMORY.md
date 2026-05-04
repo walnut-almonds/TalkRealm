@@ -45,7 +45,13 @@ make check        # 全部檢查（lint + build + test）
 
 ## Last Updated
 2026-05-04 — File Access Service（Phase 3）實作完成：
-- **`pkg/storage/minio.go`**：`NewClient`, `PresignPutURL`, `PresignGetURL`, `DeleteObject`, `ObjectExists`；Minio 不可用時 File API 整體跳過，不影響啟動
+- **前端檔案上傳**：`+` 按鈕 → `<input type="file">` → `handleFileSelected()` → `uploadFile()` (presign→PUT→confirm) → chip 預覽 → `sendMessage()` 帶 `file_ids`
+- **`api.js`**：新增 `presignUpload`, `uploadToMinio` (XHR PUT), `confirmUpload`, `getFileDownloadUrl`, `deleteFile`；`sendMessage` 新增 `fileIds` 參數
+- **`app.js`**：`appState.pendingFileIds`、`handleFileSelected`、`uploadFile`、chip CRUD、`renderAttachments`（圖片縮圖/檔案下載）、`openAttachment`、`loadAttachmentImage`
+- **`CreateMessageRequest`**：新增 `FileIDs []uint`；允許空 Content（有附件時）
+- **`MessageService`**：新增 `SetFileService(FileService)`；`CreateMessage` 後建立 `MessageAttachment` 記錄
+- **`minio.go` 陷阱**：曾出現重複 `package storage` 宣告（garbled）；用 `/tmp/write_xxx.go + go run` 修復（heredoc 會觸發 tab-completion）
+- **`PresignPutURL`**：簽名改為 `(key, contentType string, expiry int)`
 - **`internal/model/user.go`**：新增 `File`（含 `status`, `expires_at`, `last_accessed_at`）、`MessageAttachment` 模型
 - **`pkg/config/config.go`**：新增 `MinioConfig`（endpoint/bucket/ssl/presign_expiry/max_file_size_mb/daily_upload_max/daily_bytes_max_mb/file_ttl_days/lru_evict_enabled）
 - **`internal/repository/file_repository.go`**：CRUD + `CountByUserToday`, `SumBytesByUserToday`, `FindExpired`, `FindLRUByUser`, `TouchLastAccessed`, attachment CRUD
