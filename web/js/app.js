@@ -438,17 +438,15 @@ function renderAttachments(attachments) {
         const safeName = escapeHtml(file.filename || 'attachment');
 
         if (isImage) {
-            // 圖片直接顯示縮圖，點擊取得下載 URL
-            // data-load-image 由 renderMessages 在 DOM 建好後統一觸發
             return `
-                <div class="message-attachment message-attachment--image">
-                    <img src="" alt="${safeName}"
-                        data-file-id="${file.id}"
-                        data-load-image="1"
-                        onclick="openAttachment(${file.id})"
-                        onload="this.style.opacity=1"
-                        style="opacity:0;transition:opacity .2s"
-                        title="${safeName}">
+                <div class="message-attachment message-attachment--image"
+                     onclick="openLightbox(${file.id}, this)">
+                    <img src=""
+                         alt="${safeName}"
+                         data-file-id="${file.id}"
+                         data-load-image="1"
+                         title="${safeName}">
+                    <div class="img-overlay"><i class="fas fa-expand"></i></div>
                 </div>`;
         }
 
@@ -480,12 +478,53 @@ async function openAttachment(fileId) {
     }
 }
 
+// 開啟 Lightbox
+async function openLightbox(fileId, boxEl) {
+    const img = boxEl?.querySelector('img');
+    const overlay = document.getElementById('lightbox-overlay');
+    const lbImg = document.getElementById('lightbox-img');
+    if (!overlay || !lbImg) return;
+
+    // 如果小圖已載入則直接用其 src，否則重新取得
+    if (img && img.src && !img.src.endsWith('/')) {
+        lbImg.src = img.src;
+    } else {
+        try {
+            const resp = await api.getFileDownloadUrl(fileId);
+            lbImg.src = resp.url;
+        } catch (_) {
+            showNotification('無法載入圖片', 'error');
+            return;
+        }
+    }
+
+    overlay.classList.add('active');
+    document.addEventListener('keydown', _lightboxKeyHandler);
+}
+
+function closeLightbox() {
+    const overlay = document.getElementById('lightbox-overlay');
+    const lbImg = document.getElementById('lightbox-img');
+    if (overlay) overlay.classList.remove('active');
+    if (lbImg) lbImg.src = '';
+    document.removeEventListener('keydown', _lightboxKeyHandler);
+}
+
+function _lightboxKeyHandler(e) {
+    if (e.key === 'Escape') closeLightbox();
+}
+
 // 載入圖片附件的 src（非同步取得簽名 URL）
 async function loadAttachmentImage(fileId) {
     try {
         const resp = await api.getFileDownloadUrl(fileId);
         const img = document.querySelector(`img[data-file-id="${fileId}"]`);
-        if (img) img.src = resp.url;
+        if (!img) return;
+        img.onload = () => {
+            img.style.opacity = '1';
+            img.closest('.message-attachment--image')?.classList.add('loaded');
+        };
+        img.src = resp.url;
     } catch (err) {
         console.warn('Failed to load image attachment:', fileId, err);
     }

@@ -806,22 +806,130 @@ body {
 /* 訊息附件 */
 .message-attachments {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 6px;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* ── 圖片縮圖方框 ── */
+.message-attachment--image {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-tertiary, #1e1f22);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* skeleton 動畫（圖片載入前顯示） */
+.message-attachment--image::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0.04) 25%,
+            rgba(255, 255, 255, 0.10) 50%,
+            rgba(255, 255, 255, 0.04) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s infinite;
+    z-index: 0;
+    transition: opacity .3s;
+}
+
+.message-attachment--image.loaded::before {
+    opacity: 0;
+    pointer-events: none;
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
 }
 
 .message-attachment--image img {
-    max-width: 360px;
-    max-height: 300px;
-    border-radius: 6px;
-    cursor: pointer;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
     display: block;
-    object-fit: contain;
+    opacity: 0;
+    transition: opacity .25s;
+    z-index: 1;
 }
 
-.message-attachment--image img:hover {
-    opacity: 0.9;
+/* hover 遮罩 + 放大圖示 */
+.message-attachment--image .img-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity .2s;
+    z-index: 2;
+    border-radius: 8px;
+}
+
+.message-attachment--image .img-overlay i {
+    color: #fff;
+    font-size: 26px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+}
+
+.message-attachment--image:hover .img-overlay {
+    opacity: 1;
+}
+
+/* ── Lightbox ── */
+#lightbox-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .85);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+}
+
+#lightbox-overlay.active {
+    display: flex;
+}
+
+#lightbox-overlay img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 6px;
+    object-fit: contain;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, .7);
+    cursor: default;
+}
+
+#lightbox-close {
+    position: fixed;
+    top: 18px;
+    right: 24px;
+    font-size: 32px;
+    color: #fff;
+    cursor: pointer;
+    opacity: .7;
+    line-height: 1;
+    user-select: none;
+}
+
+#lightbox-close:hover {
+    opacity: 1;
 }
 
 .message-attachment--file {

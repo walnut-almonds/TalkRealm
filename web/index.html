@@ -403,6 +403,12 @@
         <div class="spinner"></div>
     </div>
 
+    <!-- Lightbox -->
+    <div id="lightbox-overlay" onclick="closeLightbox()">
+        <span id="lightbox-close" onclick="closeLightbox()">&times;</span>
+        <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
+    </div>
+
     <!-- JavaScript -->
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
