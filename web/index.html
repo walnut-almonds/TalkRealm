@@ -182,13 +182,6 @@
 
         <!-- 主要內容區 -->
         <div class="main-content">
-            <!-- 拖曳上傳遮罩 -->
-            <div id="drop-overlay" class="drop-overlay" aria-hidden="true">
-                <div class="drop-overlay-inner">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <p>放開以上傳檔案</p>
-                </div>
-            </div>
             <!-- 頻道標題 -->
             <div class="channel-header">
                 <div class="channel-info">
@@ -231,6 +224,13 @@
                     <button class="btn-icon" onclick="sendMessage()" title="發送訊息">
                         <i class="fas fa-paper-plane"></i>
                     </button>
+                </div>
+            </div>
+            <!-- 拖曳上傳遮罩（放最後，不影響 flex 排版） -->
+            <div id="drop-overlay" class="drop-overlay" aria-hidden="true">
+                <div class="drop-overlay-inner">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>放開以上傳檔案</p>
                 </div>
             </div>
         </div>

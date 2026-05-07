@@ -555,6 +555,8 @@ body {
     flex-direction: column;
     background-color: var(--bg-primary);
     position: relative;
+    overflow: hidden;
+    /* clip drop-overlay so it never bleeds outside */
     /* drop-overlay absolute positioning anchor */
 }
 
