@@ -236,14 +236,22 @@ func (s *fileService) GetFile(userID, fileID uint) (*model.File, error) {
 }
 
 func (s *fileService) GetDownloadURL(userID, fileID uint) (string, error) {
-	file, err := s.GetFile(userID, fileID)
+	// Any authenticated user may download a file (e.g. viewing another user's
+	// attachment in a shared channel).  We only require the file to be active.
+	file, err := s.fileRepo.GetByID(fileID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrFileNotFound
+		}
+
 		return "", err
 	}
 
 	if file.Status != "active" {
 		return "", ErrFileNotFound
 	}
+
+	_ = s.fileRepo.TouchLastAccessed(fileID)
 
 	url, err := s.storage.PresignGetURL(file.StorageKey, s.cfg.PresignExpiry)
 	if err != nil {

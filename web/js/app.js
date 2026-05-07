@@ -518,13 +518,13 @@ function _lightboxKeyHandler(e) {
 async function loadAttachmentImage(fileId) {
     try {
         const resp = await api.getFileDownloadUrl(fileId);
-        const img = document.querySelector(`img[data-file-id="${fileId}"]`);
-        if (!img) return;
-        img.onload = () => {
-            img.style.opacity = '1';
-            img.closest('.message-attachment--image')?.classList.add('loaded');
-        };
-        img.src = resp.url;
+        document.querySelectorAll(`img[data-file-id="${fileId}"]`).forEach(img => {
+            img.onload = () => {
+                img.style.opacity = '1';
+                img.closest('.message-attachment--image')?.classList.add('loaded');
+            };
+            img.src = resp.url;
+        });
     } catch (err) {
         console.warn('Failed to load image attachment:', fileId, err);
     }
