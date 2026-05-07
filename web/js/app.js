@@ -332,12 +332,17 @@ function initDropZone() {
     const overlay = document.getElementById('drop-overlay');
     if (!chatMain || !overlay) return;
 
+    // 保險：初始化時強制隱藏，避免任何 CSS/快取狀態殘留
+    overlay.classList.remove('active');
+    overlay.hidden = true;
+
     let dragCounter = 0; // 追蹤巢狀元素的 dragenter/dragleave
 
     chatMain.addEventListener('dragenter', (e) => {
         if (!e.dataTransfer?.types?.includes('Files')) return;
         e.preventDefault();
         dragCounter++;
+        overlay.hidden = false;
         overlay.classList.add('active');
     });
 
@@ -346,6 +351,7 @@ function initDropZone() {
         if (dragCounter <= 0) {
             dragCounter = 0;
             overlay.classList.remove('active');
+            overlay.hidden = true;
         }
     });
 
@@ -359,6 +365,7 @@ function initDropZone() {
         e.preventDefault();
         dragCounter = 0;
         overlay.classList.remove('active');
+        overlay.hidden = true;
 
         const files = Array.from(e.dataTransfer?.files ?? []);
         if (files.length === 0) return;
@@ -372,6 +379,18 @@ function initDropZone() {
         for (const file of files) {
             await uploadFile(file);
         }
+    });
+
+    window.addEventListener('dragend', () => {
+        dragCounter = 0;
+        overlay.classList.remove('active');
+        overlay.hidden = true;
+    });
+
+    window.addEventListener('drop', () => {
+        dragCounter = 0;
+        overlay.classList.remove('active');
+        overlay.hidden = true;
     });
 }
 
