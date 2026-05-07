@@ -76,11 +76,13 @@ func (c *Client) rewritePublicURL(u *url.URL) string {
 }
 
 func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, error) {
-	extraHeaders := http.Header{}
-	if contentType != "" {
-		extraHeaders.Set("Content-Type", contentType)
-	}
-
+	// Do NOT include Content-Type in signed headers.
+	// If content-type is in X-Amz-SignedHeaders, MinIO validates the header value
+	// against the signature during the OPTIONS preflight (CORS) and the actual PUT,
+	// which causes signature mismatches because the signing host (minio:9000) differs
+	// from the public host (media.qrumi.org).  Only signing 'host' mirrors how
+	// PresignedGetObject works and is sufficient for authorisation.
+	// The client still sends Content-Type in the PUT request so MinIO stores it.
 	u, err := c.mc.PresignHeader(
 		context.Background(),
 		http.MethodPut,
@@ -88,7 +90,7 @@ func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, err
 		key,
 		time.Duration(expiry)*time.Minute,
 		nil,
-		extraHeaders,
+		nil,
 	)
 	if err != nil {
 		return "", fmt.Errorf("minio: presign put failed: %w", err)
