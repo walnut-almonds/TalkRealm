@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -75,11 +76,19 @@ func (c *Client) rewritePublicURL(u *url.URL) string {
 }
 
 func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, error) {
-	u, err := c.mc.PresignedPutObject(
+	extraHeaders := http.Header{}
+	if contentType != "" {
+		extraHeaders.Set("Content-Type", contentType)
+	}
+
+	u, err := c.mc.PresignHeader(
 		context.Background(),
+		http.MethodPut,
 		c.bucket,
 		key,
 		time.Duration(expiry)*time.Minute,
+		nil,
+		extraHeaders,
 	)
 	if err != nil {
 		return "", fmt.Errorf("minio: presign put failed: %w", err)
