@@ -439,15 +439,16 @@ function renderAttachments(attachments) {
 
         if (isImage) {
             // 圖片直接顯示縮圖，點擊取得下載 URL
+            // data-load-image 由 renderMessages 在 DOM 建好後統一觸發
             return `
                 <div class="message-attachment message-attachment--image">
                     <img src="" alt="${safeName}"
                         data-file-id="${file.id}"
+                        data-load-image="1"
                         onclick="openAttachment(${file.id})"
                         onload="this.style.opacity=1"
                         style="opacity:0;transition:opacity .2s"
                         title="${safeName}">
-                    <script>loadAttachmentImage(${file.id})<\/script>
                 </div>`;
         }
 
@@ -967,6 +968,12 @@ function renderMessages() {
         }
 
         container.appendChild(messageElement);
+    });
+
+    // 觸發所有圖片附件載入（innerHTML 裡的 <script> 不會執行，改在此集中呼叫）
+    container.querySelectorAll('img[data-load-image]').forEach(img => {
+        const fileId = parseInt(img.getAttribute('data-file-id'), 10);
+        if (fileId) loadAttachmentImage(fileId);
     });
 }
 
