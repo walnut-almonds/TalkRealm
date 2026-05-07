@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -14,9 +15,10 @@ import (
 )
 
 type Client struct {
-	mc     *minio.Client // internal client – all MinIO operations
-	bucket string
-	cfg    *config.MinioConfig
+	mc        *minio.Client // internal client – bucket ops, stat, delete
+	presignMC *minio.Client // presign client – points to public endpoint so SigV4 host matches
+	bucket    string
+	cfg       *config.MinioConfig
 }
 
 func NewClient(cfg *config.MinioConfig) (*Client, error) {
@@ -47,43 +49,45 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 
 	logger.Info("Minio connected", "endpoint", cfg.Endpoint, "bucket", cfg.Bucket)
 
-	return &Client{mc: mc, bucket: cfg.Bucket, cfg: cfg}, nil
-}
-
-// rewritePublicURL replaces the scheme+host of an internally-signed presigned
-// URL with the configured public endpoint.
-//
-// AWS v4 signature validation on the MinIO side is made possible by setting
-// MINIO_SERVER_URL=<public_endpoint> in MinIO's environment: MinIO will
-// normalise the Host header against its server URL before verifying the
-// signature, so a URL signed with "minio:9000" but served via
-// "media.qrumi.org" will still pass validation.
-func (c *Client) rewritePublicURL(u *url.URL) string {
-	if c.cfg.PublicEndpoint == "" {
-		return u.String()
+	// Build a second client that signs requests with the public endpoint as host.
+	// SigV4 embeds the Host in the canonical request; if the signing host differs
+	// from the host MinIO sees (e.g. minio:9000 vs media.qrumi.org), validation
+	// fails with SignatureDoesNotMatch.  By pointing this client directly at the
+	// public endpoint we ensure the signed host always matches the incoming Host
+	// header, making MINIO_SERVER_URL unnecessary for presign correctness.
+	presignMC := mc // fallback: reuse internal client when no public endpoint
+	if cfg.PublicEndpoint != "" {
+		pub, parseErr := url.Parse(cfg.PublicEndpoint)
+		if parseErr == nil {
+			useSSL := strings.EqualFold(pub.Scheme, "https")
+			pmс, newErr := minio.New(pub.Host, &minio.Options{
+				Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+				Secure:       useSSL,
+				Region:       "us-east-1",
+				BucketLookup: minio.BucketLookupPath,
+			})
+			if newErr == nil {
+				presignMC = pmс
+				logger.Info("Minio presign client using public endpoint", "endpoint", pub.Host)
+			} else {
+				logger.Warn(
+					"Minio presign client init failed, falling back to internal",
+					"err",
+					newErr,
+				)
+			}
+		}
 	}
 
-	pub, err := url.Parse(c.cfg.PublicEndpoint)
-	if err != nil {
-		return u.String()
-	}
-
-	out := *u
-	out.Scheme = pub.Scheme
-	out.Host = pub.Host
-
-	return out.String()
+	return &Client{mc: mc, presignMC: presignMC, bucket: cfg.Bucket, cfg: cfg}, nil
 }
 
-func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, error) {
-	// Do NOT include Content-Type in signed headers.
-	// If content-type is in X-Amz-SignedHeaders, MinIO validates the header value
-	// against the signature during the OPTIONS preflight (CORS) and the actual PUT,
-	// which causes signature mismatches because the signing host (minio:9000) differs
-	// from the public host (media.qrumi.org).  Only signing 'host' mirrors how
-	// PresignedGetObject works and is sufficient for authorisation.
-	// The client still sends Content-Type in the PUT request so MinIO stores it.
-	u, err := c.mc.PresignHeader(
+func (c *Client) PresignPutURL(key, _ string, expiry int) (string, error) {
+	// Use presignMC (public endpoint) so the SigV4 canonical host matches
+	// media.qrumi.org – the host MinIO sees when the request arrives via nginx.
+	// Content-Type is intentionally excluded from signed headers; the client
+	// still sends it in the actual PUT so MinIO stores it correctly.
+	u, err := c.presignMC.PresignHeader(
 		context.Background(),
 		http.MethodPut,
 		c.bucket,
@@ -96,11 +100,11 @@ func (c *Client) PresignPutURL(key, contentType string, expiry int) (string, err
 		return "", fmt.Errorf("minio: presign put failed: %w", err)
 	}
 
-	return c.rewritePublicURL(u), nil
+	return u.String(), nil
 }
 
 func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
-	u, err := c.mc.PresignedGetObject(
+	u, err := c.presignMC.PresignedGetObject(
 		context.Background(),
 		c.bucket,
 		key,
@@ -111,7 +115,7 @@ func (c *Client) PresignGetURL(key string, expiry int) (string, error) {
 		return "", fmt.Errorf("minio: presign get failed: %w", err)
 	}
 
-	return c.rewritePublicURL(u), nil
+	return u.String(), nil
 }
 
 func (c *Client) DeleteObject(key string) error {
