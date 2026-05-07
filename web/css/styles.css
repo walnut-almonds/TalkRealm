@@ -554,6 +554,8 @@ body {
     display: flex;
     flex-direction: column;
     background-color: var(--bg-primary);
+    position: relative;
+    /* drop-overlay absolute positioning anchor */
 }
 
 .channel-header {
@@ -746,6 +748,44 @@ body {
 /* 訊息輸入 */
 .message-input-container {
     padding: 16px;
+}
+
+/* 拖曳上傳遮罩 */
+.drop-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background: rgba(88, 101, 242, 0.15);
+    border: 3px dashed var(--accent, #5865f2);
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+.drop-overlay.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.drop-overlay-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: var(--accent, #5865f2);
+    user-select: none;
+}
+
+.drop-overlay-inner i {
+    font-size: 48px;
+    opacity: 0.9;
+}
+
+.drop-overlay-inner p {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
 }
 
 /* 檔案預覽區（位於輸入框上方） */

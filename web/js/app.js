@@ -16,6 +16,7 @@ const appState = {
 document.addEventListener('DOMContentLoaded', async () => {
     await checkAuth();
     setupWebSocketHandlers();
+    initDropZone();
 });
 
 // 檢查認證狀態
@@ -322,6 +323,56 @@ async function handleFileSelected(input) {
     input.value = '';
 
     await uploadFile(file);
+}
+
+// ── 拖曳上傳 ──
+
+function initDropZone() {
+    const chatMain = document.querySelector('.main-content');
+    const overlay = document.getElementById('drop-overlay');
+    if (!chatMain || !overlay) return;
+
+    let dragCounter = 0; // 追蹤巢狀元素的 dragenter/dragleave
+
+    chatMain.addEventListener('dragenter', (e) => {
+        if (!e.dataTransfer?.types?.includes('Files')) return;
+        e.preventDefault();
+        dragCounter++;
+        overlay.classList.add('active');
+    });
+
+    chatMain.addEventListener('dragleave', () => {
+        dragCounter--;
+        if (dragCounter <= 0) {
+            dragCounter = 0;
+            overlay.classList.remove('active');
+        }
+    });
+
+    chatMain.addEventListener('dragover', (e) => {
+        if (!e.dataTransfer?.types?.includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+
+    chatMain.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        overlay.classList.remove('active');
+
+        const files = Array.from(e.dataTransfer?.files ?? []);
+        if (files.length === 0) return;
+
+        if (!appState.currentChannel) {
+            showNotification('請先選擇一個頻道再拖曳上傳', 'error');
+            return;
+        }
+
+        // 逐一上傳（保留順序）
+        for (const file of files) {
+            await uploadFile(file);
+        }
+    });
 }
 
 // 執行檔案上傳流程：presign → PUT → confirm
