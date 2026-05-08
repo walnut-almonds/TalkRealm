@@ -521,6 +521,8 @@ function renderFilePreview() {
 // ── 訊息附件渲染 ──
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+const attachmentImageURLCache = new Map(); // fileId -> signed URL
+const attachmentImageFetchInFlight = new Set();
 
 function renderAttachments(attachments) {
     if (!attachments || attachments.length === 0) return '';
@@ -608,19 +610,47 @@ function _lightboxKeyHandler(e) {
     if (e.key === 'Escape') closeLightbox();
 }
 
+function applyAttachmentImageURL(fileId, imageURL) {
+    document.querySelectorAll(`img[data-file-id="${fileId}"]`).forEach(img => {
+        img.onload = () => {
+            img.style.opacity = '1';
+            img.closest('.message-attachment--image')?.classList.add('loaded');
+        };
+
+        img.onerror = () => {
+            // URL 過期時只重抓一次，避免無限重試
+            if (img.dataset.urlRefreshed === '1') return;
+            img.dataset.urlRefreshed = '1';
+            loadAttachmentImage(fileId, true);
+        };
+
+        img.src = imageURL;
+    });
+}
+
 // 載入圖片附件的 src（非同步取得簽名 URL）
-async function loadAttachmentImage(fileId) {
+async function loadAttachmentImage(fileId, forceRefresh = false) {
+    if (!forceRefresh) {
+        const cachedURL = attachmentImageURLCache.get(fileId);
+        if (cachedURL) {
+            applyAttachmentImageURL(fileId, cachedURL);
+            return;
+        }
+    }
+
+    if (attachmentImageFetchInFlight.has(fileId)) return;
+    attachmentImageFetchInFlight.add(fileId);
+
     try {
         const resp = await api.getFileDownloadUrl(fileId);
-        document.querySelectorAll(`img[data-file-id="${fileId}"]`).forEach(img => {
-            img.onload = () => {
-                img.style.opacity = '1';
-                img.closest('.message-attachment--image')?.classList.add('loaded');
-            };
-            img.src = resp.url;
-        });
+        if (resp?.url) {
+            attachmentImageURLCache.set(fileId, resp.url);
+            applyAttachmentImageURL(fileId, resp.url);
+        }
     } catch (err) {
         console.warn('Failed to load image attachment:', fileId, err);
+    } finally {
+        attachmentImageFetchInFlight.delete(fileId);
     }
 }
 
@@ -1379,10 +1409,20 @@ function renderMessages() {
         container.appendChild(messageElement);
     });
 
-    // 觸發所有圖片附件載入（innerHTML 裡的 <script> 不會執行，改在此集中呼叫）
+    // 觸發所有圖片附件載入（優先使用快取 URL，避免每次 render 都重新請求下載連結）
     container.querySelectorAll('img[data-load-image]').forEach(img => {
         const fileId = parseInt(img.getAttribute('data-file-id'), 10);
-        if (fileId) loadAttachmentImage(fileId);
+        if (!fileId) return;
+
+        const cachedURL = attachmentImageURLCache.get(fileId);
+        if (cachedURL) {
+            img.src = cachedURL;
+            img.style.opacity = '1';
+            img.closest('.message-attachment--image')?.classList.add('loaded');
+            return;
+        }
+
+        loadAttachmentImage(fileId);
     });
 }
 
