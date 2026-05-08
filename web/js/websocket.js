@@ -147,6 +147,14 @@ class WebSocketManager {
         });
     }
 
+    // 發送語音狀態更新
+    sendVoiceStateUpdate(channelId, action) {
+        return this.send({
+            op: 'voice_state_update',
+            d: { channel_id: channelId, action }
+        });
+    }
+
     // 心跳機制
     startHeartbeat(interval = 30000) {
         this.stopHeartbeat();
@@ -255,6 +263,11 @@ class WebSocketManager {
             case 'guild_member_update':
                 // 成員資訊更新（角色等）
                 this.notifyHandlers('guild_member_update', message.d);
+                break;
+
+            case 'voice_state_update':
+                // 使用者加入/離開語音頻道
+                this.notifyHandlers('voice_state_update', message.d);
                 break;
 
             case 'error':

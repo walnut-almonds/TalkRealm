@@ -20,7 +20,7 @@ make check        # 全部檢查（lint + build + test）
 ## Architecture Notes
 - `internal/server/server.go`：DI 組裝、路由設定的主入口
 - `internal/websocket/manager.go`：channel 訂閱索引（`channelSubscriptions map[uint]map[*Client]bool`）+ guild 訂閱索引（`guildSubscriptions map[uint]map[*Client]bool`），O(1) 廣播；jwtManager 注入用於 identify op；identify 後自動呼叫 `SubscribeClientToUserGuilds` 訂閱所有 guild
-- WS 協議：client→server op: `identify`, `heartbeat`, `subscribe`, `unsubscribe`, `typing_start`, `send_message`；server→client op: `hello`, `ready`, `heartbeat_ack`, `message_create`, `message_update`, `message_delete`, `typing_start`, `presence_update`, `error`, `guild_update`, `guild_delete`, `guild_member_add`, `guild_member_remove`, `guild_member_update`, `channel_create`, `channel_update`, `channel_delete`
+- WS 協議：client→server op: `identify`, `heartbeat`, `subscribe`, `unsubscribe`, `typing_start`, `send_message`, `voice_state_update`；server→client op: `hello`, `ready`, `heartbeat_ack`, `message_create`, `message_update`, `message_delete`, `typing_start`, `presence_update`, `error`, `guild_update`, `guild_delete`, `guild_member_add`, `guild_member_remove`, `guild_member_update`, `channel_create`, `channel_update`, `channel_delete`, `voice_state_update`
 - WS 端點：`GET /api/v1/ws`（無需 JWT 中間件，由 identify op 驗證）
 - identify flow：client 連線 → server 送 `hello`（heartbeat_interval=30000ms）→ client 送 `identify`（token + channels[]）→ server 驗證 JWT，送 `ready` + 廣播 `presence_update online`
 - `pkg/auth/jwt.go`：JWTManager，sign / verify token
@@ -46,6 +46,17 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-08 — LiveKit 語音整合（Phase 3）實作完成：
+- **`pkg/voice/token.go`**：`Manager` 封裝 LiveKit token 生成；`GenerateRoomToken(channelID, userID, username)` 以 `channel:{id}` 作為 room name，回傳 `RoomTokenResponse{Token, URL, RoomName, Identity}`
+- **`pkg/config/config.go`**：新增 `LiveKitConfig{APIKey, APISecret, URL, PublicURL, TokenTTL}`；`--dev` 模式預設 key=devkey / secret=secret
+- **`internal/handler/voice_handler.go`**：`GET /api/v1/channels/:id/voice/token`（需認證）；LiveKit 未設定時回 503
+- **WS `voice_state_update` op**（client→server / server→channel）：payload `{channel_id, action: "join"|"leave"}`；廣播格式 `{channel_id, user_id, username, action}`；實作在 `handleVoiceStateUpdate()` 方法
+- **`internal/websocket/client.go`**：refactored `handleMessage` — `send_message` 邏輯提取為 `handleSendMessage()`，降低 cognitive complexity；新增 `handleVoiceStateUpdate()`
+- **`docker-compose.yml`**：加入 `livekit/livekit-server:latest`（`--dev` 模式）；port 7880/7881/50100-50200(udp)
+- **`configs/config.example.yaml`**：新增 livekit 區段（api_key=devkey, api_secret=secret, url=ws://livekit:7880, public_url=ws://localhost:7880, token_ttl=3600）
+- **依賴新增**：`github.com/livekit/server-sdk-go/v2`（token 生成用 `github.com/livekit/protocol/auth`）
+- **nolint**：`client.go` readPump/writePump 的 `conn.Close/SetReadDeadline/SetWriteDeadline/WriteMessage` 加 `//nolint:errcheck,gosec`（pre-existing pattern）
+
 2026-05-04 — File Access Service（Phase 3）實作完成：
 - **前端檔案上傳**：`+` 按鈕 → `<input type="file">` → `handleFileSelected()` → `uploadFile()` (presign→PUT→confirm) → chip 預覽 → `sendMessage()` 帶 `file_ids`
 - **`api.js`**：新增 `presignUpload`, `uploadToMinio` (XHR PUT), `confirmUpload`, `getFileDownloadUrl`, `deleteFile`；`sendMessage` 新增 `fileIds` 參數

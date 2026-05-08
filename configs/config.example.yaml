@@ -48,4 +48,12 @@ minio:
   daily_upload_max: 20      # 每日上傳次數上限
   daily_bytes_max_mb: 500   # 每日上傳總量 MB 上限
   file_ttl_days: 0          # 檔案 TTL（天），0 = 永久
+  lru_evict_enabled: true   # 開啟 LRU 清理
+
+livekit:
+  api_key: "devkey"         # LiveKit API Key（--dev 模式預設 devkey）
+  api_secret: "secret"      # LiveKit API Secret（--dev 模式預設 secret）
+  url: "ws://livekit:7880"  # 後端連線用（Docker 內部）
+  public_url: "ws://localhost:7880"  # 前端連線用（宿主機）
+  token_ttl: 3600           # Token 有效秒數
   lru_evict_enabled: true   # 啟用 LRU 清理

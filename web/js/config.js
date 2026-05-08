@@ -53,6 +53,9 @@ const API_CONFIG = {
         FILE_URL: (id) => `/api/v1/files/${id}/url`,
         FILE_DELETE: (id) => `/api/v1/files/${id}`,
 
+        // 語音
+        VOICE_TOKEN: (channelId) => `/api/v1/channels/${channelId}/voice/token`,
+
         // WebSocket
         WS: '/api/v1/ws'
     }

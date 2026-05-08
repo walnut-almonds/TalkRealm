@@ -83,13 +83,14 @@ func NewClient(conn *websocket.Conn, manager *Manager) *Client {
 func (c *Client) readPump() {
 	defer func() {
 		c.manager.unregister <- c
-		c.conn.Close()
+
+		c.conn.Close() //nolint:errcheck,gosec
 	}()
 
 	c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetReadDeadline(time.Now().Add(pongWait)) //nolint:errcheck,gosec
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(pongWait))
+		c.conn.SetReadDeadline(time.Now().Add(pongWait)) //nolint:errcheck,gosec
 		return nil
 	})
 
@@ -103,6 +104,7 @@ func (c *Client) readPump() {
 			) {
 				log.Printf("websocket error: %v", err)
 			}
+
 			break
 		}
 
@@ -119,21 +121,24 @@ func (c *Client) readPump() {
 // writePump 將消息從管理器發送到 WebSocket 連接
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
+
 	defer func() {
 		ticker.Stop()
-		c.conn.Close()
+		c.conn.Close() //nolint:errcheck,gosec
 	}()
 
 	for {
 		select {
 		case message, ok := <-c.send:
 			if !ok {
-				c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				c.conn.SetWriteDeadline(time.Now().Add(writeWait))    //nolint:errcheck,gosec
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{}) //nolint:errcheck,gosec
+
 				return
 			}
 
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait)) //nolint:errcheck,gosec
+
 			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				return
 			}
@@ -141,14 +146,16 @@ func (c *Client) writePump() {
 			// 將排隊中的訊息逐一以獨立 frame 發送，避免多個 JSON 合併在同一 frame 導致解析失敗
 			n := len(c.send)
 			for i := 0; i < n; i++ {
-				c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+				c.conn.SetWriteDeadline(time.Now().Add(writeWait)) //nolint:errcheck,gosec
+
 				if err := c.conn.WriteMessage(websocket.TextMessage, <-c.send); err != nil {
 					return
 				}
 			}
 
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait)) //nolint:errcheck,gosec
+
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -173,6 +180,7 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 		if c.identified {
 			go c.manager.redisRefreshHeartbeat(c.userID)
 		}
+
 		return
 	}
 
@@ -183,6 +191,7 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 			Data:      map[string]string{"message": "not identified"},
 			Timestamp: time.Now().UnixMilli(),
 		})
+
 		return
 	}
 
@@ -195,6 +204,7 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 			log.Printf("invalid subscribe payload from user %s", c.username)
 			return
 		}
+
 		c.manager.SubscribeToChannel(c, payload.ChannelID)
 
 	case "unsubscribe":
@@ -204,60 +214,11 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 		if err := json.Unmarshal(msg.Data, &payload); err != nil || payload.ChannelID == 0 {
 			return
 		}
+
 		c.manager.UnsubscribeFromChannel(c, payload.ChannelID)
 
 	case "send_message":
-		var payload struct {
-			ChannelID   uint   `json:"channel_id"`
-			Content     string `json:"content"`
-			ContentType string `json:"type"`
-			Nonce       string `json:"nonce"`
-		}
-		if err := json.Unmarshal(
-			msg.Data,
-			&payload,
-		); err != nil || payload.ChannelID == 0 ||
-			payload.Content == "" {
-			c.sendJSON(OutgoingMessage{
-				Op: "error",
-				Data: map[string]string{
-					"message": "invalid send_message payload: channel_id and content required",
-				},
-				Timestamp: time.Now().UnixMilli(),
-			})
-			return
-		}
-		// Rate limit: 每秒最多 10 則
-		if !c.manager.CheckRateLimit(c.userID, 10) {
-			c.sendJSON(OutgoingMessage{
-				Op:        "error",
-				Data:      map[string]string{"message": "rate limit exceeded; please slow down"},
-				Timestamp: time.Now().UnixMilli(),
-			})
-			return
-		}
-		if c.manager.msgSender == nil {
-			c.sendJSON(OutgoingMessage{
-				Op:        "error",
-				Data:      map[string]string{"message": "messaging not available"},
-				Timestamp: time.Now().UnixMilli(),
-			})
-			return
-		}
-		contentType := payload.ContentType
-		if contentType == "" {
-			contentType = "text"
-		}
-		// CreateMessageWS 內部會廣播 message_create 給頻道所有訂閱者（含發送者自己）
-		if _, err := c.manager.msgSender.CreateMessageWS(
-			c.userID, payload.ChannelID, payload.Content, contentType, payload.Nonce,
-		); err != nil {
-			c.sendJSON(OutgoingMessage{
-				Op:        "error",
-				Data:      map[string]string{"message": err.Error()},
-				Timestamp: time.Now().UnixMilli(),
-			})
-		}
+		c.handleSendMessage(msg.Data)
 
 	case "typing_start":
 		var payload struct {
@@ -266,15 +227,111 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 		if err := json.Unmarshal(msg.Data, &payload); err != nil || payload.ChannelID == 0 {
 			return
 		}
+
 		c.manager.BroadcastToChannelExcept(c, payload.ChannelID, "typing_start", map[string]any{
 			"channel_id": payload.ChannelID,
 			"user_id":    c.userID,
 			"username":   c.username,
 		})
 
+	case "voice_state_update":
+		c.handleVoiceStateUpdate(msg.Data)
+
 	default:
 		log.Printf("unknown op '%s' from user %s", msg.Op, c.username)
 	}
+}
+
+// handleSendMessage 處理 send_message op：建立訊息並廣播
+func (c *Client) handleSendMessage(raw json.RawMessage) {
+	var payload struct {
+		ChannelID   uint   `json:"channel_id"`
+		Content     string `json:"content"`
+		ContentType string `json:"type"`
+		Nonce       string `json:"nonce"`
+	}
+
+	if err := json.Unmarshal(
+		raw,
+		&payload,
+	); err != nil || payload.ChannelID == 0 ||
+		payload.Content == "" {
+		c.sendJSON(OutgoingMessage{
+			Op: "error",
+			Data: map[string]string{
+				"message": "invalid send_message payload: channel_id and content required",
+			},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	if !c.manager.CheckRateLimit(c.userID, 10) {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "rate limit exceeded; please slow down"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	if c.manager.msgSender == nil {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "messaging not available"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	contentType := payload.ContentType
+	if contentType == "" {
+		contentType = "text"
+	}
+
+	if _, err := c.manager.msgSender.CreateMessageWS(
+		c.userID, payload.ChannelID, payload.Content, contentType, payload.Nonce,
+	); err != nil {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": err.Error()},
+			Timestamp: time.Now().UnixMilli(),
+		})
+	}
+}
+
+// handleVoiceStateUpdate 處理 voice_state_update op：廣播使用者加入/離開語音頻道
+func (c *Client) handleVoiceStateUpdate(raw json.RawMessage) {
+	var payload struct {
+		ChannelID uint   `json:"channel_id"`
+		Action    string `json:"action"` // "join" | "leave"
+	}
+
+	if err := json.Unmarshal(raw, &payload); err != nil || payload.ChannelID == 0 {
+		c.sendJSON(OutgoingMessage{
+			Op: "error",
+			Data: map[string]string{
+				"message": "invalid voice_state_update payload: channel_id required",
+			},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	if payload.Action != "join" && payload.Action != "leave" {
+		payload.Action = "join"
+	}
+
+	c.manager.BroadcastToChannel(payload.ChannelID, "voice_state_update", map[string]any{
+		"channel_id": payload.ChannelID,
+		"user_id":    c.userID,
+		"username":   c.username,
+		"action":     payload.Action,
+	})
 }
 
 // handleIdentify 處理 identify op：驗證 JWT 並回應 ready
@@ -293,6 +350,7 @@ func (c *Client) handleIdentify(raw json.RawMessage) {
 			Data:      map[string]string{"message": "invalid identify payload"},
 			Timestamp: time.Now().UnixMilli(),
 		})
+
 		return
 	}
 
@@ -303,6 +361,7 @@ func (c *Client) handleIdentify(raw json.RawMessage) {
 			Data:      map[string]string{"message": "invalid or expired token"},
 			Timestamp: time.Now().UnixMilli(),
 		})
+
 		return
 	}
 
@@ -357,6 +416,7 @@ func (c *Client) sendJSON(msg OutgoingMessage) {
 		log.Printf("error marshaling outgoing message: %v", err)
 		return
 	}
+
 	select {
 	case c.send <- data:
 	default:
@@ -370,6 +430,7 @@ func (c *Client) SendMessage(data []byte) {
 	case c.send <- data:
 	default:
 		close(c.send)
+
 		c.manager.unregister <- c
 	}
 }

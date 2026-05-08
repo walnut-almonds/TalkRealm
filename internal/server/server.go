@@ -17,6 +17,7 @@ import (
 	"github.com/walnut-almonds/talkrealm/pkg/logger"
 	pkgredis "github.com/walnut-almonds/talkrealm/pkg/redis"
 	"github.com/walnut-almonds/talkrealm/pkg/storage"
+	"github.com/walnut-almonds/talkrealm/pkg/voice"
 )
 
 // Server 代表應用程式伺服器
@@ -31,6 +32,7 @@ type Server struct {
 	messageHandler  *handler.MessageHandler
 	oauthHandler    *handler.OAuthHandler
 	fileHandler     *handler.FileHandler
+	voiceHandler    *handler.VoiceHandler
 	rdb             *goredis.Client
 	guildMemberRepo repository.GuildMemberRepository
 }
@@ -125,6 +127,10 @@ func New(cfg *config.Config) (*Server, error) {
 		messageService.SetFileService(fileService)
 	}
 
+	// 初始化 Voice Handler（LiveKit Token 生成）
+	voiceManager := voice.NewManager(&cfg.LiveKit)
+	voiceHandler := handler.NewVoiceHandler(voiceManager)
+
 	s := &Server{
 		config:          cfg,
 		router:          router,
@@ -136,6 +142,7 @@ func New(cfg *config.Config) (*Server, error) {
 		messageHandler:  messageHandler,
 		oauthHandler:    oauthHandler,
 		fileHandler:     fileHandler,
+		voiceHandler:    voiceHandler,
 		rdb:             rdb,
 		guildMemberRepo: guildMemberRepo,
 	}
@@ -256,6 +263,9 @@ func (s *Server) setupRoutes() {
 				} else {
 					channels.POST("/:id/messages", s.messageHandler.CreateMessage)
 				}
+
+				// 語音 Token（LiveKit）
+				channels.GET("/:id/voice/token", s.voiceHandler.GetVoiceToken)
 			}
 
 			// 訊息相關

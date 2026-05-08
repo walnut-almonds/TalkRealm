@@ -60,6 +60,23 @@ services:
       timeout: 5s
       retries: 5
 
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: talkrealm-livekit
+    restart: unless-stopped
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "7880:7880" # WebSocket / HTTP
+      - "7881:7881" # RTC TCP
+      - "50100-50200:50100-50200/udp" # RTC UDP
+    networks:
+      - talkrealm-network
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:7880" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
     driver: local

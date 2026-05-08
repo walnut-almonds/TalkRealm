@@ -17,6 +17,7 @@ type Config struct {
 	Log      LogConfig      `mapstructure:"log"`
 	OAuth    OAuthConfig    `mapstructure:"oauth"`
 	Minio    MinioConfig    `mapstructure:"minio"`
+	LiveKit  LiveKitConfig  `mapstructure:"livekit"`
 }
 
 // OAuthConfig OAuth 配置
@@ -65,17 +66,26 @@ type RedisConfig struct {
 // MinioConfig Minio 物件儲存配置
 type MinioConfig struct {
 	Endpoint        string `mapstructure:"endpoint"`
-	PublicEndpoint  string `mapstructure:"public_endpoint"`  // 公開 URL 前綴（留空則沿用 Endpoint）
+	PublicEndpoint  string `mapstructure:"public_endpoint"` // 公開 URL 前綴（留空則沿用 Endpoint）
 	AccessKey       string `mapstructure:"access_key"`
 	SecretKey       string `mapstructure:"secret_key"`
 	Bucket          string `mapstructure:"bucket"`
 	UseSSL          bool   `mapstructure:"use_ssl"`
-	PresignExpiry   int    `mapstructure:"presign_expiry"`    // 分鐘，預設 15
-	MaxFileSizeMB   int64  `mapstructure:"max_file_size_mb"` // 單檔上限，預設 50MB
-	DailyUploadMax  int    `mapstructure:"daily_upload_max"` // 每日上傳次數上限，預設 20
+	PresignExpiry   int    `mapstructure:"presign_expiry"`     // 分鐘，預設 15
+	MaxFileSizeMB   int64  `mapstructure:"max_file_size_mb"`   // 單檔上限，預設 50MB
+	DailyUploadMax  int    `mapstructure:"daily_upload_max"`   // 每日上傳次數上限，預設 20
 	DailyBytesMaxMB int64  `mapstructure:"daily_bytes_max_mb"` // 每日上傳總量上限 MB，預設 500
-	FileTTLDays     int    `mapstructure:"file_ttl_days"`    // 檔案 TTL（天），0 = 永久
-	LRUEvictEnabled bool   `mapstructure:"lru_evict_enabled"` // 開啟 LRU 清理
+	FileTTLDays     int    `mapstructure:"file_ttl_days"`      // 檔案 TTL（天），0 = 永久
+	LRUEvictEnabled bool   `mapstructure:"lru_evict_enabled"`  // 開啟 LRU 清理
+}
+
+// LiveKitConfig LiveKit 語音伺服器配置
+type LiveKitConfig struct {
+	APIKey    string `mapstructure:"api_key"`
+	APISecret string `mapstructure:"api_secret"`
+	URL       string `mapstructure:"url"`        // LiveKit Server WebSocket URL，例如 ws://livekit:7880
+	PublicURL string `mapstructure:"public_url"` // 前端連線用的公開 URL，例如 ws://localhost:7880
+	TokenTTL  int    `mapstructure:"token_ttl"`  // Token 有效秒數，預設 3600
 }
 
 // JWTConfig JWT 配置
@@ -158,6 +168,11 @@ func setDefaults() {
 		"oauth.google.redirect_url",
 		"http://localhost:8080/api/v1/auth/google/callback",
 	)
+
+	// LiveKit 預設值
+	viper.SetDefault("livekit.url", "ws://localhost:7880")
+	viper.SetDefault("livekit.public_url", "ws://localhost:7880")
+	viper.SetDefault("livekit.token_ttl", 3600)
 
 	// Minio 預設值
 	viper.SetDefault("minio.endpoint", "localhost:9000")

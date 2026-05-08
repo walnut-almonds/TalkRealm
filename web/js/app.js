@@ -9,7 +9,11 @@ const appState = {
     messages: [],
     isLoading: false,
     // 待附加的已確認檔案 ID（上傳成功後儲存，隨下次訊息一起送出）
-    pendingFileIds: []
+    pendingFileIds: [],
+    // 語音頻道狀態
+    voiceChannel: null,     // 目前已加入的語音頻道
+    voiceParticipants: {},  // { channelId: [{ user_id, username }] }
+    voiceRoom: null         // LiveKit Room 實例
 };
 
 // 初始化應用程式
@@ -719,6 +723,9 @@ function setupWebSocketHandlers() {
             case 'guild_member_update':
                 handleGuildMemberUpdate(data);
                 break;
+            case 'voice_state_update':
+                handleVoiceStateUpdate(data);
+                break;
         }
     });
 }
@@ -879,6 +886,122 @@ function handleGuildMemberUpdate(data) {
     }
 }
 
+// ===================== 語音頻道相關 =====================
+
+// 加入語音頻道
+async function joinVoiceChannel(channelId) {
+    // 若已在此頻道 → 離開
+    if (appState.voiceChannel && appState.voiceChannel.id === channelId) {
+        await leaveVoiceChannel();
+        return;
+    }
+    // 若在其他頻道 → 先離開
+    if (appState.voiceChannel) {
+        await leaveVoiceChannel();
+    }
+
+    const channel = appState.channels.find(c => c.id === channelId);
+    if (!channel) return;
+
+    try {
+        showLoading(true);
+        // 取得 LiveKit token
+        const resp = await api.getVoiceToken(channelId);
+        const { token, url } = resp;
+
+        // 使用 LiveKit JS SDK 連線（需在 index.html 引入 livekit-client CDN）
+        if (typeof window.LivekitClient === 'undefined') {
+            showNotification('LiveKit SDK 未載入，請檢查網路連線', 'error');
+            return;
+        }
+        const { Room, RoomEvent } = window.LivekitClient;
+        const room = new Room();
+
+        room.on(RoomEvent.ParticipantConnected, () => renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice')));
+        room.on(RoomEvent.ParticipantDisconnected, () => renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice')));
+        room.on(RoomEvent.Disconnected, () => {
+            appState.voiceChannel = null;
+            appState.voiceRoom = null;
+            renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
+            renderVoiceBar();
+        });
+
+        await room.connect(url, token);
+        await room.localParticipant.setMicrophoneEnabled(true);
+
+        appState.voiceRoom = room;
+        appState.voiceChannel = channel;
+
+        // 透過 WS 廣播加入事件
+        wsManager.sendVoiceStateUpdate(channelId, 'join');
+
+        renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
+        renderVoiceBar();
+        showNotification(`已加入語音頻道 #${channel.name}`, 'success');
+    } catch (err) {
+        console.error('Failed to join voice channel:', err);
+        showNotification(`加入語音頻道失敗：${err.message}`, 'error');
+        appState.voiceRoom = null;
+        appState.voiceChannel = null;
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 離開語音頻道
+async function leaveVoiceChannel() {
+    if (!appState.voiceChannel) return;
+    const channelId = appState.voiceChannel.id;
+    const channelName = appState.voiceChannel.name;
+
+    if (appState.voiceRoom) {
+        await appState.voiceRoom.disconnect();
+        appState.voiceRoom = null;
+    }
+
+    wsManager.sendVoiceStateUpdate(channelId, 'leave');
+    appState.voiceChannel = null;
+
+    renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
+    renderVoiceBar();
+    showNotification(`已離開語音頻道 #${channelName}`, 'info');
+}
+
+// 處理 WS voice_state_update 事件
+function handleVoiceStateUpdate(data) {
+    const { channel_id, user_id, username, action } = data;
+    if (!appState.voiceParticipants[channel_id]) {
+        appState.voiceParticipants[channel_id] = [];
+    }
+    if (action === 'join') {
+        const exists = appState.voiceParticipants[channel_id].some(p => p.user_id === user_id);
+        if (!exists) {
+            appState.voiceParticipants[channel_id].push({ user_id, username });
+        }
+    } else if (action === 'leave') {
+        appState.voiceParticipants[channel_id] = appState.voiceParticipants[channel_id].filter(p => p.user_id !== user_id);
+    }
+    renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
+    renderVoiceBar();
+}
+
+// 更新語音狀態列（頻道側邊欄底部的 voice bar）
+function renderVoiceBar() {
+    const bar = document.getElementById('voice-bar');
+    if (!bar) return;
+    if (!appState.voiceChannel) {
+        bar.hidden = true;
+        return;
+    }
+    bar.hidden = false;
+    const nameEl = document.getElementById('voice-bar-channel');
+    const guildEl = document.getElementById('voice-bar-guild');
+    if (nameEl) nameEl.textContent = `#${appState.voiceChannel.name}`;
+    if (guildEl) guildEl.textContent = appState.currentGuild ? appState.currentGuild.name : '';
+}
+
+// ===================== END 語音頻道相關 =====================
+
 // 渲染社群列表
 function renderGuilds() {
     const container = document.getElementById('guilds-list');
@@ -908,10 +1031,10 @@ function renderChannels() {
     const voiceChannels = appState.channels.filter(c => c.type === 'voice');
 
     renderChannelList('text-channels-list', textChannels, 'hashtag');
-    renderChannelList('voice-channels-list', voiceChannels, 'volume-up');
+    renderVoiceChannelList('voice-channels-list', voiceChannels);
 }
 
-// 渲染頻道列表（輔助函數）
+// 渲染文字頻道列表（輔助函數）
 function renderChannelList(containerId, channels, iconClass) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
@@ -924,7 +1047,38 @@ function renderChannelList(containerId, channels, iconClass) {
 
         channelElement.innerHTML = `
             <i class="fas fa-${iconClass}"></i>
-            <span>${channel.name}</span>
+            <span>${escapeHtml(channel.name)}</span>
+        `;
+
+        container.appendChild(channelElement);
+    });
+}
+
+// 渲染語音頻道列表（點擊加入語音）
+function renderVoiceChannelList(containerId, channels) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    channels.forEach(channel => {
+        const isActive = appState.voiceChannel && appState.voiceChannel.id === channel.id;
+        const participants = appState.voiceParticipants[channel.id] || [];
+
+        const channelElement = document.createElement('div');
+        channelElement.className = `channel-item${isActive ? ' active' : ''}`;
+        channelElement.setAttribute('data-channel-id', channel.id);
+        channelElement.onclick = () => joinVoiceChannel(channel.id);
+
+        const participantHtml = participants.length > 0
+            ? `<div class="voice-participants">${participants.map(p =>
+                `<div class="voice-participant"><i class="fas fa-user-circle"></i>${escapeHtml(p.username)}</div>`
+            ).join('')}</div>`
+            : '';
+
+        channelElement.innerHTML = `
+            <i class="fas fa-volume-up"></i>
+            <span>${escapeHtml(channel.name)}</span>
+            ${isActive ? '<i class="fas fa-microphone voice-active-icon" title="語音連線中"></i>' : ''}
+            ${participantHtml}
         `;
 
         container.appendChild(channelElement);

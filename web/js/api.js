@@ -327,6 +327,10 @@ class API {
             method: 'DELETE'
         });
     }
+    // 語音 API
+    async getVoiceToken(channelId) {
+        return this.get(API_CONFIG.ENDPOINTS.VOICE_TOKEN(channelId));
+    }
 }
 
 // 建立 API 實例

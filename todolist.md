@@ -125,10 +125,10 @@
 - [ ] **LRU background job**：定時呼叫 `CleanupExpired()` + 超量用戶 LRU 清理 goroutine
 
 ### LiveKit 語音整合
-- [ ] **引入 LiveKit SDK**：`pkg/voice/` 封裝 token 生成
-- [ ] `GET /api/v1/channels/{id}/voice/token`：回傳 LiveKit Room Token + URL
-- [ ] **WS `voice_state_update` op**：廣播使用者加入/離開語音頻道事件
-- [ ] Docker Compose 加入 LiveKit Server
+- [x] **引入 LiveKit SDK**：`pkg/voice/` 封裝 token 生成
+- [x] `GET /api/v1/channels/{id}/voice/token`：回傳 LiveKit Room Token + URL
+- [x] **WS `voice_state_update` op**：廣播使用者加入/離開語音頻道事件
+- [x] Docker Compose 加入 LiveKit Server
 
 ---
 
@@ -161,7 +161,7 @@
 - [x] Kubernetes Kustomize Base & Overlays
 - [ ] **Docker Compose 加入 NATS**：`nats:latest` with JetStream enabled
 - [x] **Docker Compose 加入 Minio**：`minio/minio` latest（dev + prod compose；K8s base + local/dev overlays）
-- [ ] **Docker Compose 加入 LiveKit**：`livekit/livekit-server`
+- [x] **Docker Compose 加入 LiveKit**：`livekit/livekit-server`
 - [ ] **CI/CD**：GitHub Actions — lint + test + build + push Docker image
 - [ ] **K8s Secrets 管理**：使用 Sealed Secrets 或 External Secrets Operator
 

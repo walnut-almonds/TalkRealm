@@ -159,6 +159,20 @@
                 </div>
             </div>
 
+            <!-- 語音狀態列（加入語音頻道時顯示） -->
+            <div id="voice-bar" class="voice-bar" hidden>
+                <div class="voice-bar-info">
+                    <i class="fas fa-volume-up voice-bar-icon"></i>
+                    <div class="voice-bar-text">
+                        <div id="voice-bar-channel" class="voice-bar-channel">語音連線中</div>
+                        <div id="voice-bar-guild" class="voice-bar-guild"></div>
+                    </div>
+                </div>
+                <button class="voice-bar-leave" onclick="leaveVoiceChannel()" title="離開語音">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+
             <!-- 使用者資訊 -->
             <div class="user-panel">
                 <div class="user-info">
@@ -417,6 +431,7 @@
     </div>
 
     <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
     <script src="js/websocket.js"></script>
