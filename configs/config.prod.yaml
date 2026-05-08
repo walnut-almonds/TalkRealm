@@ -49,3 +49,10 @@ minio:
   daily_bytes_max_mb: 500
   file_ttl_days: 0
   lru_evict_enabled: true
+
+livekit:
+  api_key: ${LIVEKIT_API_KEY}
+  api_secret: ${LIVEKIT_API_SECRET}
+  url: "ws://livekit:7880"         # 後端連線用（Docker 內部）
+  public_url: ${LIVEKIT_PUBLIC_URL} # e.g. https://voice.qrumi.org
+  token_ttl: 3600

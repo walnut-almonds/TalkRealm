@@ -49,3 +49,10 @@ minio:
   daily_bytes_max_mb: 500
   file_ttl_days: 0
   lru_evict_enabled: true
+
+livekit:
+  api_key: "devkey"         # --dev 模式預設 key
+  api_secret: "secret"      # --dev 模式預設 secret
+  url: "ws://livekit:7880"  # 後端連線用（Docker 內部）
+  public_url: "ws://localhost:7880"  # 前端連線用（宣主機）
+  token_ttl: 3600           # Token 有效秒數

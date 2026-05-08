@@ -62,6 +62,9 @@ jobs:
           MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           MINIO_BUCKET: ${{ secrets.MINIO_BUCKET }}
           MINIO_PUBLIC_ENDPOINT: ${{ secrets.MINIO_PUBLIC_ENDPOINT }}
+          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          LIVEKIT_PUBLIC_URL: ${{ secrets.LIVEKIT_PUBLIC_URL }}
         run: |
           test -n "$DB_PASSWORD"
           test -n "$REDIS_PASSWORD"
@@ -73,6 +76,9 @@ jobs:
           test -n "$MINIO_SECRET_KEY"
           test -n "$MINIO_BUCKET"
           test -n "$MINIO_PUBLIC_ENDPOINT"
+          test -n "$LIVEKIT_API_KEY"
+          test -n "$LIVEKIT_API_SECRET"
+          test -n "$LIVEKIT_PUBLIC_URL"
           envsubst < configs/config.prod.yaml > config.yaml
           {
             echo "POSTGRES_PASSWORD=$DB_PASSWORD"
@@ -85,6 +91,9 @@ jobs:
             echo "MINIO_SECRET_KEY=$MINIO_SECRET_KEY"
             echo "MINIO_BUCKET=$MINIO_BUCKET"
             echo "MINIO_PUBLIC_ENDPOINT=$MINIO_PUBLIC_ENDPOINT"
+            echo "LIVEKIT_API_KEY=$LIVEKIT_API_KEY"
+            echo "LIVEKIT_API_SECRET=$LIVEKIT_API_SECRET"
+            echo "LIVEKIT_PUBLIC_URL=$LIVEKIT_PUBLIC_URL"
           } > .env
 
       - name: Upload compose, config and .env to VPS

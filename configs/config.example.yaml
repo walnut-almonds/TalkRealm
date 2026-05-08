@@ -56,4 +56,4 @@ livekit:
   url: "ws://livekit:7880"  # 後端連線用（Docker 內部）
   public_url: "ws://localhost:7880"  # 前端連線用（宿主機）
   token_ttl: 3600           # Token 有效秒數
-  lru_evict_enabled: true   # 啟用 LRU 清理
+
