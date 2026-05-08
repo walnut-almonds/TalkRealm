@@ -332,6 +332,19 @@ function initDropZone() {
     const overlay = document.getElementById('drop-overlay');
     if (!chatMain || !overlay) return;
 
+    const hasDraggedFiles = (e) => {
+        const types = e.dataTransfer?.types;
+        if (!types) return false;
+
+        // Chrome/Safari: DOMStringList 可能沒有 includes
+        if (typeof types.contains === 'function') {
+            return types.contains('Files');
+        }
+
+        // 現代瀏覽器: 支援 iterable / includes
+        return Array.from(types).includes('Files');
+    };
+
     // 保險：初始化時強制隱藏，避免任何 CSS/快取狀態殘留
     overlay.classList.remove('active');
     overlay.hidden = true;
@@ -339,7 +352,7 @@ function initDropZone() {
     let dragCounter = 0; // 追蹤巢狀元素的 dragenter/dragleave
 
     chatMain.addEventListener('dragenter', (e) => {
-        if (!e.dataTransfer?.types?.includes('Files')) return;
+        if (!hasDraggedFiles(e)) return;
         e.preventDefault();
         dragCounter++;
         overlay.hidden = false;
@@ -356,7 +369,7 @@ function initDropZone() {
     });
 
     chatMain.addEventListener('dragover', (e) => {
-        if (!e.dataTransfer?.types?.includes('Files')) return;
+        if (!hasDraggedFiles(e)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
     });
@@ -385,6 +398,12 @@ function initDropZone() {
         dragCounter = 0;
         overlay.classList.remove('active');
         overlay.hidden = true;
+    });
+
+    // 防止拖檔到視窗時被瀏覽器直接打開檔案
+    window.addEventListener('dragover', (e) => {
+        if (!hasDraggedFiles(e)) return;
+        e.preventDefault();
     });
 
     window.addEventListener('drop', () => {
