@@ -13,7 +13,8 @@ const appState = {
     // 語音頻道狀態
     voiceChannel: null,     // 目前已加入的語音頻道
     voiceParticipants: {},  // { channelId: [{ user_id, username }] }
-    voiceRoom: null         // LiveKit Room 實例
+    voiceRoom: null,        // LiveKit Room 實例
+    voiceAudioElements: new Map() // { trackKey -> HTMLAudioElement }
 };
 
 // 初始化應用程式
@@ -888,6 +889,89 @@ function handleGuildMemberUpdate(data) {
 
 // ===================== 語音頻道相關 =====================
 
+// 取得/建立隱藏的語音播放容器
+function ensureVoiceAudioContainer() {
+    let container = document.getElementById('voice-audio-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'voice-audio-container';
+        container.style.display = 'none';
+        container.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(container);
+    }
+
+    return container;
+}
+
+// 產生音軌唯一鍵
+function getVoiceTrackKey(publication, participant, track) {
+    return publication?.trackSid || publication?.sid || track?.sid || `${participant?.sid || participant?.identity || 'unknown'}:audio`;
+}
+
+// 掛載遠端音軌到 DOM，確保可以播放
+function attachRemoteAudioTrack(track, publication, participant) {
+    if (!track || track.kind !== 'audio') return;
+
+    const key = getVoiceTrackKey(publication, participant, track);
+    if (appState.voiceAudioElements.has(key)) return;
+
+    const container = ensureVoiceAudioContainer();
+    const audioEl = track.attach();
+    audioEl.autoplay = true;
+    audioEl.playsInline = true;
+    audioEl.dataset.voiceTrackKey = key;
+    container.appendChild(audioEl);
+
+    appState.voiceAudioElements.set(key, audioEl);
+
+    const playPromise = audioEl.play?.();
+    if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch((err) => {
+            console.warn('[voice] autoplay blocked for remote audio track', key, err);
+        });
+    }
+
+    console.log('[voice] remote audio attached', {
+        key,
+        participantIdentity: participant?.identity,
+        participantSid: participant?.sid
+    });
+}
+
+// 移除遠端音軌
+function detachRemoteAudioTrack(track, publication, participant) {
+    if (!track || track.kind !== 'audio') return;
+
+    const key = getVoiceTrackKey(publication, participant, track);
+    const audioEl = appState.voiceAudioElements.get(key);
+    if (!audioEl) return;
+
+    try {
+        track.detach(audioEl);
+    } catch (_) {
+        // ignore detach errors
+    }
+
+    audioEl.remove();
+    appState.voiceAudioElements.delete(key);
+
+    console.log('[voice] remote audio detached', {
+        key,
+        participantIdentity: participant?.identity,
+        participantSid: participant?.sid
+    });
+}
+
+// 清空所有遠端音軌元素（離房/斷線時）
+function cleanupVoiceAudioElements() {
+    appState.voiceAudioElements.forEach((audioEl) => {
+        if (audioEl && audioEl.parentNode) {
+            audioEl.remove();
+        }
+    });
+    appState.voiceAudioElements.clear();
+}
+
 // 加入語音頻道
 async function joinVoiceChannel(channelId) {
     // 若已在此頻道 → 離開
@@ -917,9 +1001,26 @@ async function joinVoiceChannel(channelId) {
         const { Room, RoomEvent } = window.LivekitClient;
         const room = new Room();
 
+        // 先清掉可能殘留的音軌 DOM
+        cleanupVoiceAudioElements();
+
         room.on(RoomEvent.ParticipantConnected, () => renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice')));
         room.on(RoomEvent.ParticipantDisconnected, () => renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice')));
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+            attachRemoteAudioTrack(track, publication, participant);
+        });
+        room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+            detachRemoteAudioTrack(track, publication, participant);
+        });
+        room.on(RoomEvent.TrackSubscriptionFailed, (trackSid, participant) => {
+            console.warn('[voice] track subscription failed', {
+                trackSid,
+                participantIdentity: participant?.identity,
+                participantSid: participant?.sid
+            });
+        });
         room.on(RoomEvent.Disconnected, () => {
+            cleanupVoiceAudioElements();
             appState.voiceChannel = null;
             appState.voiceRoom = null;
             renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
@@ -958,6 +1059,8 @@ async function leaveVoiceChannel() {
         await appState.voiceRoom.disconnect();
         appState.voiceRoom = null;
     }
+
+    cleanupVoiceAudioElements();
 
     wsManager.sendVoiceStateUpdate(channelId, 'leave');
     appState.voiceChannel = null;

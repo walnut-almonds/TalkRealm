@@ -48,6 +48,9 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-08 — 前端語音播放修正（LiveKit）：
+- **`web/js/app.js`**：加入 `RoomEvent.TrackSubscribed/TrackUnsubscribed/TrackSubscriptionFailed` 監聽，將遠端 `audio` track `attach()` 到隱藏 `<audio>` 元素，離房/斷線時 cleanup；解決「可進同房但聽不到聲音」的主要前端缺口。
+
 2026-05-08 — Voice 連線修正（prod 部署）：
 - **`docker-compose.prod.yml`**：新增 `livekit` service（keys 讀取 `${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}`、expose `7880`、開放 `7881` 與 `50100-50200/udp`）
 - **`docker-compose.prod.yml`**：`nginx` 增加 `depends_on: livekit`
