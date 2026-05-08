@@ -908,6 +908,16 @@ function getVoiceTrackKey(publication, participant, track) {
     return publication?.trackSid || publication?.sid || track?.sid || `${participant?.sid || participant?.identity || 'unknown'}:audio`;
 }
 
+// 掛載某個 remote participant 目前所有已訂閱的 audio tracks（join 後補掛用）
+function attachExistingRemoteTracks(participant) {
+    participant.audioTrackPublications?.forEach((publication) => {
+        const track = publication.track;
+        if (track && publication.isSubscribed) {
+            attachRemoteAudioTrack(track, publication, participant);
+        }
+    });
+}
+
 // 掛載遠端音軌到 DOM，確保可以播放
 function attachRemoteAudioTrack(track, publication, participant) {
     if (!track || track.kind !== 'audio') return;
@@ -1027,7 +1037,21 @@ async function joinVoiceChannel(channelId) {
             renderVoiceBar();
         });
 
+        // 瀏覽器 autoplay 被 block 時，嘗試恢復播放
+        room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+            if (!room.canPlaybackAudio) {
+                console.warn('[voice] audio playback blocked, will retry on next user gesture');
+                room.startAudio().catch((err) => console.warn('[voice] startAudio failed', err));
+            }
+        });
+
         await room.connect(url, token);
+
+        // connect() 後，補掛已在房間的 remote participants 的現有音軌
+        room.remoteParticipants.forEach((participant) => {
+            attachExistingRemoteTracks(participant);
+        });
+
         await room.localParticipant.setMicrophoneEnabled(true);
 
         appState.voiceRoom = room;
