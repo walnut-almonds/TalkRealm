@@ -38,6 +38,7 @@ make check        # 全部檢查（lint + build + test）
 - `golangci-lint --fix` + `whole-files: true` 坑：修改 `mocks.go` 會曝露所有既有的 nilnil 問題。已用 `//nolint:nilnil` 全部標記。新增 mock 方法必須一同加標記。
 - `golangci-lint --fix` 會重新格式化 oauth_handler.go，造成 `NewRequestWithContext` 行號改變；`wsl_v5` 需在 `if err != nil { c.JSON(); return }` 的 return 前加空行。
 - 前端拖曳檔案判斷不可只用 `e.dataTransfer.types.includes('Files')`：Safari/部分瀏覽器 `types` 是 `DOMStringList`，需改用 `types.contains('Files')` 或 `Array.from(types).includes('Files')`；另外要在 `window.dragover` `preventDefault()`，避免瀏覽器直接開啟拖入檔案。
+- 若部署使用 `docker-compose.prod.yml`，必須包含 `livekit` service（`livekit:7880` 供 nginx upstream 轉發）。缺少該容器會導致 `wss://voice.../rtc/v1` 連線失敗，前端可能同時看到 `/rtc/v1/validate` CORS 錯誤（實際上常是 upstream 不可達）。
 
 ## Decisions
 - MQ 選擇 NATS JetStream（輕量，適合小團隊），備選 Kafka
@@ -46,6 +47,11 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-08 — Voice 連線修正（prod 部署）：
+- **`docker-compose.prod.yml`**：新增 `livekit` service（keys 讀取 `${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}`、expose `7880`、開放 `7881` 與 `50100-50200/udp`）
+- **`docker-compose.prod.yml`**：`nginx` 增加 `depends_on: livekit`
+- **`nginx/nginx.conf`**：`location /rtc` CORS header 改為穩定 always 模式（含 `Vary: Origin`、`X-Livekit-*` headers），並保留 `OPTIONS -> 204`
+
 2026-05-08 — LiveKit 語音整合（Phase 3）實作完成：
 - **`pkg/voice/token.go`**：`Manager` 封裝 LiveKit token 生成；`GenerateRoomToken(channelID, userID, username)` 以 `channel:{id}` 作為 room name，回傳 `RoomTokenResponse{Token, URL, RoomName, Identity}`
 - **`pkg/config/config.go`**：新增 `LiveKitConfig{APIKey, APISecret, URL, PublicURL, TokenTTL}`；`--dev` 模式預設 key=devkey / secret=secret

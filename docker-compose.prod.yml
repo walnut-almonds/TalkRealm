@@ -53,6 +53,24 @@ services:
       timeout: 5s
       retries: 5
 
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: talkrealm-livekit
+    restart: unless-stopped
+    command: --bind 0.0.0.0 --keys ${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
+    expose:
+      - "7880"
+    ports:
+      - "7881:7881"
+      - "50100-50200:50100-50200/udp"
+    networks:
+      - talkrealm-network
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:7880" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   app:
     image: ghcr.io/walnut-almonds/talkrealm:latest
     container_name: talkrealm-app
@@ -84,6 +102,7 @@ services:
       - talkrealm-network
     depends_on:
       - app
+      - livekit
 
 volumes:
   postgres_data:
