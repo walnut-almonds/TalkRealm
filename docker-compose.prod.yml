@@ -57,7 +57,7 @@ services:
     image: livekit/livekit-server:latest
     container_name: talkrealm-livekit
     restart: unless-stopped
-    command: --bind 0.0.0.0 --keys ${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
+    command: '--bind 0.0.0.0 --keys "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"'
     expose:
       - "7880"
     ports:
