@@ -234,7 +234,12 @@ export const useAppStore = defineStore('app', () => {
         if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) return
         if (msg.nonce) {
             const idx = messages.value.findIndex(m => m.nonce === msg.nonce && m._pending)
-            if (idx !== -1) { messages.value[idx] = msg; return }
+            if (idx !== -1) {
+                // splice 觸發完整的响應式更新
+                messages.value.splice(idx, 1, msg)
+                return
+            }
+            // 已存在相同 nonce 的真實訊息，不重複新增
             if (messages.value.some(m => m.nonce === msg.nonce && !m._pending)) return
         }
         messages.value.push(msg)

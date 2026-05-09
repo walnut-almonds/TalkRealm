@@ -18,6 +18,14 @@ watch(() => store.messages.length, async () => {
   }
 })
 
+// 也監聴最後一筆訊息的 id 變化（pending 被真實 echo 取代時 length 不變，但需要 scroll）
+watch(() => store.messages.at?.(-1)?.id, async (newId) => {
+  if (newId && isAtBottom.value) {
+    await nextTick()
+    scrollToBottom()
+  }
+})
+
 watch(() => store.currentChannel, async () => {
   hasMore.value = true
   await nextTick()

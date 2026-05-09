@@ -2,7 +2,6 @@
 import { inject } from 'vue'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
-import { useWebSocket } from '@/composables/useWebSocket.js'
 import VoiceBar from './VoiceBar.vue'
 import UserPanel from './UserPanel.vue'
 
@@ -11,16 +10,13 @@ const voice     = inject('voice')
 
 const store = useAppStore()
 const voiceStore = useVoiceStore()
-const ws = useWebSocket()
 
 async function selectChannel(channel) {
   if (channel.type === 'voice') {
     await voice.joinVoiceChannel(channel.id)
     return
   }
-  if (store.currentChannel) ws.unsubscribeFromChannel(store.currentChannel.id)
   await store.selectChannel(channel.id)
-  ws.subscribeToChannel(channel.id)
 }
 </script>
 

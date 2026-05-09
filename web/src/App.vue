@@ -34,6 +34,12 @@ ws.onMessage((type, data) => {
   }
 })
 
+// 監聴目前頻道變化，自動訂閱/取消訂閱 WS（包含初始載入自動切換的情況）
+watch(() => store.currentChannel?.id, (newId, oldId) => {
+  if (oldId && oldId !== newId) ws.unsubscribeFromChannel(oldId)
+  if (newId) ws.subscribeToChannel(newId)
+})
+
 onMounted(async () => {
   await store.checkAuth()
   if (store.isAuthenticated) {
