@@ -76,8 +76,8 @@ type FileService interface {
 	ConfirmUpload(userID, fileID uint) (*model.File, error)
 	// GetFile 取得檔案 metadata（更新 last_accessed_at）
 	GetFile(userID, fileID uint) (*model.File, error)
-	// GetDownloadURL 產生 Pre-signed 下載 URL
-	GetDownloadURL(userID, fileID uint) (string, error)
+	// GetDownloadURL 產生 Pre-signed 下載 URL，回傳 (url, expiresInSeconds, error)
+	GetDownloadURL(userID, fileID uint) (string, int, error)
 	// DeleteFile 刪除檔案（Minio + DB）
 	DeleteFile(userID, fileID uint) error
 	// AttachToMessage 將已確認的檔案關聯到訊息
@@ -235,30 +235,70 @@ func (s *fileService) GetFile(userID, fileID uint) (*model.File, error) {
 	return file, nil
 }
 
-func (s *fileService) GetDownloadURL(userID, fileID uint) (string, error) {
+func (s *fileService) GetDownloadURL(userID, fileID uint) (string, int, error) {
 	// Any authenticated user may download a file (e.g. viewing another user's
 	// attachment in a shared channel).  We only require the file to be active.
 	file, err := s.fileRepo.GetByID(fileID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", ErrFileNotFound
+			return "", 0, ErrFileNotFound
 		}
 
-		return "", err
+		return "", 0, err
 	}
 
 	if file.Status != "active" {
-		return "", ErrFileNotFound
+		return "", 0, ErrFileNotFound
 	}
 
 	_ = s.fileRepo.TouchLastAccessed(fileID)
 
-	url, err := s.storage.PresignGetURL(file.StorageKey, s.cfg.PresignExpiry)
-	if err != nil {
-		return "", err
+	// public_read 模式：bucket 開放公開存取，URL 為永久固定網址，
+	// 無 signature、無過期，瀏覽器可無限期快取。
+	if s.cfg.PublicRead {
+		return s.storage.PublicFileURL(file.StorageKey), -1, nil
 	}
 
-	return url, nil
+	// 2-minute safety buffer so cached URL never expires before the TTL we advertise.
+	const bufferMin = 2
+
+	cacheTTLMin := s.cfg.PresignExpiry - bufferMin
+	if cacheTTLMin <= 0 {
+		cacheTTLMin = 1
+	}
+
+	cacheTTL := time.Duration(cacheTTLMin) * time.Minute
+
+	// Try to serve a cached URL from Redis – same URL → browser can actually cache
+	// the image by its stable URL instead of re-downloading on every page render.
+	cacheKey := fmt.Sprintf("file:dl_url:%d", fileID)
+
+	if s.rdb != nil {
+		ctx := context.Background()
+
+		if cachedURL, redisErr := s.rdb.Get(ctx, cacheKey).Result(); redisErr == nil {
+			remaining, _ := s.rdb.TTL(ctx, cacheKey).Result()
+			expiresIn := int(remaining.Seconds())
+
+			if expiresIn < 0 {
+				expiresIn = 0
+			}
+
+			return cachedURL, expiresIn, nil
+		}
+	}
+
+	presignedURL, err := s.storage.PresignGetURL(file.StorageKey, s.cfg.PresignExpiry)
+	if err != nil {
+		return "", 0, err
+	}
+
+	// Store in Redis so subsequent callers within the window get the same URL.
+	if s.rdb != nil {
+		_ = s.rdb.Set(context.Background(), cacheKey, presignedURL, cacheTTL).Err()
+	}
+
+	return presignedURL, cacheTTLMin * 60, nil
 }
 
 func (s *fileService) DeleteFile(userID, fileID uint) error {
@@ -277,6 +317,11 @@ func (s *fileService) DeleteFile(userID, fileID uint) error {
 
 	// 先刪 Minio（允許 object 不存在）
 	_ = s.storage.DeleteObject(file.StorageKey)
+
+	// 清除下載 URL 快取
+	if s.rdb != nil {
+		_ = s.rdb.Del(context.Background(), fmt.Sprintf("file:dl_url:%d", fileID)).Err()
+	}
 
 	return s.fileRepo.Delete(fileID)
 }

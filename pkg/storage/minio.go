@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -49,6 +50,16 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 
 	logger.Info("Minio connected", "endpoint", cfg.Endpoint, "bucket", cfg.Bucket)
 
+	// 若設定為 public_read，套用 bucket public-read policy，
+	// 讓物件可透過穩定 URL 直接存取，無需 pre-signed signature。
+	if cfg.PublicRead {
+		if err = applyPublicReadPolicy(ctx, mc, cfg.Bucket); err != nil {
+			return nil, fmt.Errorf("minio: set public-read policy failed: %w", err)
+		}
+
+		logger.Info("Minio bucket set to public-read", "bucket", cfg.Bucket)
+	}
+
 	// Build a second client that signs requests with the public endpoint as host.
 	// SigV4 embeds the Host in the canonical request; if the signing host differs
 	// from the host MinIO sees (e.g. minio:9000 vs media.qrumi.org), validation
@@ -80,6 +91,55 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 	}
 
 	return &Client{mc: mc, presignMC: presignMC, bucket: cfg.Bucket, cfg: cfg}, nil
+}
+
+// applyPublicReadPolicy 設定 bucket 為 public-read（允許任何人 GET 物件）。
+func applyPublicReadPolicy(ctx context.Context, mc *minio.Client, bucket string) error {
+	type statement struct {
+		Effect    string   `json:"Effect"`
+		Principal string   `json:"Principal"`
+		Action    []string `json:"Action"`
+		Resource  []string `json:"Resource"`
+	}
+	type policy struct {
+		Version   string      `json:"Version"`
+		Statement []statement `json:"Statement"`
+	}
+
+	p := policy{
+		Version: "2012-10-17",
+		Statement: []statement{
+			{
+				Effect:    "Allow",
+				Principal: "*",
+				Action:    []string{"s3:GetObject"},
+				Resource:  []string{fmt.Sprintf("arn:aws:s3:::%s/*", bucket)},
+			},
+		},
+	}
+
+	policyJSON, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+
+	return mc.SetBucketPolicy(ctx, bucket, string(policyJSON))
+}
+
+// PublicFileURL 回傳物件的公開永久 URL（需 bucket 已設為 public-read）。
+// 格式：{publicEndpoint}/{bucket}/{key}
+func (c *Client) PublicFileURL(key string) string {
+	base := c.cfg.PublicEndpoint
+	if base == "" {
+		scheme := "http"
+		if c.cfg.UseSSL {
+			scheme = "https"
+		}
+
+		base = fmt.Sprintf("%s://%s", scheme, c.cfg.Endpoint)
+	}
+
+	return fmt.Sprintf("%s/%s/%s", strings.TrimRight(base, "/"), c.cfg.Bucket, key)
 }
 
 func (c *Client) PresignPutURL(key, _ string, expiry int) (string, error) {

@@ -72,6 +72,7 @@ type MinioConfig struct {
 	Bucket          string `mapstructure:"bucket"`
 	UseSSL          bool   `mapstructure:"use_ssl"`
 	PresignExpiry   int    `mapstructure:"presign_expiry"`     // 分鐘，預設 15
+	PublicRead      bool   `mapstructure:"public_read"`        // true = bucket 設為公開讀取，URL 無 signature
 	MaxFileSizeMB   int64  `mapstructure:"max_file_size_mb"`   // 單檔上限，預設 50MB
 	DailyUploadMax  int    `mapstructure:"daily_upload_max"`   // 每日上傳次數上限，預設 20
 	DailyBytesMaxMB int64  `mapstructure:"daily_bytes_max_mb"` // 每日上傳總量上限 MB，預設 500
@@ -179,6 +180,7 @@ func setDefaults() {
 	viper.SetDefault("minio.bucket", "talkrealm")
 	viper.SetDefault("minio.use_ssl", false)
 	viper.SetDefault("minio.presign_expiry", 15)
+	viper.SetDefault("minio.public_read", false)
 	viper.SetDefault("minio.max_file_size_mb", 50)
 	viper.SetDefault("minio.daily_upload_max", 20)
 	viper.SetDefault("minio.daily_bytes_max_mb", 500)

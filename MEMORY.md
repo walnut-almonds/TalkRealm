@@ -49,6 +49,18 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-09 — Minio public_read 模式：
+- **`pkg/config/config.go`**：`MinioConfig` 新增 `PublicRead bool`（mapstructure: `public_read`，預設 false）
+- **`pkg/storage/minio.go`**：`NewClient` 若 `cfg.PublicRead=true` 自動呼叫 `applyPublicReadPolicy` 套用 S3 public-read policy（Allow s3:GetObject *）；新增 `PublicFileURL(key)` 回傳 `{publicEndpoint}/{bucket}/{key}` 永久 URL
+- **`internal/service/file_service.go`**：`GetDownloadURL` 若 `public_read=true` 直接回傳永久 URL（expiresIn=-1），跳過 Redis 快取與 presign 流程
+- **`internal/handler/file_handler.go`**：`expiresIn<0` 時回應 `Cache-Control: public, max-age=31536000, immutable`
+- **`configs/config.example.yaml`**：新增 `public_read: false` 欄位
+
+2026-05-09 — 圖片快取修正（server-side Redis + HTTP Cache-Control）：
+- **`internal/service/file_service.go`**：`GetDownloadURL` 回傳 `(string, int, error)`；先查 Redis key `file:dl_url:{fileID}`，命中則回傳同一 URL + 剩餘 TTL 秒數；未命中才呼叫 Minio presign，並以 `(PresignExpiry-2) min` TTL 寫入 Redis。`DeleteFile` 同步 `DEL` 該 key。
+- **`internal/handler/file_handler.go`**：`GetDownloadURL` handler 新增 `Cache-Control: private, max-age={expiresIn}` 回應標頭，並在 JSON 加入 `expires_in` 欄位，讓瀏覽器可快取 API 回應。
+- 效果：同一 fileID 在 presign 週期內永遠取得相同 URL，瀏覽器圖片快取得以生效；切換頻道返回不再重新下載已載入圖片。
+
 2026-05-08 — 前端圖片重複下載修正：
 - **`web/js/app.js`**：圖片附件載入流程加入 URL 快取（`attachmentImageURLCache`）與請求去重（`attachmentImageFetchInFlight`），`renderMessages()` 先用快取 URL，不再每次重繪都重新打 `GET /files/:id/url`；若 URL 過期，`img.onerror` 只觸發一次強制更新，避免無限重試。
 

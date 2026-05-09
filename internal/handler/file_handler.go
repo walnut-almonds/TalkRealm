@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -176,7 +177,7 @@ func (h *FileHandler) GetDownloadURL(c *gin.Context) {
 		return
 	}
 
-	url, err := h.fileService.GetDownloadURL(userID.(uint), uint(fileID))
+	downloadURL, expiresIn, err := h.fileService.GetDownloadURL(userID.(uint), uint(fileID))
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFileNotFound):
@@ -190,7 +191,15 @@ func (h *FileHandler) GetDownloadURL(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"url": url})
+	if expiresIn > 0 {
+		// pre-signed URL: browser may cache until expiry
+		c.Header("Cache-Control", fmt.Sprintf("private, max-age=%d", expiresIn))
+	} else if expiresIn < 0 {
+		// public_read mode: permanent URL, cache forever
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	}
+
+	c.JSON(http.StatusOK, gin.H{"url": downloadURL, "expires_in": expiresIn})
 }
 
 // DeleteFile 刪除檔案
