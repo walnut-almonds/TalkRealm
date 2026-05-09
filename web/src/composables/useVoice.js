@@ -48,8 +48,23 @@ export function useVoice(appStore) {
             })
 
             room.on(RoomEvent.ParticipantConnected, (participant) => {
-                // request their state
+                // Broadcast our own state so the new participant knows about us
                 broadcastSelfState(room, voice.voiceChannel?.id, appStore.user)
+                // Add them to the visible participant list (identity→userId registered via DataReceived)
+                const userId = voice.identityToUserId.get(participant.identity)
+                if (userId) {
+                    voice.upsertParticipant(voice.voiceChannel?.id ?? channelId, userId, participant.name || participant.identity)
+                }
+            })
+
+            room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+                const userId = voice.identityToUserId.get(participant.identity)
+                const cid = voice.voiceChannel?.id ?? channelId
+                if (userId) {
+                    voice.removeParticipant(cid, userId)
+                    voice.removeParticipantState(cid, userId)
+                    voice.identityToUserId.delete(participant.identity)
+                }
             })
 
             room.on(RoomEvent.Disconnected, () => {
@@ -67,16 +82,28 @@ export function useVoice(appStore) {
 
             await room.connect(url, token)
 
-            // Register our own identity → userId mapping
+            // Register our own identity → userId mapping & add self to participant list
             if (appStore.user) {
                 voice.identityToUserId.set(room.localParticipant.identity, appStore.user.id)
+                voice.upsertParticipant(channelId, appStore.user.id, appStore.user.nickname || appStore.user.username || 'Unknown')
+                voice.upsertParticipantState(channelId, appStore.user.id, {
+                    user_id: appStore.user.id,
+                    username: appStore.user.nickname || appStore.user.username || 'Unknown',
+                    mic_enabled: true,
+                    deafened: false,
+                })
             }
 
-            // Attach existing remote tracks & register their identity→userId
+            // Attach existing remote tracks & add them to participant list
             room.remoteParticipants.forEach(p => {
                 p.audioTrackPublications?.forEach(pub => {
                     if (pub.track && pub.isSubscribed) voice.attachAudioTrack(pub.track, pub, p)
                 })
+                // Register and show existing remote participants
+                const remoteUserId = voice.identityToUserId.get(p.identity)
+                if (remoteUserId) {
+                    voice.upsertParticipant(channelId, remoteUserId, p.name || p.identity)
+                }
             })
 
             await room.localParticipant.setMicrophoneEnabled(true)
@@ -108,7 +135,10 @@ export function useVoice(appStore) {
         }
         voice.cleanupAudio()
         ws.sendVoiceStateUpdate(channelId, 'leave')
-        if (appStore.user) voice.removeParticipantState(channelId, appStore.user.id)
+        if (appStore.user) {
+            voice.removeParticipant(channelId, appStore.user.id)
+            voice.removeParticipantState(channelId, appStore.user.id)
+        }
         voice.voiceChannel = null
         voice.voiceSelfState.micEnabled = true
         voice.voiceSelfState.deafened = false
@@ -201,6 +231,10 @@ export function useVoice(appStore) {
             if (participant?.identity) {
                 voice.identityToUserId.set(participant.identity, user_id)
             }
+
+            // Show the participant in the list as soon as we know their identity
+            const displayName = username || participant?.name || 'Unknown'
+            voice.upsertParticipant(channel_id, user_id, displayName)
 
             voice.upsertParticipantState(channel_id, user_id, {
                 user_id,

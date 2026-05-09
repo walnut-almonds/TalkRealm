@@ -1015,11 +1015,94 @@ select {
     gap: 12px;
     padding: 2px 16px;
     transition: background 0.1s;
+    position: relative;
 }
 
 .message:hover {
     background: rgba(0, 0, 0, 0.06);
 }
+
+/* ── Hover action bar ─────────────────────────────────────── */
+.message-actions-bar {
+    display: none;
+    position: absolute;
+    right: 16px;
+    top: 2px;
+    flex-direction: row;
+    gap: 2px;
+    padding: 2px 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+}
+
+.message:hover .message-actions-bar {
+    display: flex;
+}
+
+.msg-action-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 4px 7px;
+    border-radius: 3px;
+    font-size: 13px;
+    cursor: pointer;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+}
+
+.msg-action-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.msg-action-btn.danger:hover {
+    color: var(--danger);
+}
+
+/* ── Inline edit ─────────────────────────────────────────── */
+.message-edit-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.message-edit-input {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    outline: none;
+}
+
+.message-edit-hints {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.message-edited {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 4px;
+}
+
+.btn-sm {
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
 
 .message--pending {
     opacity: 0.6;
