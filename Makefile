@@ -47,12 +47,19 @@ test: install
 docs: install
 	swag init -g ./internal/server/server.go -o ./docs/openapi --outputTypes json,yaml
 
+.PHONY: build-web
+build-web:
+	cd web && npm install && npm run build
+
 .PHONY: build
 build: install
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 	go build \
 		-ldflags "-X github.com/walnut-almonds/talkrealm/buildinfo.Version=$(VERSION)" \
 		-o ./bin/server ./cmd/server
+
+.PHONY: build-all
+build-all: build-web build
 
 pack: build
 	docker buildx build \

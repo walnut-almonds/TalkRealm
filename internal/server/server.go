@@ -164,10 +164,17 @@ func New(cfg *config.Config) (*Server, error) {
 //	@contact.url	http://www.talkrealm.example.com/support
 //	@contact.email	support@talkrealm.example.com
 func (s *Server) setupRoutes() {
-	// 提供靜態檔案 (前端)
-	s.router.Static("/js", "./web/js")
-	s.router.Static("/css", "./web/css")
-	s.router.StaticFile("/", "./web/index.html")
+	// 提供靜態檔案 (前端 Vue 構建輸出)
+	s.router.Static("/assets", "./web/dist/assets")
+	s.router.StaticFile("/", "./web/dist/index.html")
+	// SPA fallback: 所有非 API 路由都返回 index.html
+	s.router.NoRoute(func(c *gin.Context) {
+		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+			c.JSON(404, gin.H{"error": "not found"})
+			return
+		}
+		c.File("./web/dist/index.html")
+	})
 
 	// 健康檢查
 	s.router.GET("/health", handler.HealthCheck)
