@@ -45,7 +45,6 @@ minio:
   public_read: true           # true = bucket 開放公開讀取，URL 無 signature，需搭配 nginx/CDN 保護
   presign_expiry: 15        # Pre-signed URL 有效分鐘數（public_read=true 時無效）
   use_ssl: false
-  presign_expiry: 15
   max_file_size_mb: 50
   daily_upload_max: 20
   daily_bytes_max_mb: 500
