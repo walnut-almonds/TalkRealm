@@ -37,7 +37,11 @@ type MessageService interface {
 	SetWebSocketManager(manager WebSocketManager)
 	SetFileService(fs FileService)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
-	CreateMessageWS(userID, channelID uint, content, contentType, nonce string, fileIDs []uint) (any, error)
+	CreateMessageWS(
+		userID, channelID uint,
+		content, contentType, nonce string,
+		fileIDs []uint,
+	) (any, error)
 }
 
 type messageService struct {
@@ -242,9 +246,11 @@ func (s *messageService) ListChannelMessages(
 		return nil, err
 	}
 
+	// messages 已由 repo 反轉為 ASC（由舊到新）
+	// 多取的那筆在 index 0（最舊的那筆），用來判斷是否還有更舊的資料
 	hasMore := len(messages) > limit
 	if hasMore {
-		messages = messages[:limit]
+		messages = messages[1:] // 捨棄最舊的 sentinel，保留最新的 limit 筆
 	}
 
 	return &MessageListResponse{
