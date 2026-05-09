@@ -154,6 +154,25 @@
 
 ---
 
+## 🛡️ Config 安全防護（源自 2026-05-09 production fatal panic — 重複 config key）
+
+> 根本原因：YAML 重複 key 導致 viper 解析出非預期值，服務啟動後存取 nil 欄位引發 panic。
+
+- [ ] **Config Struct Validation**：`Load()` 完成 `viper.Unmarshal` 後，加入 `go-playground/validator` 驗證（`validate:"required"` 標記必填欄位如 `jwt.secret`、`database.host`）；驗證失敗改為 `log.Fatal` 印出清楚錯誤並 `os.Exit(1)`，而非讓 nil pointer 在深層 panic
+- [ ] **Strict YAML Parser（啟動期 fail-fast）**：`config.Load()` 改用 `yaml.v3` + `KnownFields(true)`（或等效 strict 模式）先 decode 到中繼 struct，再交由 viper；若出現 duplicate key / unknown field 立即回錯並中止啟動
+- [ ] **YAML Duplicate Key 偵測**：CI pipeline（GitHub Actions）加入 `yamllint -d "{rules: {key-duplicates: enable}}"` 步驟，覆蓋 `configs/*.yaml`；重複 key 時 PR 無法合併
+- [ ] **Config Schema 驗證（CI）**：新增 JSON Schema（或 CUE）描述 `configs/*.yaml` 結構與約束（必填欄位、數值範圍、enum）；CI 必跑 schema validation
+- [ ] **`make config-check` dry-run 指令**：新增 Makefile target，執行 `go run ./scripts/config_check.go`，載入當前 config 並 pretty-print parsed struct，部署前人工確認
+- [ ] **Binary `--validate-config` 模式**：`cmd/server/main.go` 支援 `--validate-config`，僅載入/解析/驗證 config，不連 DB、不啟 HTTP；失敗回傳 exit code 1，供本機與 CI 使用
+- [ ] **CI 執行容器化驗證**：在 build 後增加 `docker run --rm <image> --validate-config`，確保「實際 binary + config」在部署前可啟動通過驗證
+- [ ] **Panic 最後防線**：在 `main()` 最外層加 `defer recover()`，統一輸出含 stack trace 與 config 檔路徑/版本資訊的 structured log，避免只留下難讀 panic
+- [ ] **Staging 環境 Overlay**：在 `deploy/k8s/overlays/` 加入 `staging` overlay，prod 部署前必須先在 staging 驗證 config 與服務啟動正常，再手動 promote
+- [ ] **Progressive Delivery**：prod 改採 rolling/canary（先 1 pod 或 5% 流量），新版本健康檢查連續失敗時自動停止 rollout
+- [ ] **Health Check + Auto-Rollback**：K8s readiness/liveness 與部署策略綁定，啟動 panic 導致 unhealthy 時自動回退上一版，縮小爆炸半徑
+- [ ] **Config 變更四眼原則**：`configs/*` 強制 PR + 至少 1 名 reviewer approve（CODEOWNERS + branch protection），禁止直接 push 主分支
+
+---
+
 ## 🏗️ 基礎架構 & 部署
 
 - [x] Dockerfile 與服務打包
