@@ -881,7 +881,7 @@ type MockMessageService struct {
 	UpdateMessageFn       func(messageID, userID uint, req *service.UpdateMessageRequest) (*model.Message, error)
 	DeleteMessageFn       func(messageID, userID uint) error
 	SetWebSocketManagerFn func(manager service.WebSocketManager)
-	CreateMessageWSFn     func(userID, channelID uint, content, contentType, nonce string) (any, error)
+	CreateMessageWSFn     func(userID, channelID uint, content, contentType, nonce string, fileIDs []uint) (any, error)
 }
 
 var _ service.MessageService = (*MockMessageService)(nil)
@@ -947,9 +947,10 @@ func (m *MockMessageService) SetFileService(_ service.FileService) {}
 func (m *MockMessageService) CreateMessageWS(
 	userID, channelID uint,
 	content, contentType, nonce string,
+	fileIDs []uint,
 ) (any, error) {
 	if m.CreateMessageWSFn != nil {
-		return m.CreateMessageWSFn(userID, channelID, content, contentType, nonce)
+		return m.CreateMessageWSFn(userID, channelID, content, contentType, nonce, fileIDs)
 	}
 
 	return nil, nil //nolint:nilnil

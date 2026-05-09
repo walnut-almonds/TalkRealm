@@ -81,6 +81,10 @@ function createWebSocketManager() {
         return send({ op: 'typing_start', d: { channel_id: channelId } })
     }
 
+    function sendMessage(channelId, content, type = 'text', nonce = '', fileIds = []) {
+        return send({ op: 'send_message', d: { channel_id: channelId, content, type, nonce, file_ids: fileIds } })
+    }
+
     function sendVoiceStateUpdate(channelId, action) {
         return send({ op: 'voice_state_update', d: { channel_id: channelId, action } })
     }
@@ -143,7 +147,7 @@ function createWebSocketManager() {
         isConnected,
         connect, disconnect,
         send, sendIdentify, subscribeToChannel, unsubscribeFromChannel,
-        sendTyping, sendVoiceStateUpdate,
+        sendTyping, sendMessage, sendVoiceStateUpdate,
         onMessage, offMessage,
     }
 }

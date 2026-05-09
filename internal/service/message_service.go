@@ -37,7 +37,7 @@ type MessageService interface {
 	SetWebSocketManager(manager WebSocketManager)
 	SetFileService(fs FileService)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
-	CreateMessageWS(userID, channelID uint, content, contentType, nonce string) (any, error)
+	CreateMessageWS(userID, channelID uint, content, contentType, nonce string, fileIDs []uint) (any, error)
 }
 
 type messageService struct {
@@ -77,12 +77,14 @@ func (s *messageService) SetWebSocketManager(manager WebSocketManager) {
 func (s *messageService) CreateMessageWS(
 	userID, channelID uint,
 	content, contentType, nonce string,
+	fileIDs []uint,
 ) (any, error) {
 	return s.CreateMessage(userID, &CreateMessageRequest{
 		ChannelID: channelID,
 		Content:   content,
 		Type:      contentType,
 		Nonce:     nonce,
+		FileIDs:   fileIDs,
 	})
 }
 

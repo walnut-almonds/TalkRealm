@@ -249,17 +249,15 @@ func (c *Client) handleSendMessage(raw json.RawMessage) {
 		Content     string `json:"content"`
 		ContentType string `json:"type"`
 		Nonce       string `json:"nonce"`
+		FileIDs     []uint `json:"file_ids"`
 	}
 
-	if err := json.Unmarshal(
-		raw,
-		&payload,
-	); err != nil || payload.ChannelID == 0 ||
-		payload.Content == "" {
+	if err := json.Unmarshal(raw, &payload); err != nil || payload.ChannelID == 0 ||
+		(payload.Content == "" && len(payload.FileIDs) == 0) {
 		c.sendJSON(OutgoingMessage{
 			Op: "error",
 			Data: map[string]string{
-				"message": "invalid send_message payload: channel_id and content required",
+				"message": "invalid send_message payload: channel_id and content or file_ids required",
 			},
 			Timestamp: time.Now().UnixMilli(),
 		})
@@ -293,7 +291,7 @@ func (c *Client) handleSendMessage(raw json.RawMessage) {
 	}
 
 	if _, err := c.manager.msgSender.CreateMessageWS(
-		c.userID, payload.ChannelID, payload.Content, contentType, payload.Nonce,
+		c.userID, payload.ChannelID, payload.Content, contentType, payload.Nonce, payload.FileIDs,
 	); err != nil {
 		c.sendJSON(OutgoingMessage{
 			Op:        "error",

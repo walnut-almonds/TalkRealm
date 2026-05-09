@@ -63,7 +63,11 @@ async function send() {
   clearChips()
 
   try {
-    await api.sendMessage(store.currentChannel.id, text, 'text', nonce, fileIds)
+    const ok = ws.sendMessage(store.currentChannel.id, text, 'text', nonce, fileIds)
+    if (!ok) {
+      // WS 未連線，退回 REST
+      await api.sendMessage(store.currentChannel.id, text, 'text', nonce, fileIds)
+    }
   } catch (e) {
     console.error('Send failed', e)
     store.showNotification('發送訊息失敗', 'error')

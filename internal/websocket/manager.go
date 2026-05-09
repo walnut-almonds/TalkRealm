@@ -20,7 +20,7 @@ type GuildMemberLookup interface {
 // MessageSender 訊息建立介面（避免循環依賴）
 // 由 MessageService 實作，注入 Manager 後供 send_message op 使用
 type MessageSender interface {
-	CreateMessageWS(userID, channelID uint, content, contentType, nonce string) (any, error)
+	CreateMessageWS(userID, channelID uint, content, contentType, nonce string, fileIDs []uint) (any, error)
 }
 
 // serverID 用於 Redis user server mapping（單體架構下固定為 "1"）
