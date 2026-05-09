@@ -13,9 +13,16 @@ const appState = {
     // 語音頻道狀態
     voiceChannel: null,     // 目前已加入的語音頻道
     voiceParticipants: {},  // { channelId: [{ user_id, username }] }
+    voiceParticipantStates: {}, // { channelId: { userId: { user_id, username, mic_enabled, deafened } } }
+    voiceSelfState: {
+        micEnabled: true,
+        deafened: false
+    },
     voiceRoom: null,        // LiveKit Room 實例
     voiceAudioElements: new Map() // { trackKey -> HTMLAudioElement }
 };
+
+let voiceSfxContext = null;
 
 // 初始化應用程式
 document.addEventListener('DOMContentLoaded', async () => {
@@ -761,6 +768,138 @@ function setupWebSocketHandlers() {
     });
 }
 
+function getVoiceParticipantState(channelId, userId) {
+    return appState.voiceParticipantStates[channelId]?.[userId] || null;
+}
+
+function upsertVoiceParticipantState(channelId, userId, partialState = {}) {
+    if (!appState.voiceParticipantStates[channelId]) {
+        appState.voiceParticipantStates[channelId] = {};
+    }
+
+    const previous = appState.voiceParticipantStates[channelId][userId] || {
+        user_id: userId,
+        username: partialState.username || 'Unknown',
+        mic_enabled: true,
+        deafened: false
+    };
+
+    appState.voiceParticipantStates[channelId][userId] = {
+        ...previous,
+        ...partialState,
+        user_id: userId
+    };
+}
+
+function removeVoiceParticipantState(channelId, userId) {
+    if (!appState.voiceParticipantStates[channelId]) return;
+    delete appState.voiceParticipantStates[channelId][userId];
+}
+
+function playVoiceNotificationSound(action) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    try {
+        if (!voiceSfxContext) {
+            voiceSfxContext = new AudioCtx();
+        }
+
+        if (voiceSfxContext.state === 'suspended') {
+            voiceSfxContext.resume().catch(() => { /* ignore */ });
+        }
+
+        const ctx = voiceSfxContext;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const now = ctx.currentTime;
+
+        const baseFrequency = action === 'join' ? 900 : 650;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(baseFrequency, now);
+        osc.frequency.exponentialRampToValueAtTime(baseFrequency * 0.9, now + 0.12);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.035, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.14);
+    } catch (error) {
+        console.debug('Voice notification sound skipped:', error);
+    }
+}
+
+function applyVoiceDeafenState() {
+    const shouldMuteRemote = appState.voiceSelfState.deafened;
+    appState.voiceAudioElements.forEach((audioEl) => {
+        if (audioEl) {
+            audioEl.muted = shouldMuteRemote;
+        }
+    });
+}
+
+function broadcastVoiceUserState() {
+    if (!appState.voiceRoom || !appState.voiceChannel || !appState.user) return;
+
+    const payload = {
+        type: 'voice_user_state',
+        channel_id: appState.voiceChannel.id,
+        user_id: appState.user.id,
+        username: appState.user.nickname || appState.user.username || 'Unknown',
+        mic_enabled: appState.voiceSelfState.micEnabled,
+        deafened: appState.voiceSelfState.deafened,
+        ts: Date.now()
+    };
+
+    upsertVoiceParticipantState(payload.channel_id, payload.user_id, payload);
+
+    try {
+        const encoded = new TextEncoder().encode(JSON.stringify(payload));
+        const maybePromise = appState.voiceRoom.localParticipant.publishData(encoded, {
+            reliable: true,
+            topic: 'voice-user-state'
+        });
+
+        if (maybePromise && typeof maybePromise.catch === 'function') {
+            maybePromise.catch((error) => {
+                console.warn('[voice] publishData failed', error);
+            });
+        }
+    } catch (error) {
+        console.warn('[voice] failed to encode/publish voice state', error);
+    }
+}
+
+function handleVoiceDataReceived(payload, participant, topic) {
+    if (topic && topic !== 'voice-user-state') return;
+
+    try {
+        const text = typeof payload === 'string' ? payload : new TextDecoder().decode(payload);
+        const data = JSON.parse(text);
+        if (data.type !== 'voice_user_state') return;
+
+        const { channel_id, user_id, username, mic_enabled, deafened } = data;
+        if (!channel_id || !user_id) return;
+
+        const normalized = {
+            user_id,
+            username: username || participant?.name || participant?.identity || 'Unknown',
+            mic_enabled: mic_enabled !== false,
+            deafened: deafened === true
+        };
+
+        upsertVoiceParticipantState(channel_id, user_id, normalized);
+        renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
+        renderVoiceBar();
+    } catch (_) {
+        // 非語音狀態資料，忽略
+    }
+}
+
 // 處理新訊息
 function handleNewMessage(message) {
     // 只處理當前頻道的訊息
@@ -959,6 +1098,7 @@ function attachRemoteAudioTrack(track, publication, participant) {
     const audioEl = track.attach();
     audioEl.autoplay = true;
     audioEl.playsInline = true;
+    audioEl.muted = appState.voiceSelfState.deafened;
     audioEl.dataset.voiceTrackKey = key;
     container.appendChild(audioEl);
 
@@ -1046,6 +1186,9 @@ async function joinVoiceChannel(channelId) {
 
         room.on(RoomEvent.ParticipantConnected, () => renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice')));
         room.on(RoomEvent.ParticipantDisconnected, () => renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice')));
+        room.on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+            handleVoiceDataReceived(payload, participant, topic);
+        });
         room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
             attachRemoteAudioTrack(track, publication, participant);
         });
@@ -1084,11 +1227,16 @@ async function joinVoiceChannel(channelId) {
 
         await room.localParticipant.setMicrophoneEnabled(true);
 
+        appState.voiceSelfState.micEnabled = true;
+        appState.voiceSelfState.deafened = false;
         appState.voiceRoom = room;
         appState.voiceChannel = channel;
 
         // 透過 WS 廣播加入事件
         wsManager.sendVoiceStateUpdate(channelId, 'join');
+
+        // 廣播目前麥克風/收音狀態（供同語音房成員顯示）
+        broadcastVoiceUserState();
 
         renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
         renderVoiceBar();
@@ -1117,7 +1265,10 @@ async function leaveVoiceChannel() {
     cleanupVoiceAudioElements();
 
     wsManager.sendVoiceStateUpdate(channelId, 'leave');
+    removeVoiceParticipantState(channelId, appState.user?.id);
     appState.voiceChannel = null;
+    appState.voiceSelfState.micEnabled = true;
+    appState.voiceSelfState.deafened = false;
 
     renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
     renderVoiceBar();
@@ -1135,9 +1286,64 @@ function handleVoiceStateUpdate(data) {
         if (!exists) {
             appState.voiceParticipants[channel_id].push({ user_id, username });
         }
+        upsertVoiceParticipantState(channel_id, user_id, {
+            user_id,
+            username: username || 'Unknown',
+            mic_enabled: true,
+            deafened: false
+        });
     } else if (action === 'leave') {
         appState.voiceParticipants[channel_id] = appState.voiceParticipants[channel_id].filter(p => p.user_id !== user_id);
+        removeVoiceParticipantState(channel_id, user_id);
     }
+
+    const isSelf = appState.user && user_id === appState.user.id;
+    if (!isSelf && (action === 'join' || action === 'leave')) {
+        playVoiceNotificationSound(action);
+    }
+
+    renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
+    renderVoiceBar();
+}
+
+async function toggleVoiceMicrophone() {
+    if (!appState.voiceRoom || !appState.voiceChannel) return;
+
+    const nextMicEnabled = !appState.voiceSelfState.micEnabled;
+    try {
+        await appState.voiceRoom.localParticipant.setMicrophoneEnabled(nextMicEnabled);
+        appState.voiceSelfState.micEnabled = nextMicEnabled;
+
+        upsertVoiceParticipantState(appState.voiceChannel.id, appState.user.id, {
+            user_id: appState.user.id,
+            username: appState.user.nickname || appState.user.username || 'Unknown',
+            mic_enabled: nextMicEnabled,
+            deafened: appState.voiceSelfState.deafened
+        });
+
+        broadcastVoiceUserState();
+        renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
+        renderVoiceBar();
+    } catch (error) {
+        console.error('Failed to toggle microphone:', error);
+        showNotification('切換麥克風失敗', 'error');
+    }
+}
+
+function toggleVoiceDeafen() {
+    if (!appState.voiceRoom || !appState.voiceChannel) return;
+
+    appState.voiceSelfState.deafened = !appState.voiceSelfState.deafened;
+    applyVoiceDeafenState();
+
+    upsertVoiceParticipantState(appState.voiceChannel.id, appState.user.id, {
+        user_id: appState.user.id,
+        username: appState.user.nickname || appState.user.username || 'Unknown',
+        mic_enabled: appState.voiceSelfState.micEnabled,
+        deafened: appState.voiceSelfState.deafened
+    });
+
+    broadcastVoiceUserState();
     renderVoiceChannelList('voice-channels-list', appState.channels.filter(c => c.type === 'voice'));
     renderVoiceBar();
 }
@@ -1155,6 +1361,48 @@ function renderVoiceBar() {
     const guildEl = document.getElementById('voice-bar-guild');
     if (nameEl) nameEl.textContent = `#${appState.voiceChannel.name}`;
     if (guildEl) guildEl.textContent = appState.currentGuild ? appState.currentGuild.name : '';
+
+    const micBtn = document.getElementById('voice-toggle-mic');
+    const deafenBtn = document.getElementById('voice-toggle-deafen');
+    const participantsEl = document.getElementById('voice-bar-participants');
+    const channelParticipants = appState.voiceParticipants[appState.voiceChannel.id] || [];
+
+    if (micBtn) {
+        const micEnabled = appState.voiceSelfState.micEnabled;
+        micBtn.classList.toggle('off', !micEnabled);
+        micBtn.title = micEnabled ? '關閉麥克風' : '開啟麥克風';
+        micBtn.innerHTML = `<i class="fas ${micEnabled ? 'fa-microphone' : 'fa-microphone-slash'}"></i>`;
+    }
+
+    if (deafenBtn) {
+        const deafened = appState.voiceSelfState.deafened;
+        deafenBtn.classList.toggle('off', deafened);
+        deafenBtn.title = deafened ? '開啟收音' : '關閉收音';
+        deafenBtn.innerHTML = `<i class="fas ${deafened ? 'fa-volume-xmark' : 'fa-volume-high'}"></i>`;
+    }
+
+    if (participantsEl) {
+        if (channelParticipants.length === 0) {
+            participantsEl.innerHTML = '<div class="voice-bar-empty">目前語音群內沒有成員</div>';
+            return;
+        }
+
+        participantsEl.innerHTML = channelParticipants.map((participant) => {
+            const state = getVoiceParticipantState(appState.voiceChannel.id, participant.user_id) || {};
+            const micEnabled = state.mic_enabled !== false;
+            const deafened = state.deafened === true;
+
+            return `
+                <div class="voice-bar-participant">
+                    <span class="voice-bar-participant-name">${escapeHtml(participant.username)}</span>
+                    <span class="voice-bar-participant-state">
+                        <i class="fas ${micEnabled ? 'fa-microphone' : 'fa-microphone-slash'}" title="${micEnabled ? '麥克風開啟' : '麥克風關閉'}"></i>
+                        <i class="fas ${deafened ? 'fa-volume-xmark' : 'fa-volume-high'}" title="${deafened ? '收音關閉' : '收音開啟'}"></i>
+                    </span>
+                </div>
+            `;
+        }).join('');
+    }
 }
 
 // ===================== END 語音頻道相關 =====================
@@ -1227,7 +1475,20 @@ function renderVoiceChannelList(containerId, channels) {
 
         const participantHtml = participants.length > 0
             ? `<div class="voice-participants">${participants.map(p =>
-                `<div class="voice-participant"><i class="fas fa-user-circle"></i>${escapeHtml(p.username)}</div>`
+                (() => {
+                    const state = getVoiceParticipantState(channel.id, p.user_id) || {};
+                    const micEnabled = state.mic_enabled !== false;
+                    const deafened = state.deafened === true;
+
+                    return `<div class="voice-participant">
+                        <i class="fas fa-user-circle"></i>
+                        <span>${escapeHtml(p.username)}</span>
+                        <span class="voice-participant-state-icons">
+                            <i class="fas ${micEnabled ? 'fa-microphone' : 'fa-microphone-slash'}" title="${micEnabled ? '麥克風開啟' : '麥克風關閉'}"></i>
+                            <i class="fas ${deafened ? 'fa-volume-xmark' : 'fa-volume-high'}" title="${deafened ? '收音關閉' : '收音開啟'}"></i>
+                        </span>
+                    </div>`;
+                })()
             ).join('')}</div>`
             : '';
 

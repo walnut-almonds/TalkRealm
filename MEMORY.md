@@ -49,6 +49,12 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-09 — 前端語音 UX 強化（加入/離開提示音 + 狀態同步）：
+- **`web/js/app.js`**：新增 `playVoiceNotificationSound()`，收到 WS `voice_state_update` 的 `join/leave`（非自己）時播放輕量提示音。
+- **`web/js/app.js`**：語音狀態新增 `voiceSelfState`（`micEnabled` / `deafened`）與 `voiceParticipantStates`；加入 `toggleVoiceMicrophone()` / `toggleVoiceDeafen()`。
+- **`web/js/app.js`**：透過 LiveKit `RoomEvent.DataReceived` + `localParticipant.publishData(...)` 同步 `voice_user_state`（麥克風/收音）給同語音房成員，並在語音頻道列表與 voice bar 顯示。
+- **`web/index.html` / `web/css/styles.css`**：voice bar 新增麥克風/收音切換按鈕與「目前語音群成員」區塊，顯示每位成員的麥克風與收音圖示狀態。
+
 2026-05-09 — Minio public_read 模式：
 - **`pkg/config/config.go`**：`MinioConfig` 新增 `PublicRead bool`（mapstructure: `public_read`，預設 false）
 - **`pkg/storage/minio.go`**：`NewClient` 若 `cfg.PublicRead=true` 自動呼叫 `applyPublicReadPolicy` 套用 S3 public-read policy（Allow s3:GetObject *）；新增 `PublicFileURL(key)` 回傳 `{publicEndpoint}/{bucket}/{key}` 永久 URL

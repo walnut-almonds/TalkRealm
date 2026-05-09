@@ -161,16 +161,29 @@
 
             <!-- 語音狀態列（加入語音頻道時顯示） -->
             <div id="voice-bar" class="voice-bar" hidden>
-                <div class="voice-bar-info">
-                    <i class="fas fa-volume-up voice-bar-icon"></i>
-                    <div class="voice-bar-text">
-                        <div id="voice-bar-channel" class="voice-bar-channel">語音連線中</div>
-                        <div id="voice-bar-guild" class="voice-bar-guild"></div>
+                <div class="voice-bar-main">
+                    <div class="voice-bar-info">
+                        <i class="fas fa-volume-up voice-bar-icon"></i>
+                        <div class="voice-bar-text">
+                            <div id="voice-bar-channel" class="voice-bar-channel">語音連線中</div>
+                            <div id="voice-bar-guild" class="voice-bar-guild"></div>
+                        </div>
+                    </div>
+                    <div class="voice-bar-controls">
+                        <button id="voice-toggle-mic" class="voice-bar-toggle" onclick="toggleVoiceMicrophone()"
+                            title="關閉麥克風">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="voice-toggle-deafen" class="voice-bar-toggle" onclick="toggleVoiceDeafen()"
+                            title="關閉收音">
+                            <i class="fas fa-volume-high"></i>
+                        </button>
+                        <button class="voice-bar-leave" onclick="leaveVoiceChannel()" title="離開語音">
+                            <i class="fas fa-phone-slash"></i>
+                        </button>
                     </div>
                 </div>
-                <button class="voice-bar-leave" onclick="leaveVoiceChannel()" title="離開語音">
-                    <i class="fas fa-phone-slash"></i>
-                </button>
+                <div id="voice-bar-participants" class="voice-bar-participants"></div>
             </div>
 
             <!-- 使用者資訊 -->
