@@ -305,6 +305,7 @@ func (c *Client) handleSendMessage(raw json.RawMessage) {
 func (c *Client) handleVoiceStateUpdate(raw json.RawMessage) {
 	var payload struct {
 		ChannelID uint   `json:"channel_id"`
+		GuildID   uint   `json:"guild_id"`
 		Action    string `json:"action"` // "join" | "leave"
 	}
 
@@ -330,12 +331,18 @@ func (c *Client) handleVoiceStateUpdate(raw json.RawMessage) {
 		c.manager.RemoveVoiceParticipant(payload.ChannelID, c.userID)
 	}
 
-	c.manager.BroadcastToChannel(payload.ChannelID, "voice_state_update", map[string]any{
+	data := map[string]any{
 		"channel_id": payload.ChannelID,
+		"guild_id":   payload.GuildID,
 		"user_id":    c.userID,
 		"username":   c.username,
 		"action":     payload.Action,
-	})
+	}
+	if payload.GuildID != 0 {
+		c.manager.BroadcastToGuild(payload.GuildID, "voice_state_update", data)
+	} else {
+		c.manager.BroadcastToChannel(payload.ChannelID, "voice_state_update", data)
+	}
 }
 
 // handleIdentify 處理 identify op：驗證 JWT 並回應 ready

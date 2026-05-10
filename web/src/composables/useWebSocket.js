@@ -85,8 +85,8 @@ function createWebSocketManager() {
         return send({ op: 'send_message', d: { channel_id: channelId, content, type, nonce, file_ids: fileIds } })
     }
 
-    function sendVoiceStateUpdate(channelId, action) {
-        return send({ op: 'voice_state_update', d: { channel_id: channelId, action } })
+    function sendVoiceStateUpdate(channelId, action, guildId) {
+        return send({ op: 'voice_state_update', d: { channel_id: channelId, guild_id: guildId || 0, action } })
     }
 
     function startHeartbeat(interval = 30000) {

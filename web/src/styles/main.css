@@ -606,30 +606,24 @@ select {
 .voice-participant {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 3px 0;
-    font-size: 13px;
+    gap: 6px;
+    padding: 2px 0;
+    font-size: 12px;
     color: var(--text-secondary);
 }
 
-.voice-participant-avatar-wrap {
-    position: relative;
-    width: 24px;
-    height: 24px;
-    flex-shrink: 0;
-}
-
 .voice-participant-avatar {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     background: var(--bg-active);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: 9px;
     overflow: hidden;
-    transition: box-shadow 0.2s;
+    flex-shrink: 0;
+    transition: box-shadow 0.15s;
 }
 
 .voice-participant-avatar img {
@@ -657,19 +651,21 @@ select {
     box-shadow: 0 0 0 2px var(--success);
 }
 
+.voice-participant-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .voice-participant-state {
     display: flex;
-    gap: 4px;
+    gap: 3px;
     margin-left: auto;
 }
 
 .voice-participant-state i {
     font-size: 10px;
-    color: var(--text-muted);
-}
-
-.voice-participant-state .muted {
-    color: var(--danger);
 }
 
 /* ── Voice Bar ───────────────────────────────────────────── */
@@ -677,21 +673,15 @@ select {
     background: #292b2f;
     border-top: 1px solid var(--border);
     padding: 8px;
-}
-
-.voice-bar-main {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 4px 0;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .voice-bar-info {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 1;
-    min-width: 0;
 }
 
 .voice-bar-icon {
@@ -720,7 +710,9 @@ select {
 
 .voice-bar-controls {
     display: flex;
+    justify-content: center;
     gap: 4px;
+    flex-wrap: wrap;
 }
 
 .voice-bar-toggle {
@@ -823,22 +815,24 @@ select {
     position: fixed;
     inset: 0;
     z-index: 9000;
-    background: rgba(0, 0, 0, 0.72);
+    background: rgba(0, 0, 0, 0.85);
     display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 8px;
 }
 
 .vvo-panel {
     background: var(--bg-secondary, #2f3136);
-    border-radius: 12px;
-    width: min(96vw, 1400px);
-    max-height: 92vh;
+    border-radius: 8px;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    flex: 1;
 }
 
 .vvo-header {

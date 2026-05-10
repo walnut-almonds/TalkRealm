@@ -130,8 +130,8 @@ export function useVoice(appStore) {
             voice.voiceRoom = room
             voice.voiceChannel = channel
 
-            // Broadcast join via WS
-            ws.sendVoiceStateUpdate(channelId, 'join')
+            // Broadcast join via WS (include guildId so all guild members see the update)
+            ws.sendVoiceStateUpdate(channelId, 'join', appStore.currentGuild?.id)
             broadcastSelfState(room, channelId, appStore.user)
 
             appStore.showNotification(`已加入語音頻道 #${channel.name}`, 'success')
@@ -164,7 +164,7 @@ export function useVoice(appStore) {
         }
         voice.cleanupAudio()
         voice.cleanupVideoTracks()
-        ws.sendVoiceStateUpdate(channelId, 'leave')
+        ws.sendVoiceStateUpdate(channelId, 'leave', appStore.currentGuild?.id)
         if (appStore.user) {
             voice.removeParticipant(channelId, appStore.user.id)
             voice.removeParticipantState(channelId, appStore.user.id)

@@ -78,16 +78,34 @@ async function selectChannel(channel) {
                 :key="p.user_id"
                 class="voice-participant"
               >
-                <div class="voice-participant-avatar-wrap">
-                  <div :class="['voice-participant-avatar', { 'avatar-speaking': voiceStore.isSpeaking(p.user_id) }]">
-                    <i class="fas fa-user"></i>
-                  </div>
+                <div :class="['voice-participant-avatar', { 'avatar-speaking': voiceStore.isSpeaking(p.user_id) }]">
+                  <i class="fas fa-user"></i>
                 </div>
-                <span>{{ p.username }}</span>
+                <span class="voice-participant-name">{{ p.username }}</span>
                 <div class="voice-participant-state">
                   <i
-                    :class="['fas', voiceStore.getParticipantState(ch.id, p.user_id)?.mic_enabled !== false ? 'fa-microphone' : 'fa-microphone-slash',
-                             voiceStore.getParticipantState(ch.id, p.user_id)?.mic_enabled !== false ? '' : 'muted']"
+                    v-if="voiceStore.getParticipantState(ch.id, p.user_id)?.mic_enabled === false"
+                    class="fas fa-microphone-slash"
+                    style="color:var(--danger)"
+                    title="已靜音"
+                  ></i>
+                  <i
+                    v-if="voiceStore.getParticipantState(ch.id, p.user_id)?.deafened"
+                    class="fas fa-volume-xmark"
+                    style="color:var(--danger)"
+                    title="已關閉收音"
+                  ></i>
+                  <i
+                    v-if="voiceStore.getParticipantState(ch.id, p.user_id)?.screen_sharing"
+                    class="fas fa-display"
+                    style="color:var(--brand)"
+                    title="螢幕分享中"
+                  ></i>
+                  <i
+                    v-if="voiceStore.getParticipantState(ch.id, p.user_id)?.camera_enabled"
+                    class="fas fa-video"
+                    style="color:var(--brand)"
+                    title="攝影機開啟中"
                   ></i>
                 </div>
               </div>
