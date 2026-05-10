@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api, STORAGE_KEYS } from '@/api/index.js'
+import { useVoiceStore } from './useVoiceStore.js'
 
 export const useAppStore = defineStore('app', () => {
     // ── State ──────────────────────────────────────────────────
@@ -187,6 +188,27 @@ export const useAppStore = defineStore('app', () => {
             if (user.value) cacheUser(user.value)
 
             localStorage.setItem(STORAGE_KEYS.LAST_GUILD, guildId)
+
+            // 載入各語音頻道目前的成員（進入前可預覽誰在裡面）
+            const voiceStore = useVoiceStore()
+            const voiceChannels = channels.value.filter(c => c.type === 'voice')
+            await Promise.all(voiceChannels.map(async ch => {
+                try {
+                    const res = await api.getVoiceParticipants(ch.id)
+                    const participants = res.participants || []
+                    // Clear & repopulate
+                    voiceStore.voiceParticipants[ch.id] = []
+                    participants.forEach(p => {
+                        voiceStore.upsertParticipant(ch.id, p.user_id, p.username)
+                        voiceStore.upsertParticipantState(ch.id, p.user_id, {
+                            user_id: p.user_id,
+                            username: p.username,
+                            mic_enabled: true,
+                            deafened: false,
+                        })
+                    })
+                } catch { /* 靜默失敗，非致命 */ }
+            }))
         } catch (e) {
             console.error('selectGuild failed', e)
             showNotification('載入社群失敗', 'error')

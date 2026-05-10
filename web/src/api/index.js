@@ -33,6 +33,7 @@ export const EP = {
     FILE_URL: (id) => `/api/v1/files/${id}/url`,
     FILE_DELETE: (id) => `/api/v1/files/${id}`,
     VOICE_TOKEN: (channelId) => `/api/v1/channels/${channelId}/voice/token`,
+    VOICE_PARTICIPANTS: (channelId) => `/api/v1/channels/${channelId}/voice/participants`,
 }
 
 export const STORAGE_KEYS = {
@@ -187,6 +188,7 @@ class ApiClient {
 
     // ── Voice ──
     getVoiceToken(channelId) { return this.get(EP.VOICE_TOKEN(channelId)) }
+    getVoiceParticipants(channelId) { return this.get(EP.VOICE_PARTICIPANTS(channelId)) }
 }
 
 export const api = new ApiClient()

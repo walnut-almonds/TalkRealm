@@ -27,6 +27,18 @@ export const useVoiceStore = defineStore('voice', () => {
     // Whether the video overlay panel is open
     const videoOverlayOpen = ref(false)
 
+    // ── Volume control ─────────────────────────────────
+    // identity → volume (0..1)
+    const participantVolumes = ref(new Map())
+    // identity → Set of trackKeys (so we can find audio elements by identity)
+    const identityToAudioKeys = ref(new Map())
+
+    // ── Video quality ─────────────────────────────────
+    // camera quality preset: '360p' | '720p' | '1080p'
+    const videoQuality = ref('720p')
+    // screen share max framerate: 5 | 15 | 30
+    const screenShareFps = ref(15)
+
     let sfxContext = null
 
     // ── Speaking detection ───────────────────────────────────────
@@ -113,6 +125,14 @@ export const useVoiceStore = defineStore('voice', () => {
         el.playsInline = true
         el.muted = voiceSelfState.value.deafened
         el.dataset.voiceTrackKey = key
+        // Apply stored per-participant volume
+        if (participant?.identity) {
+            el.volume = participantVolumes.value.get(participant.identity) ?? 1
+            if (!identityToAudioKeys.value.has(participant.identity)) {
+                identityToAudioKeys.value.set(participant.identity, new Set())
+            }
+            identityToAudioKeys.value.get(participant.identity).add(key)
+        }
         container.appendChild(el)
         voiceAudioElements.value.set(key, el)
         el.play?.().catch(err => console.warn('[voice] autoplay blocked', key, err))
@@ -126,16 +146,30 @@ export const useVoiceStore = defineStore('voice', () => {
         try { track.detach(el) } catch { }
         el.remove()
         voiceAudioElements.value.delete(key)
+        if (participant?.identity) {
+            identityToAudioKeys.value.get(participant.identity)?.delete(key)
+        }
     }
 
     function cleanupAudio() {
         voiceAudioElements.value.forEach(el => { if (el?.parentNode) el.remove() })
         voiceAudioElements.value.clear()
+        identityToAudioKeys.value.clear()
     }
 
     function applyDeafenState() {
         const muted = voiceSelfState.value.deafened
         voiceAudioElements.value.forEach(el => { if (el) el.muted = muted })
+    }
+
+    // 設定指定參與者的音量（0..1）
+    function setParticipantVolume(identity, vol) {
+        const v = Math.max(0, Math.min(1, vol))
+        participantVolumes.value.set(identity, v)
+        identityToAudioKeys.value.get(identity)?.forEach(key => {
+            const el = voiceAudioElements.value.get(key)
+            if (el) el.volume = v
+        })
     }
 
     // ── Video track helpers ────────────────────────────────────────
@@ -224,6 +258,8 @@ export const useVoiceStore = defineStore('voice', () => {
         voiceSelfState.value = { micEnabled: true, deafened: false, screenSharing: false, cameraEnabled: false }
         speakingIdentities.value = new Set()
         videoOverlayOpen.value = false
+        participantVolumes.value.clear()
+        identityToAudioKeys.value.clear()
     }
 
     return {
@@ -231,10 +267,11 @@ export const useVoiceStore = defineStore('voice', () => {
         voiceSelfState, speakingIdentities, identityToUserId,
         speakingUserIds, voiceAudioElements,
         remoteVideoTracks, videoOverlayOpen,
+        participantVolumes, identityToAudioKeys, videoQuality, screenShareFps,
         setSpeakingIdentities, isSpeaking,
         upsertParticipantState, removeParticipantState, getParticipantState,
         upsertParticipant, removeParticipant, getChannelParticipants,
-        attachAudioTrack, detachAudioTrack, cleanupAudio, applyDeafenState,
+        attachAudioTrack, detachAudioTrack, cleanupAudio, applyDeafenState, setParticipantVolume,
         addRemoteVideoTrack, removeRemoteVideoTrack, cleanupVideoTracks,
         ensureAudioContainer, trackKey, playNotificationSound, reset,
     }

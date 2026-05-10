@@ -60,6 +60,9 @@ type Manager struct {
 
 	// msgSender 用於 send_message op（注入 MessageService，避免循環依賴）
 	msgSender MessageSender
+
+	// voiceParticipants 追蹤目前在各語音頻道的成員（channelID → { userID → username }）
+	voiceParticipants map[uint]map[uint]string
 }
 
 // NewManager 創建新的 WebSocket 管理器
@@ -72,6 +75,7 @@ func NewManager(jwtManager *auth.JWTManager) *Manager {
 		register:             make(chan *Client),
 		unregister:           make(chan *Client),
 		jwtManager:           jwtManager,
+		voiceParticipants:    make(map[uint]map[uint]string),
 	}
 }
 
@@ -509,4 +513,39 @@ func (m *Manager) BroadcastToUser(userID uint, msgType string, data interface{})
 			}
 		}
 	}
+}
+
+// UpsertVoiceParticipant 記錄使用者加入語音頻道
+func (m *Manager) UpsertVoiceParticipant(channelID, userID uint, username string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.voiceParticipants[channelID] == nil {
+		m.voiceParticipants[channelID] = make(map[uint]string)
+	}
+
+	m.voiceParticipants[channelID][userID] = username
+}
+
+// RemoveVoiceParticipant 記錄使用者離開語音頻道
+func (m *Manager) RemoveVoiceParticipant(channelID, userID uint) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.voiceParticipants[channelID] != nil {
+		delete(m.voiceParticipants[channelID], userID)
+	}
+}
+
+// GetVoiceParticipants 回傳目前在指定語音頻道的成員（userID → username）
+func (m *Manager) GetVoiceParticipants(channelID uint) map[uint]string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[uint]string)
+	for uid, name := range m.voiceParticipants[channelID] {
+		result[uid] = name
+	}
+
+	return result
 }

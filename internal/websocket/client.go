@@ -324,6 +324,12 @@ func (c *Client) handleVoiceStateUpdate(raw json.RawMessage) {
 		payload.Action = "join"
 	}
 
+	if payload.Action == "join" {
+		c.manager.UpsertVoiceParticipant(payload.ChannelID, c.userID, c.username)
+	} else {
+		c.manager.RemoveVoiceParticipant(payload.ChannelID, c.userID)
+	}
+
 	c.manager.BroadcastToChannel(payload.ChannelID, "voice_state_update", map[string]any{
 		"channel_id": payload.ChannelID,
 		"user_id":    c.userID,

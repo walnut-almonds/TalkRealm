@@ -1,7 +1,14 @@
 import { api } from '@/api/index.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import { useWebSocket } from './useWebSocket.js'
-import { Room, RoomEvent } from 'livekit-client'
+import { Room, RoomEvent, VideoPresets } from 'livekit-client'
+
+// 對映 quality 選項到 LiveKit VideoPresets
+const CAMERA_PRESETS = {
+    '360p': VideoPresets.h360,
+    '720p': VideoPresets.h720,
+    '1080p': VideoPresets.h1080,
+}
 
 export function useVoice(appStore) {
     const voice = useVoiceStore()
@@ -209,7 +216,14 @@ export function useVoice(appStore) {
         if (!voice.voiceRoom || !voice.voiceChannel) return
         const next = !voice.voiceSelfState.screenSharing
         try {
-            await voice.voiceRoom.localParticipant.setScreenShareEnabled(next)
+            if (next) {
+                const fps = voice.screenShareFps
+                await voice.voiceRoom.localParticipant.setScreenShareEnabled(true, {
+                    resolution: { frameRate: fps },
+                })
+            } else {
+                await voice.voiceRoom.localParticipant.setScreenShareEnabled(false)
+            }
             voice.voiceSelfState.screenSharing = next
             if (next) voice.videoOverlayOpen = true
             if (appStore.user) {
@@ -236,7 +250,14 @@ export function useVoice(appStore) {
         if (!voice.voiceRoom || !voice.voiceChannel) return
         const next = !voice.voiceSelfState.cameraEnabled
         try {
-            await voice.voiceRoom.localParticipant.setCameraEnabled(next)
+            if (next) {
+                const preset = CAMERA_PRESETS[voice.videoQuality] || VideoPresets.h720
+                await voice.voiceRoom.localParticipant.setCameraEnabled(true, {
+                    resolution: preset.resolution,
+                })
+            } else {
+                await voice.voiceRoom.localParticipant.setCameraEnabled(false)
+            }
             voice.voiceSelfState.cameraEnabled = next
             if (next) voice.videoOverlayOpen = true
             if (appStore.user) {
@@ -256,6 +277,33 @@ export function useVoice(appStore) {
         } catch (e) {
             console.error('[voice] toggleCamera failed', e)
             appStore.showNotification('開啟攝影機失敗：' + e.message, 'error')
+        }
+    }
+
+    // 更新攝影機畫質（若目前已開啟則重啟以套用新設定）
+    async function updateVideoQuality(quality) {
+        voice.videoQuality = quality
+        if (voice.voiceRoom && voice.voiceSelfState.cameraEnabled) {
+            try {
+                const preset = CAMERA_PRESETS[quality] || VideoPresets.h720
+                await voice.voiceRoom.localParticipant.setCameraEnabled(false)
+                await voice.voiceRoom.localParticipant.setCameraEnabled(true, { resolution: preset.resolution })
+            } catch (e) {
+                console.warn('[voice] updateVideoQuality failed', e)
+            }
+        }
+    }
+
+    // 更新螢幕分享 FPS（若目前已開啟則重啟以套用新設定）
+    async function updateScreenFps(fps) {
+        voice.screenShareFps = fps
+        if (voice.voiceRoom && voice.voiceSelfState.screenSharing) {
+            try {
+                await voice.voiceRoom.localParticipant.setScreenShareEnabled(false)
+                await voice.voiceRoom.localParticipant.setScreenShareEnabled(true, { resolution: { frameRate: fps } })
+            } catch (e) {
+                console.warn('[voice] updateScreenFps failed', e)
+            }
         }
     }
 
@@ -334,5 +382,5 @@ export function useVoice(appStore) {
         } catch { }
     }
 
-    return { joinVoiceChannel, leaveVoiceChannel, toggleMicrophone, toggleDeafen, toggleScreenShare, toggleCamera, handleVoiceStateUpdate }
+    return { joinVoiceChannel, leaveVoiceChannel, toggleMicrophone, toggleDeafen, toggleScreenShare, toggleCamera, updateVideoQuality, updateScreenFps, handleVoiceStateUpdate }
 }

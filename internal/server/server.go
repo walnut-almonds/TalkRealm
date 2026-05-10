@@ -129,7 +129,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// 初始化 Voice Handler（LiveKit Token 生成）
 	voiceManager := voice.NewManager(&cfg.LiveKit)
-	voiceHandler := handler.NewVoiceHandler(voiceManager)
+	voiceHandler := handler.NewVoiceHandler(voiceManager, wsManager)
 
 	s := &Server{
 		config:          cfg,
@@ -273,6 +273,7 @@ func (s *Server) setupRoutes() {
 
 				// 語音 Token（LiveKit）
 				channels.GET("/:id/voice/token", s.voiceHandler.GetVoiceToken)
+				channels.GET("/:id/voice/participants", s.voiceHandler.GetVoiceParticipants)
 			}
 
 			// 訊息相關

@@ -49,6 +49,18 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-11 — 語音視訊 UX 強化（畫質/FPS 控制 + 音量滑桿 + 加入前參與者預覽）：
+- **`internal/websocket/manager.go`**：新增 `voiceParticipants map[uint]map[uint]string`（channelID→userID→username），初始化於 `NewManager`；新增 `UpsertVoiceParticipant`、`RemoveVoiceParticipant`、`GetVoiceParticipants` 方法（受 `m.mu` 保護）
+- **`internal/websocket/client.go`**：`handleVoiceStateUpdate` join/leave 分別呼叫 `UpsertVoiceParticipant`/`RemoveVoiceParticipant`
+- **`internal/handler/voice_handler.go`**：新增 `VoiceParticipantsGetter` interface；`VoiceHandler` 加入 `vpGetter`；`NewVoiceHandler(vm, vpg)` 新增第二參數；新增 `GetVoiceParticipants` handler 回傳 `{ participants: [{user_id, username}] }`
+- **`internal/server/server.go`**：`NewVoiceHandler(voiceManager, wsManager)`；新增路由 `GET /channels/:id/voice/participants`
+- **`web/src/api/index.js`**：新增 `VOICE_PARTICIPANTS` endpoint 與 `getVoiceParticipants(channelId)` 方法
+- **`web/src/stores/useVoiceStore.js`**：新增 `participantVolumes`（identity→volume 0..1）、`identityToAudioKeys`（identity→Set）、`videoQuality`（預設 '720p'）、`screenShareFps`（預設 15）；`attachAudioTrack` 套用音量並追蹤 keys；`setParticipantVolume` 即時套用至所有 audio elements；`reset()` 清空兩 Map
+- **`web/src/composables/useVoice.js`**：import `VideoPresets`；新增 `CAMERA_PRESETS` map；`toggleCamera`/`toggleScreenShare` 帶 resolution/fps preset；新增 `updateVideoQuality(quality)` 與 `updateScreenFps(fps)` 函數（重啟 track 套用新設定）
+- **`web/src/stores/useAppStore.js`**：`selectGuild` 載入頻道後並行呼叫 `getVoiceParticipants` 預填 `voiceParticipants`/`voiceParticipantStates`（加入前預覽）
+- **`web/src/components/VoiceVideoOverlay.vue`**：script 改用 `inject('voice')` 模式；新增 `showSettings`、質量/FPS 選項常數、`onQualityChange`/`onFpsChange`/`getVolume`/`setVolume` 函數；template 已含設定面板 `<Transition name="vvo-slide">`、音量滑桿 `.vvo-volume-control`
+- **`web/src/styles/main.css`**：`.vvo-panel` 放大至 `min(96vw,1400px)/92vh`；新增 `.vvo-settings`、`.vvo-settings-row`、`.vvo-settings-label`、`.vvo-select`、`.vvo-volume-control`（hover 顯示）、`.vvo-volume-slider`、`.vvo-btn-icon.active`、`vvo-slide` transition 樣式
+
 2026-05-10 — 語音視訊（螢幕分享 + 攝影機）功能：
 - **`web/src/stores/useVoiceStore.js`**：`voiceSelfState` 新增 `screenSharing`、`cameraEnabled`；新增 `remoteVideoTracks`（陣列，每項含 trackSid、participantIdentity、kind: `screen|camera`、element、userId、username）與 `videoOverlayOpen`；新增 `addRemoteVideoTrack`、`removeRemoteVideoTrack`、`cleanupVideoTracks` 方法；`reset()` 同步清空 video tracks。
 - **`web/src/composables/useVoice.js`**：`TrackSubscribed/Unsubscribed` 同時處理 video tracks；新增 `toggleScreenShare()`（呼叫 `setScreenShareEnabled`）與 `toggleCamera()`（呼叫 `setCameraEnabled`）；`broadcastSelfState` 加入 `screen_sharing`、`camera_enabled`；`handleVoiceData` 反寫參與者狀態並 backfill `remoteVideoTracks` 的 userId/username；`leaveVoiceChannel` 先關閉 screen share & camera 再 disconnect。

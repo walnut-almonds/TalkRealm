@@ -833,8 +833,8 @@ select {
 .vvo-panel {
     background: var(--bg-secondary, #2f3136);
     border-radius: 12px;
-    width: min(92vw, 1080px);
-    max-height: 88vh;
+    width: min(96vw, 1400px);
+    max-height: 92vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1025,6 +1025,106 @@ select {
 .vvo-empty-hint {
     font-size: 12px !important;
     opacity: 0.6;
+}
+
+/* Settings panel */
+.vvo-settings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    padding: 10px 16px;
+    background: rgba(0, 0, 0, 0.25);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.vvo-settings-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vvo-settings-label {
+    font-size: 12px;
+    opacity: 0.75;
+    white-space: nowrap;
+}
+
+.vvo-select {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+}
+
+.vvo-select:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* Per-participant volume control */
+.vvo-volume-control {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.65);
+    border-radius: 20px;
+    padding: 4px 10px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 4;
+}
+
+.vvo-tile:hover .vvo-volume-control {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.vvo-volume-slider {
+    width: 80px;
+    accent-color: var(--accent, #5865f2);
+    cursor: pointer;
+}
+
+.vvo-vol-icon {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.vvo-vol-pct {
+    font-size: 11px;
+    min-width: 30px;
+    text-align: right;
+    opacity: 0.8;
+}
+
+/* Active state for icon buttons */
+.vvo-btn-icon.active {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+/* vvo-slide transition */
+.vvo-slide-enter-active,
+.vvo-slide-leave-active {
+    transition: max-height 0.25s ease, opacity 0.25s ease;
+    max-height: 200px;
+    overflow: hidden;
+}
+
+.vvo-slide-enter-from,
+.vvo-slide-leave-to {
+    max-height: 0;
+    opacity: 0;
 }
 
 /* ── User Panel ──────────────────────────────────────────── */
