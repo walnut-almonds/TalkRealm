@@ -18,6 +18,7 @@ import (
 // newTestDB creates a GORM DB backed by go-sqlmock.
 func newTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, *sql.DB) {
 	t.Helper()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
@@ -39,7 +40,8 @@ func newTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, *sql.DB) {
 
 func TestUserRepository_Create_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "users"`).
@@ -54,7 +56,8 @@ func TestUserRepository_Create_Success(t *testing.T) {
 
 func TestUserRepository_Create_DBError(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "users"`).
@@ -69,7 +72,8 @@ func TestUserRepository_Create_DBError(t *testing.T) {
 
 func TestUserRepository_GetByID_Found(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "username", "email", "password", "nickname", "avatar", "status", "created_at", "updated_at"}).
 		AddRow(1, "alice", "alice@test.com", "hashed", "Alice", "", "offline", time.Now(), time.Now())
@@ -84,7 +88,8 @@ func TestUserRepository_GetByID_Found(t *testing.T) {
 
 func TestUserRepository_GetByID_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "users"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "username", "email"}))
@@ -96,7 +101,8 @@ func TestUserRepository_GetByID_NotFound(t *testing.T) {
 
 func TestUserRepository_GetByEmail_Found(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "username", "email", "password", "nickname", "avatar", "status", "created_at", "updated_at"}).
 		AddRow(2, "bob", "bob@test.com", "hashed", "Bob", "", "online", time.Now(), time.Now())
@@ -110,7 +116,8 @@ func TestUserRepository_GetByEmail_Found(t *testing.T) {
 
 func TestUserRepository_GetByEmail_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "users"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "username", "email"}))
@@ -122,7 +129,8 @@ func TestUserRepository_GetByEmail_NotFound(t *testing.T) {
 
 func TestUserRepository_GetByUsername_Found(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "username", "email", "password", "nickname", "avatar", "status", "created_at", "updated_at"}).
 		AddRow(3, "carol", "carol@test.com", "hashed", "Carol", "", "offline", time.Now(), time.Now())
@@ -136,7 +144,8 @@ func TestUserRepository_GetByUsername_Found(t *testing.T) {
 
 func TestUserRepository_GetByUsername_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "users"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "username", "email"}))
@@ -148,7 +157,8 @@ func TestUserRepository_GetByUsername_NotFound(t *testing.T) {
 
 func TestUserRepository_Update_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "users"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -162,7 +172,8 @@ func TestUserRepository_Update_Success(t *testing.T) {
 
 func TestUserRepository_Delete_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM "users"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -175,7 +186,8 @@ func TestUserRepository_Delete_Success(t *testing.T) {
 
 func TestUserRepository_List_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "username", "email", "password", "nickname", "avatar", "status", "created_at", "updated_at"}).
 		AddRow(1, "alice", "alice@test.com", "hashed", "Alice", "", "offline", time.Now(), time.Now()).
@@ -190,7 +202,8 @@ func TestUserRepository_List_Success(t *testing.T) {
 
 func TestUserRepository_UpdateStatus_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "users"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -203,7 +216,8 @@ func TestUserRepository_UpdateStatus_Success(t *testing.T) {
 
 func TestUserRepository_UpdateStatus_DBError(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "users"`).WillReturnError(assert.AnError)
@@ -220,7 +234,8 @@ func TestUserRepository_UpdateStatus_DBError(t *testing.T) {
 
 func TestGuildRepository_Create_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "guilds"`).
@@ -235,7 +250,8 @@ func TestGuildRepository_Create_Success(t *testing.T) {
 
 func TestGuildRepository_GetByID_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	// Preload("Owner") triggers a query for users after guilds query
 	mock.ExpectQuery(`SELECT \* FROM "guilds"`).
@@ -248,7 +264,8 @@ func TestGuildRepository_GetByID_NotFound(t *testing.T) {
 
 func TestGuildRepository_Update_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "guilds"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -262,7 +279,8 @@ func TestGuildRepository_Update_Success(t *testing.T) {
 
 func TestGuildRepository_Delete_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM "guilds"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -275,7 +293,8 @@ func TestGuildRepository_Delete_Success(t *testing.T) {
 
 func TestGuildRepository_GetByOwnerID_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "name", "description", "icon", "owner_id", "created_at", "updated_at"}).
 		AddRow(1, "My Guild", "", "", 1, time.Now(), time.Now())
@@ -289,7 +308,8 @@ func TestGuildRepository_GetByOwnerID_Success(t *testing.T) {
 
 func TestGuildRepository_GetMemberGuilds_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "name", "description", "icon", "owner_id", "created_at", "updated_at"}).
 		AddRow(1, "Member Guild", "", "", 2, time.Now(), time.Now())
@@ -303,7 +323,8 @@ func TestGuildRepository_GetMemberGuilds_Success(t *testing.T) {
 
 func TestGuildRepository_List_Empty(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "guilds"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "owner_id"}))
@@ -320,7 +341,8 @@ func TestGuildRepository_List_Empty(t *testing.T) {
 
 func TestChannelRepository_Create_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "channels"`).
@@ -335,7 +357,8 @@ func TestChannelRepository_Create_Success(t *testing.T) {
 
 func TestChannelRepository_GetByID_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "channels"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}))
@@ -347,7 +370,8 @@ func TestChannelRepository_GetByID_NotFound(t *testing.T) {
 
 func TestChannelRepository_Update_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "channels"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -361,7 +385,8 @@ func TestChannelRepository_Update_Success(t *testing.T) {
 
 func TestChannelRepository_Delete_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM "channels"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -374,7 +399,8 @@ func TestChannelRepository_Delete_Success(t *testing.T) {
 
 func TestChannelRepository_GetByGuildID_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "guild_id", "name", "type", "topic", "position", "created_at", "updated_at"}).
 		AddRow(1, 1, "general", "text", "", 0, time.Now(), time.Now())
@@ -388,7 +414,8 @@ func TestChannelRepository_GetByGuildID_Success(t *testing.T) {
 
 func TestChannelRepository_GetByType_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "guild_id", "name", "type", "topic", "position", "created_at", "updated_at"}).
 		AddRow(2, 1, "voice-1", "voice", "", 1, time.Now(), time.Now())
@@ -406,7 +433,8 @@ func TestChannelRepository_GetByType_Success(t *testing.T) {
 
 func TestGuildMemberRepository_Create_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "guild_members"`).
@@ -421,7 +449,8 @@ func TestGuildMemberRepository_Create_Success(t *testing.T) {
 
 func TestGuildMemberRepository_GetByID_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "guild_members"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
@@ -433,7 +462,8 @@ func TestGuildMemberRepository_GetByID_NotFound(t *testing.T) {
 
 func TestGuildMemberRepository_Update_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "guild_members"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -447,7 +477,8 @@ func TestGuildMemberRepository_Update_Success(t *testing.T) {
 
 func TestGuildMemberRepository_Delete_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM "guild_members"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -460,7 +491,8 @@ func TestGuildMemberRepository_Delete_Success(t *testing.T) {
 
 func TestGuildMemberRepository_GetByGuildID_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "guild_id", "user_id", "role", "joined_at", "created_at", "updated_at"}).
 		AddRow(1, 1, 1, "owner", time.Now(), time.Now(), time.Now())
@@ -476,7 +508,8 @@ func TestGuildMemberRepository_GetByGuildID_Success(t *testing.T) {
 
 func TestGuildMemberRepository_GetMember_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "guild_members"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "guild_id", "user_id"}))
@@ -488,7 +521,8 @@ func TestGuildMemberRepository_GetMember_NotFound(t *testing.T) {
 
 func TestGuildMemberRepository_IsMember_True(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT count\(\*\) FROM "guild_members"`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
@@ -501,7 +535,8 @@ func TestGuildMemberRepository_IsMember_True(t *testing.T) {
 
 func TestGuildMemberRepository_IsMember_False(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT count\(\*\) FROM "guild_members"`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
@@ -514,7 +549,8 @@ func TestGuildMemberRepository_IsMember_False(t *testing.T) {
 
 func TestGuildMemberRepository_GetUserGuildIDs_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT`).
 		WillReturnRows(sqlmock.NewRows([]string{"guild_id"}).AddRow(1).AddRow(2))
@@ -531,7 +567,8 @@ func TestGuildMemberRepository_GetUserGuildIDs_Success(t *testing.T) {
 
 func TestRefreshTokenRepository_Create_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "refresh_tokens"`).
@@ -546,7 +583,8 @@ func TestRefreshTokenRepository_Create_Success(t *testing.T) {
 
 func TestRefreshTokenRepository_GetByToken_Found(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "user_id", "token", "expires_at", "revoked", "created_at"}).
 		AddRow(1, 1, "tok123", time.Now().Add(time.Hour), false, time.Now())
@@ -560,7 +598,8 @@ func TestRefreshTokenRepository_GetByToken_Found(t *testing.T) {
 
 func TestRefreshTokenRepository_GetByToken_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "refresh_tokens"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "token"}))
@@ -572,7 +611,8 @@ func TestRefreshTokenRepository_GetByToken_NotFound(t *testing.T) {
 
 func TestRefreshTokenRepository_RevokeByToken_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "refresh_tokens"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -585,7 +625,8 @@ func TestRefreshTokenRepository_RevokeByToken_Success(t *testing.T) {
 
 func TestRefreshTokenRepository_RevokeAllByUserID_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "refresh_tokens"`).WillReturnResult(sqlmock.NewResult(1, 3))
@@ -598,7 +639,8 @@ func TestRefreshTokenRepository_RevokeAllByUserID_Success(t *testing.T) {
 
 func TestRefreshTokenRepository_DeleteExpired_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM "refresh_tokens"`).WillReturnResult(sqlmock.NewResult(2, 2))
@@ -615,7 +657,8 @@ func TestRefreshTokenRepository_DeleteExpired_Success(t *testing.T) {
 
 func TestGuildInviteRepository_Create_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "guild_invites"`).
@@ -630,7 +673,8 @@ func TestGuildInviteRepository_Create_Success(t *testing.T) {
 
 func TestGuildInviteRepository_GetByCode_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "guild_invites"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "code"}))
@@ -642,7 +686,8 @@ func TestGuildInviteRepository_GetByCode_NotFound(t *testing.T) {
 
 func TestGuildInviteRepository_ListByGuildID_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "guild_id", "creator_id", "code", "max_uses", "uses", "expires_at", "created_at", "updated_at"}).
 		AddRow(1, 1, 1, "ABC123", 0, 0, nil, time.Now(), time.Now())
@@ -658,7 +703,8 @@ func TestGuildInviteRepository_ListByGuildID_Success(t *testing.T) {
 
 func TestGuildInviteRepository_IncrementUses_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "guild_invites"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -671,7 +717,8 @@ func TestGuildInviteRepository_IncrementUses_Success(t *testing.T) {
 
 func TestGuildInviteRepository_Delete_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM "guild_invites"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -688,7 +735,8 @@ func TestGuildInviteRepository_Delete_Success(t *testing.T) {
 
 func TestMessageRepository_Create_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "messages"`).
@@ -703,7 +751,8 @@ func TestMessageRepository_Create_Success(t *testing.T) {
 
 func TestMessageRepository_GetByID_NotFound(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "messages"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "content"}))
@@ -715,7 +764,8 @@ func TestMessageRepository_GetByID_NotFound(t *testing.T) {
 
 func TestMessageRepository_Update_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "messages"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -729,7 +779,8 @@ func TestMessageRepository_Update_Success(t *testing.T) {
 
 func TestMessageRepository_Delete_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM "messages"`).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -742,11 +793,15 @@ func TestMessageRepository_Delete_Success(t *testing.T) {
 
 func TestMessageRepository_GetByChannelID_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "channel_id", "user_id", "content", "type", "is_edited", "created_at", "updated_at"}).
 		AddRow(1, 1, 1, "hello", "text", false, time.Now(), time.Now())
 	mock.ExpectQuery(`SELECT \* FROM "messages"`).WillReturnRows(rows)
+	// Preload Attachments (GORM executes in reverse preload declaration order)
+	mock.ExpectQuery(`SELECT \* FROM "message_attachments"`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	// Preload User
 	mock.ExpectQuery(`SELECT \* FROM "users"`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
@@ -758,7 +813,8 @@ func TestMessageRepository_GetByChannelID_Success(t *testing.T) {
 
 func TestMessageRepository_GetByUserID_Success(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
-	defer sqlDB.Close()
+
+	defer func() { _ = sqlDB.Close() }()
 
 	rows := sqlmock.NewRows([]string{"id", "channel_id", "user_id", "content", "type", "is_edited", "created_at", "updated_at"}).
 		AddRow(1, 1, 1, "hello", "text", false, time.Now(), time.Now())

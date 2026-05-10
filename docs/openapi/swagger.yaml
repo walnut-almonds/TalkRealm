@@ -164,9 +164,9 @@ definitions:
   model.Message:
     properties:
       attachments:
-        description: 附件（預留）
+        description: 附件
         items:
-          type: string
+          $ref: '#/definitions/model.MessageAttachment'
         type: array
       channel_id:
         type: integer
@@ -190,6 +190,19 @@ definitions:
       user:
         $ref: '#/definitions/model.User'
       user_id:
+        type: integer
+    type: object
+  model.MessageAttachment:
+    properties:
+      created_at:
+        type: string
+      file:
+        $ref: '#/definitions/model.File'
+      file_id:
+        type: integer
+      id:
+        type: integer
+      message_id:
         type: integer
     type: object
   model.User:
@@ -420,6 +433,17 @@ definitions:
         - offline
         - busy
         - away
+        type: string
+    type: object
+  voice.RoomTokenResponse:
+    properties:
+      identity:
+        type: string
+      room_name:
+        type: string
+      token:
+        type: string
+      url:
         type: string
     type: object
 info:
@@ -808,6 +832,37 @@ paths:
       summary: 更新頻道位置
       tags:
       - Channel
+  /api/v1/channels/{id}/voice/token:
+    get:
+      description: 回傳可用於連接 LiveKit 語音房間的 JWT token 及伺服器 URL
+      parameters:
+      - description: 頻道 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/voice.RoomTokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 取得語音頻道 Token
+      tags:
+      - Voice
   /api/v1/files/{id}:
     delete:
       parameters:

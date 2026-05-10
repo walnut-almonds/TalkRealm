@@ -591,6 +591,53 @@
                 }
             }
         },
+        "/api/v1/channels/{id}/voice/token": {
+            "get": {
+                "description": "回傳可用於連接 LiveKit 語音房間的 JWT token 及伺服器 URL",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Voice"
+                ],
+                "summary": "取得語音頻道 Token",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "頻道 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/voice.RoomTokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/files/presign": {
             "post": {
                 "description": "驗證檔案類型與 quota，回傳 Minio Pre-signed PUT URL",
@@ -1989,10 +2036,10 @@
             "type": "object",
             "properties": {
                 "attachments": {
-                    "description": "附件（預留）",
+                    "description": "附件",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/model.MessageAttachment"
                     }
                 },
                 "channel_id": {
@@ -2026,6 +2073,26 @@
                     "$ref": "#/definitions/model.User"
                 },
                 "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.MessageAttachment": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "file": {
+                    "$ref": "#/definitions/model.File"
+                },
+                "file_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "message_id": {
                     "type": "integer"
                 }
             }
@@ -2360,6 +2427,23 @@
                         "busy",
                         "away"
                     ]
+                }
+            }
+        },
+        "voice.RoomTokenResponse": {
+            "type": "object",
+            "properties": {
+                "identity": {
+                    "type": "string"
+                },
+                "room_name": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         }
