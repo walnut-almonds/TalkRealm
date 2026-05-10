@@ -139,7 +139,10 @@ class ApiClient {
     // ── Channel ──
     getGuildChannels(guildId) { return this.get(EP.GUILD_CHANNELS(guildId)) }
     getChannel(channelId) { return this.get(EP.CHANNEL(channelId)) }
-    createChannel(guildId, name, type, topic) { return this.post(EP.GUILD_CHANNELS(guildId), { name, type, topic }) }
+    createChannel(guildId, nameOrObj, type, topic) {
+        const body = typeof nameOrObj === 'object' ? nameOrObj : { name: nameOrObj, type, topic }
+        return this.post(EP.GUILD_CHANNELS(guildId), body)
+    }
     updateChannel(channelId, updates) { return this.patch(EP.CHANNEL(channelId), updates) }
     deleteChannel(channelId) { return this.del(EP.CHANNEL(channelId)) }
 
