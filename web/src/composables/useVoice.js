@@ -28,10 +28,18 @@ export function useVoice(appStore) {
 
             // ── Event handlers ──────────────────────────────────────
             room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
-                voice.attachAudioTrack(track, pub, participant)
+                if (track.kind === 'audio') {
+                    voice.attachAudioTrack(track, pub, participant)
+                } else if (track.kind === 'video') {
+                    voice.addRemoteVideoTrack(track, pub, participant)
+                }
             })
             room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
-                voice.detachAudioTrack(track, pub, participant)
+                if (track.kind === 'audio') {
+                    voice.detachAudioTrack(track, pub, participant)
+                } else if (track.kind === 'video') {
+                    voice.removeRemoteVideoTrack(track, pub, participant)
+                }
             })
             room.on(RoomEvent.TrackSubscriptionFailed, (sid, participant) => {
                 console.warn('[voice] subscription failed', sid, participant?.identity)
@@ -99,6 +107,9 @@ export function useVoice(appStore) {
                 p.audioTrackPublications?.forEach(pub => {
                     if (pub.track && pub.isSubscribed) voice.attachAudioTrack(pub.track, pub, p)
                 })
+                p.videoTrackPublications?.forEach(pub => {
+                    if (pub.track && pub.isSubscribed) voice.addRemoteVideoTrack(pub.track, pub, p)
+                })
                 // Register and show existing remote participants
                 const remoteUserId = voice.identityToUserId.get(p.identity)
                 if (remoteUserId) {
@@ -130,10 +141,22 @@ export function useVoice(appStore) {
         if (!voice.voiceChannel) return
         const { id: channelId, name: channelName } = voice.voiceChannel
         if (voice.voiceRoom) {
+            // Stop screen share and camera before disconnect
+            try {
+                if (voice.voiceSelfState.screenSharing) {
+                    await voice.voiceRoom.localParticipant.setScreenShareEnabled(false)
+                    voice.voiceSelfState.screenSharing = false
+                }
+                if (voice.voiceSelfState.cameraEnabled) {
+                    await voice.voiceRoom.localParticipant.setCameraEnabled(false)
+                    voice.voiceSelfState.cameraEnabled = false
+                }
+            } catch { }
             await voice.voiceRoom.disconnect()
             voice.voiceRoom = null
         }
         voice.cleanupAudio()
+        voice.cleanupVideoTracks()
         ws.sendVoiceStateUpdate(channelId, 'leave')
         if (appStore.user) {
             voice.removeParticipant(channelId, appStore.user.id)
@@ -182,6 +205,60 @@ export function useVoice(appStore) {
         broadcastSelfState(voice.voiceRoom, voice.voiceChannel.id, appStore.user)
     }
 
+    async function toggleScreenShare() {
+        if (!voice.voiceRoom || !voice.voiceChannel) return
+        const next = !voice.voiceSelfState.screenSharing
+        try {
+            await voice.voiceRoom.localParticipant.setScreenShareEnabled(next)
+            voice.voiceSelfState.screenSharing = next
+            if (next) voice.videoOverlayOpen = true
+            if (appStore.user) {
+                voice.upsertParticipantState(voice.voiceChannel.id, appStore.user.id, {
+                    user_id: appStore.user.id,
+                    username: appStore.user.nickname || appStore.user.username,
+                    mic_enabled: voice.voiceSelfState.micEnabled,
+                    deafened: voice.voiceSelfState.deafened,
+                    screen_sharing: next,
+                    camera_enabled: voice.voiceSelfState.cameraEnabled,
+                })
+            }
+            broadcastSelfState(voice.voiceRoom, voice.voiceChannel.id, appStore.user)
+            if (!next && voice.remoteVideoTracks.length === 0 && !voice.voiceSelfState.cameraEnabled) {
+                voice.videoOverlayOpen = false
+            }
+        } catch (e) {
+            console.error('[voice] toggleScreenShare failed', e)
+            appStore.showNotification('螢幕分享失敗：' + e.message, 'error')
+        }
+    }
+
+    async function toggleCamera() {
+        if (!voice.voiceRoom || !voice.voiceChannel) return
+        const next = !voice.voiceSelfState.cameraEnabled
+        try {
+            await voice.voiceRoom.localParticipant.setCameraEnabled(next)
+            voice.voiceSelfState.cameraEnabled = next
+            if (next) voice.videoOverlayOpen = true
+            if (appStore.user) {
+                voice.upsertParticipantState(voice.voiceChannel.id, appStore.user.id, {
+                    user_id: appStore.user.id,
+                    username: appStore.user.nickname || appStore.user.username,
+                    mic_enabled: voice.voiceSelfState.micEnabled,
+                    deafened: voice.voiceSelfState.deafened,
+                    screen_sharing: voice.voiceSelfState.screenSharing,
+                    camera_enabled: next,
+                })
+            }
+            broadcastSelfState(voice.voiceRoom, voice.voiceChannel.id, appStore.user)
+            if (!next && voice.remoteVideoTracks.length === 0 && !voice.voiceSelfState.screenSharing) {
+                voice.videoOverlayOpen = false
+            }
+        } catch (e) {
+            console.error('[voice] toggleCamera failed', e)
+            appStore.showNotification('開啟攝影機失敗：' + e.message, 'error')
+        }
+    }
+
     function handleVoiceStateUpdate(data) {
         const { channel_id, user_id, username, action } = data
         if (action === 'join') {
@@ -207,6 +284,8 @@ export function useVoice(appStore) {
             username: user.nickname || user.username || 'Unknown',
             mic_enabled: voice.voiceSelfState.micEnabled,
             deafened: voice.voiceSelfState.deafened,
+            screen_sharing: voice.voiceSelfState.screenSharing,
+            camera_enabled: voice.voiceSelfState.cameraEnabled,
             ts: Date.now(),
         }
         try {
@@ -224,7 +303,7 @@ export function useVoice(appStore) {
             const text = typeof payload === 'string' ? payload : new TextDecoder().decode(payload)
             const data = JSON.parse(text)
             if (data.type !== 'voice_user_state') return
-            const { channel_id, user_id, username, mic_enabled, deafened } = data
+            const { channel_id, user_id, username, mic_enabled, deafened, screen_sharing, camera_enabled } = data
             if (!channel_id || !user_id) return
 
             // Register identity→userId for speaking detection
@@ -241,9 +320,19 @@ export function useVoice(appStore) {
                 username: username || participant?.name || 'Unknown',
                 mic_enabled: mic_enabled !== false,
                 deafened: deafened === true,
+                screen_sharing: screen_sharing === true,
+                camera_enabled: camera_enabled === true,
+            })
+
+            // Backfill identity on existing video tracks for this participant
+            voice.remoteVideoTracks.forEach(vt => {
+                if (vt.participantIdentity === participant?.identity && !vt.userId) {
+                    vt.userId = user_id
+                    vt.username = displayName
+                }
             })
         } catch { }
     }
 
-    return { joinVoiceChannel, leaveVoiceChannel, toggleMicrophone, toggleDeafen, handleVoiceStateUpdate }
+    return { joinVoiceChannel, leaveVoiceChannel, toggleMicrophone, toggleDeafen, toggleScreenShare, toggleCamera, handleVoiceStateUpdate }
 }

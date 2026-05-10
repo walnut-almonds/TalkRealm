@@ -7,6 +7,7 @@ import CreateChannelModal from './modals/CreateChannelModal.vue'
 import GuildSettingsModal from './modals/GuildSettingsModal.vue'
 import UserSettingsModal from './modals/UserSettingsModal.vue'
 import JoinInviteModal from './modals/JoinInviteModal.vue'
+import VoiceVideoOverlay from './VoiceVideoOverlay.vue'
 
 const props = defineProps({ voice: Object })
 
@@ -50,4 +51,7 @@ provide('voice', props.voice)
   <GuildSettingsModal v-if="modals.guildSettings" @close="modals.guildSettings = false" />
   <UserSettingsModal  v-if="modals.userSettings"  @close="modals.userSettings = false" />
   <JoinInviteModal    v-if="modals.joinInvite"    @close="modals.joinInvite = false" />
+
+  <!-- Voice video overlay (screen share / camera) -->
+  <VoiceVideoOverlay />
 </template>

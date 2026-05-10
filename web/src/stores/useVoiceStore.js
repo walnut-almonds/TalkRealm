@@ -12,13 +12,20 @@ export const useVoiceStore = defineStore('voice', () => {
     // { channelId: { userId: { user_id, username, mic_enabled, deafened } } }
     const voiceParticipantStates = ref({})
 
-    const voiceSelfState = ref({ micEnabled: true, deafened: false })
+    const voiceSelfState = ref({ micEnabled: true, deafened: false, screenSharing: false, cameraEnabled: false })
 
     // Set of participant identities currently speaking (LiveKit ActiveSpeakers)
     const speakingIdentities = ref(new Set())
 
     // Map: participant.identity → user_id (to map speakers to known users)
     const identityToUserId = ref(new Map())
+
+    // ── Video tracks ──────────────────────────────────────────────
+    // Each entry: { trackSid, participantIdentity, kind ('screen'|'camera'), element, userId, username }
+    const remoteVideoTracks = ref([])
+
+    // Whether the video overlay panel is open
+    const videoOverlayOpen = ref(false)
 
     let sfxContext = null
 
@@ -131,6 +138,58 @@ export const useVoiceStore = defineStore('voice', () => {
         voiceAudioElements.value.forEach(el => { if (el) el.muted = muted })
     }
 
+    // ── Video track helpers ────────────────────────────────────────
+    function addRemoteVideoTrack(track, pub, participant) {
+        if (!track || track.kind !== 'video') return
+        const sid = pub?.trackSid || pub?.sid || track?.sid || `${participant?.identity}:video`
+        if (remoteVideoTracks.value.some(t => t.trackSid === sid)) return
+
+        // Determine if this is a screen share or camera
+        const isScreen = pub?.source === 'screen_share' ||
+            pub?.trackName?.toLowerCase().includes('screen') ||
+            track?.source === 'screen_share'
+        const kind = isScreen ? 'screen' : 'camera'
+
+        const userId = identityToUserId.value.get(participant?.identity)
+        const username = participant?.name || participant?.identity || 'Unknown'
+
+        const element = track.attach()
+        element.autoplay = true
+        element.playsInline = true
+        element.muted = true  // video tracks are muted (audio comes from audio tracks)
+        element.style.width = '100%'
+        element.style.height = '100%'
+        element.style.objectFit = 'contain'
+        element.style.borderRadius = '6px'
+
+        remoteVideoTracks.value.push({ trackSid: sid, participantIdentity: participant?.identity, kind, element, userId, username })
+
+        // Auto-open overlay when someone starts sharing
+        if (!videoOverlayOpen.value) videoOverlayOpen.value = true
+    }
+
+    function removeRemoteVideoTrack(track, pub, participant) {
+        if (!track || track.kind !== 'video') return
+        const sid = pub?.trackSid || pub?.sid || track?.sid || `${participant?.identity}:video`
+        const idx = remoteVideoTracks.value.findIndex(t => t.trackSid === sid)
+        if (idx === -1) return
+        const entry = remoteVideoTracks.value[idx]
+        try { track.detach(entry.element) } catch { }
+        remoteVideoTracks.value.splice(idx, 1)
+
+        // Close overlay if no video streams remain and self isn't sharing
+        if (remoteVideoTracks.value.length === 0 && !voiceSelfState.value.screenSharing && !voiceSelfState.value.cameraEnabled) {
+            videoOverlayOpen.value = false
+        }
+    }
+
+    function cleanupVideoTracks() {
+        remoteVideoTracks.value.forEach(entry => {
+            try { entry.element?.remove() } catch { }
+        })
+        remoteVideoTracks.value = []
+    }
+
     // ── SFX ───────────────────────────────────────────────────────
     function playNotificationSound(action) {
         const AudioCtx = window.AudioContext || window.webkitAudioContext
@@ -161,18 +220,22 @@ export const useVoiceStore = defineStore('voice', () => {
         voiceChannel.value = null
         voiceRoom.value = null
         cleanupAudio()
-        voiceSelfState.value = { micEnabled: true, deafened: false }
+        cleanupVideoTracks()
+        voiceSelfState.value = { micEnabled: true, deafened: false, screenSharing: false, cameraEnabled: false }
         speakingIdentities.value = new Set()
+        videoOverlayOpen.value = false
     }
 
     return {
         voiceChannel, voiceRoom, voiceParticipants, voiceParticipantStates,
         voiceSelfState, speakingIdentities, identityToUserId,
         speakingUserIds, voiceAudioElements,
+        remoteVideoTracks, videoOverlayOpen,
         setSpeakingIdentities, isSpeaking,
         upsertParticipantState, removeParticipantState, getParticipantState,
         upsertParticipant, removeParticipant, getChannelParticipants,
         attachAudioTrack, detachAudioTrack, cleanupAudio, applyDeafenState,
+        addRemoteVideoTrack, removeRemoteVideoTrack, cleanupVideoTracks,
         ensureAudioContainer, trackKey, playNotificationSound, reset,
     }
 })

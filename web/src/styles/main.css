@@ -808,6 +808,225 @@ select {
     font-size: 10px;
 }
 
+/* ── Voice bar active toggle (camera / screen share ON) ─── */
+.voice-bar-toggle.active {
+    color: var(--brand, #5865f2);
+    background: rgba(88, 101, 242, 0.15);
+}
+
+.voice-bar-toggle.active:hover {
+    background: rgba(88, 101, 242, 0.25);
+}
+
+/* ── Voice Video Overlay ─────────────────────────────────── */
+.voice-video-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+
+.vvo-panel {
+    background: var(--bg-secondary, #2f3136);
+    border-radius: 12px;
+    width: min(92vw, 1080px);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.vvo-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+    flex-shrink: 0;
+}
+
+.vvo-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vvo-title .fa-video {
+    color: var(--brand, #5865f2);
+}
+
+.vvo-header-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.vvo-btn-icon {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+}
+
+.vvo-btn-icon:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+}
+
+.vvo-grid {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    flex: 1;
+    overflow-y: auto;
+    align-content: start;
+}
+
+.vvo-grid-1 {
+    grid-template-columns: 1fr;
+}
+
+.vvo-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.vvo-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.vvo-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 900px) {
+    .vvo-grid-3 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .vvo-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.vvo-tile {
+    position: relative;
+    background: #1e1f22;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+}
+
+.vvo-tile:hover {
+    border-color: rgba(88, 101, 242, 0.5);
+}
+
+.vvo-tile-pinned {
+    grid-column: 1 / -1;
+    border-color: var(--brand, #5865f2);
+}
+
+.vvo-tile-self {
+    cursor: default;
+}
+
+.vvo-tile-self:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.vvo-video-wrapper,
+.vvo-self-video {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    background: #000;
+}
+
+.vvo-video-wrapper video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.vvo-tile-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #fff;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+}
+
+.vvo-pin-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.vvo-tile:hover .vvo-pin-btn {
+    opacity: 1;
+}
+
+.vvo-tile-pinned .vvo-pin-btn {
+    opacity: 1;
+    color: var(--brand, #5865f2);
+}
+
+.vvo-empty {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 0;
+    color: var(--text-muted);
+    gap: 12px;
+}
+
+.vvo-empty .fa-video-slash {
+    font-size: 40px;
+    opacity: 0.4;
+}
+
+.vvo-empty p {
+    margin: 0;
+    font-size: 15px;
+}
+
+.vvo-empty-hint {
+    font-size: 12px !important;
+    opacity: 0.6;
+}
+
 /* ── User Panel ──────────────────────────────────────────── */
 .user-panel {
     display: flex;

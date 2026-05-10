@@ -49,6 +49,14 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-10 — 語音視訊（螢幕分享 + 攝影機）功能：
+- **`web/src/stores/useVoiceStore.js`**：`voiceSelfState` 新增 `screenSharing`、`cameraEnabled`；新增 `remoteVideoTracks`（陣列，每項含 trackSid、participantIdentity、kind: `screen|camera`、element、userId、username）與 `videoOverlayOpen`；新增 `addRemoteVideoTrack`、`removeRemoteVideoTrack`、`cleanupVideoTracks` 方法；`reset()` 同步清空 video tracks。
+- **`web/src/composables/useVoice.js`**：`TrackSubscribed/Unsubscribed` 同時處理 video tracks；新增 `toggleScreenShare()`（呼叫 `setScreenShareEnabled`）與 `toggleCamera()`（呼叫 `setCameraEnabled`）；`broadcastSelfState` 加入 `screen_sharing`、`camera_enabled`；`handleVoiceData` 反寫參與者狀態並 backfill `remoteVideoTracks` 的 userId/username；`leaveVoiceChannel` 先關閉 screen share & camera 再 disconnect。
+- **`web/src/components/VoiceVideoOverlay.vue`**（新增）：Teleport to body 的 modal；自動掛載 remote video track element（`<div ref=...>` + `appendChild`）；自偵測 self camera / screen 並透過 watch + `getTrackPublication` attach；支援 pin（固定某畫面，佔滿整行）；無視訊時顯示 empty state；關閉時不影響 LiveKit 連線。
+- **`web/src/components/VoiceBar.vue`**：新增攝影機、螢幕分享、展開視訊視窗按鈕；參與者狀態圖示新增 `fa-display`（螢幕分享中）與 `fa-video`（攝影機開啟中）。
+- **`web/src/components/MainLayout.vue`**：引入並掛載 `VoiceVideoOverlay`（全域一個實例）。
+- **`web/src/styles/main.css`**：新增 `.voice-bar-toggle.active`、`.voice-video-overlay`、`.vvo-*` 等視訊 overlay 相關樣式。
+
 2026-05-09 — 前端語音 UX 強化（加入/離開提示音 + 狀態同步）：
 - **`web/js/app.js`**：新增 `playVoiceNotificationSound()`，收到 WS `voice_state_update` 的 `join/leave`（非自己）時播放輕量提示音。
 - **`web/js/app.js`**：語音狀態新增 `voiceSelfState`（`micEnabled` / `deafened`）與 `voiceParticipantStates`；加入 `toggleVoiceMicrophone()` / `toggleVoiceDeafen()`。
