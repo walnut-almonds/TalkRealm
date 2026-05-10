@@ -127,7 +127,10 @@ class ApiClient {
     // ── Guild ──
     getMyGuilds() { return this.get(EP.MY_GUILDS) }
     getGuild(id) { return this.get(EP.GUILD(id)) }
-    createGuild(name, description) { return this.post(EP.GUILDS, { name, description }) }
+    createGuild(nameOrObj, description) {
+        const body = typeof nameOrObj === 'object' ? nameOrObj : { name: nameOrObj, description }
+        return this.post(EP.GUILDS, body)
+    }
     updateGuild(id, updates) { return this.patch(EP.GUILD(id), updates) }
     deleteGuild(id) { return this.del(EP.GUILD(id)) }
 
