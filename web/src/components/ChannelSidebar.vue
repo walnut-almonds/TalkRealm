@@ -5,6 +5,7 @@ import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import VoiceBar from './VoiceBar.vue'
 import UserPanel from './UserPanel.vue'
 
+const emit = defineEmits(['channel-selected'])
 const openModal = inject('openModal')
 const voice     = inject('voice')
 
@@ -14,9 +15,10 @@ const voiceStore = useVoiceStore()
 async function selectChannel(channel) {
   if (channel.type === 'voice') {
     await voice.joinVoiceChannel(channel.id)
-    return
+  } else {
+    await store.selectChannel(channel.id)
   }
-  await store.selectChannel(channel.id)
+  emit('channel-selected')
 }
 </script>
 
