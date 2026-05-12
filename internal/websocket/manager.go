@@ -20,7 +20,11 @@ type GuildMemberLookup interface {
 // MessageSender 訊息建立介面（避免循環依賴）
 // 由 MessageService 實作，注入 Manager 後供 send_message op 使用
 type MessageSender interface {
-	CreateMessageWS(userID, channelID uint, content, contentType, nonce string, fileIDs []uint) (any, error)
+	CreateMessageWS(
+		userID, channelID uint,
+		content, contentType, nonce string,
+		fileIDs []uint,
+	) (any, error)
 }
 
 // serverID 用於 Redis user server mapping（單體架構下固定為 "1"）
@@ -82,6 +86,7 @@ func NewManager(jwtManager *auth.JWTManager) *Manager {
 // Run 運行管理器的主循環
 func (m *Manager) Run() {
 	log.Println("WebSocket Manager started")
+
 	for {
 		select {
 		case client := <-m.register:
@@ -93,45 +98,11 @@ func (m *Manager) Run() {
 			client.sendHello()
 
 		case client := <-m.unregister:
-			m.mu.Lock()
-			if _, ok := m.clients[client]; ok {
-				// 從所有頻道訂閱中移除
-				for channelID := range client.channels {
-					if subscribers, ok := m.channelSubscriptions[channelID]; ok {
-						delete(subscribers, client)
-					}
-				}
-				for guildID := range client.guilds {
-					if subscribers, ok := m.guildSubscriptions[guildID]; ok {
-						delete(subscribers, client)
-					}
-				}
-				delete(m.clients, client)
-				close(client.send)
-				if client.identified {
-					log.Printf("Client disconnected: User %s (ID: %d). Total clients: %d",
-						client.username, client.userID, len(m.clients))
-				} else {
-					log.Printf("Unauthenticated client disconnected. Total clients: %d", len(m.clients))
-				}
-			}
-			wasIdentified := client.identified
-			userID := client.userID
-			username := client.username
-			m.mu.Unlock()
-
-			// Redis 清理（在鎖外執行）
-			if wasIdentified {
-				m.redisOnDisconnect(userID)
-			}
-
-			// 廣播下線狀態（在鎖外執行，避免死鎖）
-			if wasIdentified {
-				m.broadcastPresenceUpdate(userID, username, "offline")
-			}
+			m.handleUnregister(client)
 
 		case message := <-m.broadcast:
 			m.mu.RLock()
+
 			for client := range m.clients {
 				select {
 				case client.send <- message:
@@ -140,14 +111,80 @@ func (m *Manager) Run() {
 					delete(m.clients, client)
 				}
 			}
+
 			m.mu.RUnlock()
 		}
+	}
+}
+
+// handleUnregister 處理客戶端斷線：清理訂閱、語音狀態、Redis；廣播下線與語音離開事件
+func (m *Manager) handleUnregister(client *Client) {
+	m.mu.Lock()
+	if _, ok := m.clients[client]; ok {
+		// 從所有頻道訂閱中移除
+		for channelID := range client.channels {
+			if subscribers, ok := m.channelSubscriptions[channelID]; ok {
+				delete(subscribers, client)
+			}
+		}
+
+		for guildID := range client.guilds {
+			if subscribers, ok := m.guildSubscriptions[guildID]; ok {
+				delete(subscribers, client)
+			}
+		}
+
+		delete(m.clients, client)
+		close(client.send)
+
+		if client.identified {
+			log.Printf("Client disconnected: User %s (ID: %d). Total clients: %d",
+				client.username, client.userID, len(m.clients))
+		} else {
+			log.Printf("Unauthenticated client disconnected. Total clients: %d", len(m.clients))
+		}
+	}
+
+	wasIdentified := client.identified
+	userID := client.userID
+	username := client.username
+	voiceChannelID := client.currentVoiceChannelID
+	voiceGuildID := client.currentVoiceGuildID
+	m.mu.Unlock()
+
+	// 清理語音頻道成員記錄，並廣播離開事件（在鎖外執行）
+	if wasIdentified && voiceChannelID != 0 {
+		m.RemoveVoiceParticipant(voiceChannelID, userID)
+
+		leaveData := map[string]any{
+			"channel_id": voiceChannelID,
+			"guild_id":   voiceGuildID,
+			"user_id":    userID,
+			"username":   username,
+			"action":     "leave",
+		}
+		if voiceGuildID != 0 {
+			m.BroadcastToGuild(voiceGuildID, "voice_state_update", leaveData)
+		} else {
+			m.BroadcastToChannel(voiceChannelID, "voice_state_update", leaveData)
+		}
+	}
+
+	// Redis 清理（在鎖外執行）
+	if wasIdentified {
+		m.redisOnDisconnect(userID)
+	}
+
+	// 廣播下線狀態（在鎖外執行，避免死鎖）
+	if wasIdentified {
+		m.broadcastPresenceUpdate(userID, username, "offline")
 	}
 }
 
 // RegisterClient 註冊新客戶端，啟動讀寫 goroutines
 func (m *Manager) RegisterClient(client *Client) {
 	m.register <- client
+
 	go client.writePump()
 	go client.readPump()
 }
@@ -156,10 +193,12 @@ func (m *Manager) RegisterClient(client *Client) {
 func (m *Manager) SubscribeToChannel(client *Client, channelID uint) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	client.channels[channelID] = true
 	if m.channelSubscriptions[channelID] == nil {
 		m.channelSubscriptions[channelID] = make(map[*Client]bool)
 	}
+
 	m.channelSubscriptions[channelID][client] = true
 	log.Printf("User %s subscribed to channel %d", client.username, channelID)
 }
@@ -168,10 +207,13 @@ func (m *Manager) SubscribeToChannel(client *Client, channelID uint) {
 func (m *Manager) UnsubscribeFromChannel(client *Client, channelID uint) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	delete(client.channels, channelID)
+
 	if subscribers, ok := m.channelSubscriptions[channelID]; ok {
 		delete(subscribers, client)
 	}
+
 	log.Printf("User %s unsubscribed from channel %d", client.username, channelID)
 }
 
@@ -179,10 +221,12 @@ func (m *Manager) UnsubscribeFromChannel(client *Client, channelID uint) {
 func (m *Manager) SubscribeToGuild(client *Client, guildID uint) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	client.guilds[guildID] = true
 	if m.guildSubscriptions[guildID] == nil {
 		m.guildSubscriptions[guildID] = make(map[*Client]bool)
 	}
+
 	m.guildSubscriptions[guildID][client] = true
 }
 
@@ -190,19 +234,22 @@ func (m *Manager) SubscribeToGuild(client *Client, guildID uint) {
 func (m *Manager) UnsubscribeFromGuild(client *Client, guildID uint) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	delete(client.guilds, guildID)
+
 	if subscribers, ok := m.guildSubscriptions[guildID]; ok {
 		delete(subscribers, client)
 	}
 }
 
 // BroadcastToGuild 向訂閱了指定 guild 的所有客戶端廣播消息
-func (m *Manager) BroadcastToGuild(guildID uint, msgType string, data interface{}) {
+func (m *Manager) BroadcastToGuild(guildID uint, msgType string, data any) {
 	message := OutgoingMessage{
 		Op:        msgType,
 		Data:      data,
 		Timestamp: time.Now().UnixMilli(),
 	}
+
 	messageBytes, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("Error marshaling guild message: %v", err)
@@ -218,6 +265,7 @@ func (m *Manager) BroadcastToGuild(guildID uint, msgType string, data interface{
 	}
 
 	count := 0
+
 	for client := range subscribers {
 		select {
 		case client.send <- messageBytes:
@@ -226,6 +274,7 @@ func (m *Manager) BroadcastToGuild(guildID uint, msgType string, data interface{
 			log.Printf("Failed to send guild message to client %s (buffer full)", client.username)
 		}
 	}
+
 	log.Printf("Broadcasted %s to guild %d: %d clients", msgType, guildID, count)
 }
 
@@ -234,24 +283,28 @@ func (m *Manager) SubscribeClientToUserGuilds(client *Client) {
 	if m.guildLookup == nil {
 		return
 	}
+
 	guildIDs, err := m.guildLookup.GetUserGuildIDs(client.userID)
 	if err != nil {
 		log.Printf("ws: failed to get guild IDs for user %d: %v", client.userID, err)
 		return
 	}
+
 	for _, gid := range guildIDs {
 		m.SubscribeToGuild(client, gid)
 	}
+
 	log.Printf("User %s subscribed to %d guilds", client.username, len(guildIDs))
 }
 
 // BroadcastToChannel 向訂閱了指定頻道的所有客戶端廣播消息（使用 O(1) 索引查找）
-func (m *Manager) BroadcastToChannel(channelID uint, msgType string, data interface{}) {
+func (m *Manager) BroadcastToChannel(channelID uint, msgType string, data any) {
 	message := OutgoingMessage{
 		Op:        msgType,
 		Data:      data,
 		Timestamp: time.Now().UnixMilli(),
 	}
+
 	messageBytes, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("Error marshaling message: %v", err)
@@ -267,6 +320,7 @@ func (m *Manager) BroadcastToChannel(channelID uint, msgType string, data interf
 	}
 
 	count := 0
+
 	for client := range subscribers {
 		select {
 		case client.send <- messageBytes:
@@ -275,16 +329,23 @@ func (m *Manager) BroadcastToChannel(channelID uint, msgType string, data interf
 			log.Printf("Failed to send message to client %s (buffer full)", client.username)
 		}
 	}
+
 	log.Printf("Broadcasted %s to channel %d: %d clients", msgType, channelID, count)
 }
 
 // BroadcastToChannelExcept 向頻道訂閱者廣播，但排除指定 client（用於 typing_start）
-func (m *Manager) BroadcastToChannelExcept(exclude *Client, channelID uint, msgType string, data interface{}) {
+func (m *Manager) BroadcastToChannelExcept(
+	exclude *Client,
+	channelID uint,
+	msgType string,
+	data any,
+) {
 	message := OutgoingMessage{
 		Op:        msgType,
 		Data:      data,
 		Timestamp: time.Now().UnixMilli(),
 	}
+
 	messageBytes, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("Error marshaling message: %v", err)
@@ -300,10 +361,12 @@ func (m *Manager) BroadcastToChannelExcept(exclude *Client, channelID uint, msgT
 	}
 
 	count := 0
+
 	for client := range subscribers {
 		if client == exclude {
 			continue
 		}
+
 		select {
 		case client.send <- messageBytes:
 			count++
@@ -311,6 +374,7 @@ func (m *Manager) BroadcastToChannelExcept(exclude *Client, channelID uint, msgT
 			log.Printf("Failed to send message to client %s (buffer full)", client.username)
 		}
 	}
+
 	log.Printf("Broadcasted %s to channel %d (excl. sender): %d clients", msgType, channelID, count)
 }
 
@@ -325,6 +389,7 @@ func (m *Manager) broadcastPresenceUpdate(userID uint, username, status string) 
 		},
 		Timestamp: time.Now().UnixMilli(),
 	}
+
 	messageBytes, err := json.Marshal(message)
 	if err != nil {
 		return
@@ -364,14 +429,17 @@ func (m *Manager) CheckRateLimit(userID uint, maxMsg int) bool {
 	if m.redisClient == nil {
 		return true // 無 Redis 時放行
 	}
+
 	ctx := context.Background()
 	key := fmt.Sprintf("ratelimit:%d:ws_msg", userID)
 	pipe := m.redisClient.Pipeline()
 	incr := pipe.Incr(ctx, key)
 	pipe.Expire(ctx, key, time.Second)
+
 	if _, err := pipe.Exec(ctx); err != nil {
 		return true // Redis 錯誤時放行
 	}
+
 	return incr.Val() <= int64(maxMsg)
 }
 
@@ -380,6 +448,7 @@ func (m *Manager) redisOnIdentify(userID uint) {
 	if m.redisClient == nil {
 		return
 	}
+
 	ctx := context.Background()
 
 	// SET user:{userID}:server {serverID} EX 86400
@@ -395,11 +464,14 @@ func (m *Manager) redisOnIdentify(userID uint) {
 			log.Printf("redis: fetch guild IDs for user %d failed: %v", userID, err)
 			return
 		}
+
 		pipe := m.redisClient.Pipeline()
+
 		for _, gid := range guildIDs {
 			guildKey := fmt.Sprintf("guild:%d:online", gid)
 			pipe.SAdd(ctx, guildKey, userID)
 		}
+
 		if _, err := pipe.Exec(ctx); err != nil {
 			log.Printf("redis: sadd guild online failed: %v", err)
 		}
@@ -411,6 +483,7 @@ func (m *Manager) redisOnDisconnect(userID uint) {
 	if m.redisClient == nil {
 		return
 	}
+
 	ctx := context.Background()
 
 	// DEL user:{userID}:server
@@ -426,11 +499,14 @@ func (m *Manager) redisOnDisconnect(userID uint) {
 			log.Printf("redis: fetch guild IDs for user %d failed: %v", userID, err)
 			return
 		}
+
 		pipe := m.redisClient.Pipeline()
+
 		for _, gid := range guildIDs {
 			guildKey := fmt.Sprintf("guild:%d:online", gid)
 			pipe.SRem(ctx, guildKey, userID)
 		}
+
 		if _, err := pipe.Exec(ctx); err != nil {
 			log.Printf("redis: srem guild online failed: %v", err)
 		}
@@ -442,7 +518,9 @@ func (m *Manager) redisRefreshHeartbeat(userID uint) {
 	if m.redisClient == nil {
 		return
 	}
+
 	ctx := context.Background()
+
 	key := fmt.Sprintf("user:%d:server", userID)
 	if err := m.redisClient.Expire(ctx, key, 86400*time.Second).Err(); err != nil {
 		log.Printf("redis: refresh heartbeat TTL for user %d failed: %v", userID, err)
@@ -455,45 +533,53 @@ func (m *Manager) IsUserOnline(userID uint) bool {
 		// fallback：掃描本地 clients
 		m.mu.RLock()
 		defer m.mu.RUnlock()
+
 		for c := range m.clients {
 			if c.identified && c.userID == userID {
 				return true
 			}
 		}
+
 		return false
 	}
+
 	ctx := context.Background()
 	key := fmt.Sprintf("user:%d:server", userID)
+
 	exists, err := m.redisClient.Exists(ctx, key).Result()
 	if err != nil {
 		log.Printf("redis: check user %d online failed: %v", userID, err)
 		return false
 	}
+
 	return exists > 0
 }
 
 // BroadcastToAll 向所有連接的客戶端廣播消息
-func (m *Manager) BroadcastToAll(msgType string, data interface{}) {
+func (m *Manager) BroadcastToAll(msgType string, data any) {
 	message := OutgoingMessage{
 		Op:        msgType,
 		Data:      data,
 		Timestamp: time.Now().UnixMilli(),
 	}
+
 	messageBytes, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("Error marshaling message: %v", err)
 		return
 	}
+
 	m.broadcast <- messageBytes
 }
 
 // BroadcastToUser 向指定使用者發送消息
-func (m *Manager) BroadcastToUser(userID uint, msgType string, data interface{}) {
+func (m *Manager) BroadcastToUser(userID uint, msgType string, data any) {
 	message := OutgoingMessage{
 		Op:        msgType,
 		Data:      data,
 		Timestamp: time.Now().UnixMilli(),
 	}
+
 	messageBytes, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("Error marshaling message: %v", err)

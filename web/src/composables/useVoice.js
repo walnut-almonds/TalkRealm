@@ -65,9 +65,10 @@ export function useVoice(appStore) {
             room.on(RoomEvent.ParticipantConnected, (participant) => {
                 // Broadcast our own state so the new participant knows about us
                 broadcastSelfState(room, voice.voiceChannel?.id, appStore.user)
-                // Add them to the visible participant list (identity→userId registered via DataReceived)
-                const userId = voice.identityToUserId.get(participant.identity)
-                if (userId) {
+                // identity = userID (string) — register mapping and show immediately
+                const userId = parseInt(participant.identity)
+                if (!isNaN(userId)) {
+                    voice.identityToUserId.set(participant.identity, userId)
                     voice.upsertParticipant(voice.voiceChannel?.id ?? channelId, userId, participant.name || participant.identity)
                 }
             })
@@ -110,6 +111,7 @@ export function useVoice(appStore) {
             }
 
             // Attach existing remote tracks & add them to participant list
+            // identity = userID (string per token.go), so we can register directly without waiting for DataReceived
             room.remoteParticipants.forEach(p => {
                 p.audioTrackPublications?.forEach(pub => {
                     if (pub.track && pub.isSubscribed) voice.attachAudioTrack(pub.track, pub, p)
@@ -117,10 +119,18 @@ export function useVoice(appStore) {
                 p.videoTrackPublications?.forEach(pub => {
                     if (pub.track && pub.isSubscribed) voice.addRemoteVideoTrack(pub.track, pub, p)
                 })
-                // Register and show existing remote participants
-                const remoteUserId = voice.identityToUserId.get(p.identity)
-                if (remoteUserId) {
+                const remoteUserId = parseInt(p.identity)
+                if (!isNaN(remoteUserId)) {
+                    voice.identityToUserId.set(p.identity, remoteUserId)
                     voice.upsertParticipant(channelId, remoteUserId, p.name || p.identity)
+                    if (!voice.getParticipantState(channelId, remoteUserId)) {
+                        voice.upsertParticipantState(channelId, remoteUserId, {
+                            user_id: remoteUserId,
+                            username: p.name || p.identity,
+                            mic_enabled: true,
+                            deafened: false,
+                        })
+                    }
                 }
             })
 
@@ -133,6 +143,23 @@ export function useVoice(appStore) {
             // Broadcast join via WS (include guildId so all guild members see the update)
             ws.sendVoiceStateUpdate(channelId, 'join', appStore.currentGuild?.id)
             broadcastSelfState(room, channelId, appStore.user)
+
+            // Refresh authoritative participant list from backend after join
+            // (covers participants who joined before us whose WS events we may have missed)
+            try {
+                const participantsRes = await api.getVoiceParticipants(channelId)
+                    ; (participantsRes.participants || []).forEach(p => {
+                        voice.upsertParticipant(channelId, p.user_id, p.username)
+                        if (!voice.getParticipantState(channelId, p.user_id)) {
+                            voice.upsertParticipantState(channelId, p.user_id, {
+                                user_id: p.user_id, username: p.username,
+                                mic_enabled: true, deafened: false,
+                            })
+                        }
+                    })
+            } catch (e) {
+                console.warn('[voice] participant refresh failed', e)
+            }
 
             appStore.showNotification(`已加入語音頻道 #${channel.name}`, 'success')
         } catch (e) {

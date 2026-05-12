@@ -23,6 +23,10 @@ const (
 
 	// heartbeatInterval 應用層心跳間隔（毫秒）
 	heartbeatInterval = 30_000
+
+	// voiceActionJoin / voiceActionLeave 語音狀態動作常數
+	voiceActionJoin  = "join"
+	voiceActionLeave = "leave"
 )
 
 // IncomingMessage 從 client 接收的訊息
@@ -66,6 +70,12 @@ type Client struct {
 
 	// 緩衝通道，用於發送消息
 	send chan []byte
+
+	// 目前所在的語音頻道 ID（0 表示不在語音中）
+	currentVoiceChannelID uint
+
+	// 目前語音頻道所屬的 guild ID（供斷線廣播用）
+	currentVoiceGuildID uint
 }
 
 // NewClient 創建新的客戶端（連線建立時不需傳入使用者資訊，待 identify 後設定）
@@ -321,14 +331,26 @@ func (c *Client) handleVoiceStateUpdate(raw json.RawMessage) {
 		return
 	}
 
-	if payload.Action != "join" && payload.Action != "leave" {
-		payload.Action = "join"
+	if payload.Action != voiceActionJoin && payload.Action != voiceActionLeave {
+		payload.Action = voiceActionJoin
 	}
 
-	if payload.Action == "join" {
+	if payload.Action == voiceActionJoin {
+		// 若使用者已在另一個語音頻道，先從舊頻道移除（防止跨頻道殘留）
+		if c.currentVoiceChannelID != 0 && c.currentVoiceChannelID != payload.ChannelID {
+			c.manager.RemoveVoiceParticipant(c.currentVoiceChannelID, c.userID)
+		}
+
 		c.manager.UpsertVoiceParticipant(payload.ChannelID, c.userID, c.username)
+		c.currentVoiceChannelID = payload.ChannelID
+		c.currentVoiceGuildID = payload.GuildID
 	} else {
 		c.manager.RemoveVoiceParticipant(payload.ChannelID, c.userID)
+
+		if c.currentVoiceChannelID == payload.ChannelID {
+			c.currentVoiceChannelID = 0
+			c.currentVoiceGuildID = 0
+		}
 	}
 
 	data := map[string]any{
