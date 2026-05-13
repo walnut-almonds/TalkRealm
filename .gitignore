@@ -62,3 +62,6 @@ temp/
 
 # OS specific
 Thumbs.db
+
+web/node_modules
+web/dist

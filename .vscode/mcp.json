@@ -13,6 +13,22 @@
             "args": [
                 "mcp"
             ]
+        },
+        "stitch": {
+            "url": "https://stitch.googleapis.com/mcp",
+            "type": "http",
+            "headers": {
+                "Accept": "application/json",
+                "X-Goog-Api-Key": "${input:stitch_api_key}"
+            }
         }
-    }
+    },
+    "inputs": [
+        {
+            "id": "stitch_api_key",
+            "type": "promptString",
+            "description": "Enter your Stitch API Key",
+            "password": true
+        }
+    ]
 }
