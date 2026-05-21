@@ -30,6 +30,7 @@ ws.onMessage((type, data) => {
     case 'member_remove':      store.handleMemberRemove(data); break
     case 'member_update':      store.handleMemberUpdate(data); break
     case 'voice_state_update': voice.handleVoiceStateUpdate(data); break
+    case 'translation_ready':   store.handleTranslationReady(data); break
     case 'reconnect_failed':   store.showNotification('WebSocket 連線失敗，請重新整理頁面', 'error'); break
   }
 })

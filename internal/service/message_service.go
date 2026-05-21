@@ -9,6 +9,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const messageTypeText = "text"
+
 var (
 	ErrMessageNotFound     = errors.New("message not found")
 	ErrNotChannelMemberMsg = errors.New("not a member of this channel's guild")
@@ -36,6 +38,7 @@ type MessageService interface {
 	DeleteMessage(messageID, userID uint) error
 	SetWebSocketManager(manager WebSocketManager)
 	SetFileService(fs FileService)
+	SetTranslationService(ts TranslationService)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
 	CreateMessageWS(
 		userID, channelID uint,
@@ -45,11 +48,12 @@ type MessageService interface {
 }
 
 type messageService struct {
-	messageRepo     repository.MessageRepository
-	channelRepo     repository.ChannelRepository
-	guildMemberRepo repository.GuildMemberRepository
-	wsManager       WebSocketManager
-	fileService     FileService // 可選，用於建立附件關聯
+	messageRepo        repository.MessageRepository
+	channelRepo        repository.ChannelRepository
+	guildMemberRepo    repository.GuildMemberRepository
+	wsManager          WebSocketManager
+	fileService        FileService        // 可選，用於建立附件關聯
+	translationService TranslationService // 可選，用於非同步翻譯
 }
 
 // NewMessageService 建立訊息服務實例
@@ -75,6 +79,11 @@ func (s *messageService) SetFileService(fs FileService) {
 // SetWebSocketManager 設定 WebSocket 管理器
 func (s *messageService) SetWebSocketManager(manager WebSocketManager) {
 	s.wsManager = manager
+}
+
+// SetTranslationService 設定翻譯服務（用於非同步翻譯）
+func (s *messageService) SetTranslationService(ts TranslationService) {
+	s.translationService = ts
 }
 
 // CreateMessageWS 給 WebSocket send_message op 使用的薄包裝
@@ -125,10 +134,10 @@ func (s *messageService) CreateMessage(
 	// 驗證訊息類型
 	msgType := req.Type
 	if msgType == "" {
-		msgType = "text"
+		msgType = messageTypeText
 	}
 
-	if msgType != "text" && msgType != "image" && msgType != "file" {
+	if msgType != messageTypeText && msgType != "image" && msgType != "file" {
 		return nil, ErrInvalidMessageType
 	}
 
@@ -191,6 +200,11 @@ func (s *messageService) CreateMessage(
 	// 如果有 WebSocket 管理器，即時推送新訊息
 	if s.wsManager != nil {
 		s.wsManager.BroadcastToChannel(req.ChannelID, "message_create", fullMessage)
+	}
+
+	// 非同步翻譯（僅 text 類型）
+	if s.translationService != nil && msgType == messageTypeText {
+		s.translationService.TranslateAndPush(fullMessage.ID, req.Content, req.ChannelID)
 	}
 
 	return fullMessage, nil

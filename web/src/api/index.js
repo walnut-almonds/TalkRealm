@@ -34,6 +34,9 @@ export const EP = {
     FILE_DELETE: (id) => `/api/v1/files/${id}`,
     VOICE_TOKEN: (channelId) => `/api/v1/channels/${channelId}/voice/token`,
     VOICE_PARTICIPANTS: (channelId) => `/api/v1/channels/${channelId}/voice/participants`,
+    MESSAGE_TRANSLATION: (id) => `/api/v1/messages/${id}/translation`,
+    MESSAGE_GUESS: (id) => `/api/v1/messages/${id}/guess`,
+    MESSAGE_GAME: (id) => `/api/v1/messages/${id}/game`,
 }
 
 export const STORAGE_KEYS = {
@@ -195,6 +198,19 @@ class ApiClient {
     // ── Voice ──
     getVoiceToken(channelId) { return this.get(EP.VOICE_TOKEN(channelId)) }
     getVoiceParticipants(channelId) { return this.get(EP.VOICE_PARTICIPANTS(channelId)) }
+
+    // ── Profile (aliases) ──
+    updateProfile(updates) { return this.patch(EP.UPDATE_ME, updates) }
+    changePassword(body) { return this.post('/api/v1/users/me/password', body) }
+
+    // ── Translation ──
+    getTranslation(messageId) { return this.get(EP.MESSAGE_TRANSLATION(messageId)) }
+    submitGuess(messageId, guessContent, hiddenLang) {
+        return this.post(EP.MESSAGE_GUESS(messageId), { guess_content: guessContent, hidden_lang: hiddenLang })
+    }
+    getGameStatus(messageId, hiddenLang) {
+        return this.get(`${EP.MESSAGE_GAME(messageId)}?hidden_lang=${hiddenLang}`)
+    }
 }
 
 export const api = new ApiClient()

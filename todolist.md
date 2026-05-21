@@ -44,50 +44,48 @@
 
 ---
 
-## � Translation Plan Phase 1 — 翻譯猜字 MVP（字典模式）
+## 🟣 Translation Plan — 全句翻譯 + LLM 語意猜測
 
-> 詳細設計見 [`translation-plan.md`](./translation-plan.md)
+> 詳細設計見 [`translation-plan.md`](./translation-plan.md)（已更新）
 
-> **對齊架構圖**：Translation Service 為獨立服務，由 Message Persistence Service 非同步派發任務；翻譯結果存入 **Cassandra**（非 PostgreSQL 欄位擴充）。
+> **架構決策**：字典 MVP 移除，改為 DeepL 整句翻譯（三語全存）；猜測評估直接使用 LLM 語意相似度（Gemini 1.5 Flash / Groq），跳過字典模式；儲存層改用 PostgreSQL `message_translations` 表（schema 設計對未來 Cassandra 遷移友好：每筆訊息一列，無 JOIN）；字典單字 hover 功能延後，屆時串接公開 API（Jisho / CC-CEDICT / dictionaryapi.dev）。
 
 ### DB / 儲存層
-- [ ] **Cassandra `translation_messages` 表**：`message_id`、`original_lang`、`content_zh`、`content_ja`、`content_en`、`translated_at`
-- [ ] **`game_states` 表（PostgreSQL）**：新增 `message_id`、`guesser_id`、`hidden_lang`、`guess_content`、`mode`、`is_correct`、`guessed_at` 欄位
+- [x] **`message_translations` 表（PostgreSQL）**：`message_id PK`、`original_lang`、`content_zh`、`content_ja`、`content_en`、`translation_status`、`translated_at`
+- [x] **`game_states` 表（PostgreSQL）**：`message_id`、`guesser_id`、`hidden_lang`、`guess_content`、`mode`、`is_correct`、`similarity_score`、`guessed_at`
+- [x] **`users.preferred_lang`**：新增 `preferred_lang VARCHAR(5) DEFAULT 'zh'`，`PATCH /api/v1/users/me` 支援更新
 
-### Translation Service（獨立服務）
-- [ ] **DeepL API 整合**：`internal/service/translation_service.go`，封裝 DeepL Free API 呼叫（中日英三語互譯）
-- [ ] **非同步翻譯流程**：Message Persistence Service consume `topic:record` 寫 DB 後，非同步派發任務給 Translation Service；結果寫入 Cassandra
-- [ ] **WS Push `translation_ready`**：翻譯完成後透過 WS Manager 推送給同頻道接收方
+### Translation Service（`internal/service/translation_service.go`）
+- [x] **DeepL API 整合**：`TranslateAll()` 並行翻譯三語（ZH / JA / EN-US），DeepL 自動偵測來源語言
+- [x] **非同步翻譯流程**：`MessageService.CreateMessage()` 寫 DB 後 `go translationService.TranslateAndPush()`，翻譯結果寫入 `message_translations`
+- [x] **WS Push `translation_ready`**：翻譯完成後 `BroadcastToChannel`，payload: `{ message_id, original_lang, translations: {zh, ja, en} }`
+- [x] **Config**：`deepl.api_key`、`deepl.enabled`；`llm.provider`、`llm.api_key`、`llm.model`、`llm.similarity_threshold`（預設 0.70）、`llm.enabled`
 
-### Dictionary Service
-- [ ] **字典資料來源確認**：確認中日英三語單字字典來源與建置方式
-- [ ] **`internal/service/dictionary_service.go`**：封裝字典查詢，完全匹配判斷
+### Guess Service（`internal/service/guess_service.go`）
+- [x] **LLM 語意評估**：呼叫 Gemini 1.5 Flash 或 Groq + Llama，score ≥ threshold = 正確
+- [x] **`POST /api/v1/messages/{id}/guess`**：body `{ guess_content, hidden_lang }`，回傳 `{ is_correct, similarity_score, correct_content }`
+- [x] **`GET /api/v1/messages/{id}/game`**：query `?hidden_lang=zh`，回傳 `{ has_guessed, is_correct, hidden_lang, similarity_score }`
+- [x] **`GET /api/v1/messages/{id}/translation`**：取得翻譯結果（三語 + status）
 
-### Game API
-- [ ] **`POST /api/v1/messages/{id}/guess`**：接受猜測內容，呼叫 Dictionary Service 判斷，寫入 `game_states`
-- [ ] **`GET /api/v1/messages/{id}/game`**：取得該訊息的猜測狀態（已猜 / 未猜 / 結果）
+### Repository 層
+- [x] **`internal/repository/translation_repository.go`**：`Upsert`、`GetByMessageID`
+- [x] **`internal/repository/game_state_repository.go`**：`Create`、`GetByMessageAndGuesser`、`ListByMessage`
 
 ### 前端
 - [x] **多行輸入 (Shift+Enter 換行)**：input 改為 textarea，自動伸縮高度，Enter 送出 / Shift+Enter 換行
 - [x] **基礎 Markdown 渲染**：訊息顯示支援 ` ``` ` 程式碼區塊、`` ` `` 行內程式碼、`-` 列舉，以及換行顯示
-- [ ] **完整 Markdown 支援**：`**bold**`、`*italic*`、`>` blockquote、`### heading`、連結、圖片等（目前僅支援 code block / inline code / bullet list / 換行）
-- [ ] **「翻譯載入中」UI 狀態**：收到訊息後顯示 loading，等待 `translation_ready` WS 事件
-- [ ] **隱藏原文 / 譯文 UI**：讓用戶可選擇隱藏哪一側
-- [ ] **猜字輸入 UI**：顯示猜測輸入框，回饋正確 / 錯誤結果
+- [ ] **完整 Markdown 支援**：`**bold**`、`*italic*`、`>` blockquote、`### heading`、連結、圖片等
+- [x] **使用者語言偏好 UI**：Profile 設定頁加 `preferred_lang` 選擇器（zh/ja/en），呼叫 `PATCH /api/v1/users/me`
+- [x] **「翻譯載入中」UI 狀態**：收到訊息後顯示 loading，等待 `translation_ready` WS 事件
+- [x] **依偏好語言顯示譯文**：`translation_ready` 後依 user `preferred_lang` 自動顯示對應譯文
+- [x] **隱藏原文 / 譯文 toggle UI**：讓用戶選擇隱藏哪一側（觸發猜測流程）
+- [x] **猜字輸入 UI**：顯示猜測輸入框，送出後呼叫 `POST /api/v1/messages/{id}/guess`，回饋正確/錯誤 + similarity score
+
+### 延後事項
+- [ ] **字典單字 hover**：前端 hover 單字 → `GET /api/v1/dictionary/{lang}/{word}`（後端 proxy 公開 API：Jisho / CC-CEDICT / dictionaryapi.dev）
 
 ---
 
-## 🔵 Translation Plan Phase 2 — LLM 語意模式（待 Phase 1 驗證後）
-
-- [ ] **訊息表 embedding 欄位**：`embedding_zh`、`embedding_ja`、`embedding_en`
-- [ ] **Guess Evaluation Service**：呼叫 Gemini 1.5 Flash（或 Groq + Llama 3.1）判斷語意相似度 ≥ 70%
-- [ ] **`game_states` 加入 `similarity_score`**：記錄 LLM 回傳相似度
-- [ ] **雙模式 API**：`POST /api/v1/messages/{id}/guess` 支援 `mode: "dictionary" | "semantic"`
-- [ ] **LLM Prompt 設計與三語測試**
-- [ ] **免費 API 額度監控機制**
-- [ ] **Reward Service**：積分 / 徽章 / 排行榜（設計 TBD）
-
----
 
 ## 🟡 Phase 2 — MQ 整合（中期）
 

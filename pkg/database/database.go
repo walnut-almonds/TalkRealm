@@ -93,6 +93,8 @@ func AutoMigrate() error {
 		&model.UserOAuthProvider{},
 		&model.File{},
 		&model.MessageAttachment{},
+		&model.MessageTranslation{},
+		&model.GameState{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { api, STORAGE_KEYS } from '@/api/index.js'
 import { useVoiceStore } from './useVoiceStore.js'
 
@@ -16,6 +16,11 @@ export const useAppStore = defineStore('app', () => {
     const notification = ref({ message: '', type: 'info', visible: false })
     const pendingFileIds = ref([])
     const lightboxUrl = ref(null)
+
+    // Translation cache: messageId → { original_lang, translations: {zh, ja, en} }
+    const translationCache = reactive(new Map())
+    // messageIds whose translation is in-flight (show loading indicator)
+    const translationLoadingSet = reactive(new Set())
 
     // Typing: { [channelId]: { [userId]: { username, ts } } }
     const typingUsers = ref({})
@@ -259,12 +264,24 @@ export const useAppStore = defineStore('app', () => {
             if (idx !== -1) {
                 // splice 觸發完整的响應式更新
                 messages.value.splice(idx, 1, msg)
+                if (msg.type === 'text' && msg.id) translationLoadingSet.add(msg.id)
                 return
             }
             // 已存在相同 nonce 的真實訊息，不重複新增
             if (messages.value.some(m => m.nonce === msg.nonce && !m._pending)) return
         }
         messages.value.push(msg)
+        // Mark new text messages for async translation
+        if (msg.type === 'text' && msg.id) translationLoadingSet.add(msg.id)
+    }
+
+    function handleTranslationReady(data) {
+        if (!data?.message_id) return
+        translationCache.set(data.message_id, {
+            original_lang: data.original_lang,
+            translations: data.translations,
+        })
+        translationLoadingSet.delete(data.message_id)
     }
 
     function handleMessageUpdate(msg) {
@@ -362,6 +379,7 @@ export const useAppStore = defineStore('app', () => {
         user, guilds, currentGuild, channels, currentChannel,
         members, messages, isLoading, notification, pendingFileIds,
         lightboxUrl, typingUsers, typingList,
+        translationCache, translationLoadingSet,
         // computed
         textChannels, voiceChannels, isAuthenticated, currentUserRole,
         // methods
@@ -370,6 +388,7 @@ export const useAppStore = defineStore('app', () => {
         selectChannel, loadMessages,
         handleNewMessage, handleMessageUpdate, handleMessageDelete,
         handleTyping, handleUserStatus,
+        handleTranslationReady,
         handleGuildUpdate, handleGuildDelete,
         handleChannelCreate, handleChannelUpdate, handleChannelDelete,
         handleMemberAdd, handleMemberRemove, handleMemberUpdate,

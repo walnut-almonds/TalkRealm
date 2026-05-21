@@ -95,6 +95,76 @@ async function openAttachment(fileId) {
   if (url) window.open(url, '_blank')
   else store.showNotification('無法取得檔案連結', 'error')
 }
+
+// ── Translation & Guess ───────────────────────────────────────
+const LANG_LABELS = { zh: '中文', ja: '日本語', en: 'English' }
+
+const isTextMessage = computed(() => !props.message.type || props.message.type === 'text')
+const showTranslationSection = computed(() =>
+  isTextMessage.value && props.message.id && !props.message._pending
+)
+
+const translation = computed(() => store.translationCache.get(props.message.id) ?? null)
+const isTranslationLoading = computed(() => store.translationLoadingSet.has(props.message.id))
+
+const preferredLang = computed(() => store.user?.preferred_lang || 'zh')
+
+// Which language to display (preferred unless message is already in that lang)
+const displayLang = computed(() => {
+  if (!translation.value) return preferredLang.value
+  const orig = translation.value.original_lang
+  if (orig === preferredLang.value) {
+    return ['zh', 'ja', 'en'].find(l => l !== orig) || 'en'
+  }
+  return preferredLang.value
+})
+
+const translatedText = computed(() => {
+  if (!translation.value?.translations) return null
+  // Don't show translation if original is already preferred AND there's nothing else to show
+  if (translation.value.original_lang === preferredLang.value) {
+    const fallback = ['zh', 'ja', 'en'].find(l => l !== preferredLang.value)
+    return fallback ? (translation.value.translations[fallback] || null) : null
+  }
+  return translation.value.translations[preferredLang.value] || null
+})
+
+const translationVisible = ref(false)
+const guessMode = ref(false)
+const guessInput = ref('')
+const guessResult = ref(null)  // { is_correct, similarity_score, correct_content }
+const isGuessing = ref(false)
+
+async function fetchTranslation() {
+  if (translation.value || isTranslationLoading.value) return
+  store.translationLoadingSet.add(props.message.id)
+  try {
+    const result = await api.getTranslation(props.message.id)
+    if (result) {
+      store.handleTranslationReady({
+        message_id: props.message.id,
+        original_lang: result.original_lang,
+        translations: { zh: result.content_zh, ja: result.content_ja, en: result.content_en },
+      })
+    }
+  } catch {
+    store.translationLoadingSet.delete(props.message.id)
+  }
+}
+
+async function submitGuess() {
+  if (!guessInput.value.trim() || isGuessing.value) return
+  isGuessing.value = true
+  try {
+    const result = await api.submitGuess(props.message.id, guessInput.value.trim(), displayLang.value)
+    guessResult.value = result
+    guessMode.value = false
+  } catch (e) {
+    store.showNotification('猜測失敗：' + (e.message || '未知錯誤'), 'error')
+  } finally {
+    isGuessing.value = false
+  }
+}
 </script>
 
 <template>
@@ -155,6 +225,84 @@ async function openAttachment(fileId) {
             </button>
           </div>
         </template>
+      </div>
+
+      <!-- Translation section -->
+      <div v-if="showTranslationSection" class="translation-section">
+        <!-- In-flight: waiting for translation_ready WS event -->
+        <div v-if="isTranslationLoading && !translation" class="translation-loading">
+          <i class="fas fa-circle-notch fa-spin"></i>
+          <span>翻譯中...</span>
+        </div>
+
+        <!-- Translation ready -->
+        <template v-else-if="translation && translatedText">
+          <div class="translation-bar">
+            <span class="translation-lang-badge">{{ LANG_LABELS[displayLang] }}</span>
+            <span
+              class="translation-text"
+              :class="{ 'translation-text--blurred': !translationVisible && !guessResult }"
+              @click="!translationVisible && !guessResult && (translationVisible = true)"
+            >{{ translatedText }}</span>
+            <div class="translation-actions">
+              <button
+                v-if="!guessMode && !guessResult"
+                class="trans-btn"
+                :title="translationVisible ? '隱藏譯文' : '顯示譯文'"
+                @click="translationVisible = !translationVisible"
+              >
+                <i :class="['fas', translationVisible ? 'fa-eye-slash' : 'fa-eye']"></i>
+              </button>
+              <button
+                v-if="!translationVisible && !guessResult"
+                class="trans-btn trans-btn--guess"
+                title="猜猜看"
+                @click="guessMode = !guessMode"
+              >
+                <i class="fas fa-question-circle"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Guess input -->
+          <div v-if="guessMode && !guessResult" class="guess-area">
+            <input
+              v-model="guessInput"
+              class="guess-input"
+              :placeholder="`猜猜 ${LANG_LABELS[displayLang]} 的意思...`"
+              @keydown.enter="submitGuess"
+            />
+            <button class="btn-sm btn-primary" :disabled="isGuessing" @click="submitGuess">
+              {{ isGuessing ? '送出中...' : '送出' }}
+            </button>
+            <button class="btn-sm btn-secondary" @click="guessMode = false; guessInput = ''">取消</button>
+          </div>
+
+          <!-- Guess result -->
+          <div
+            v-if="guessResult"
+            class="guess-result"
+            :class="guessResult.is_correct ? 'guess-result--correct' : 'guess-result--wrong'"
+          >
+            <i :class="['fas', guessResult.is_correct ? 'fa-check-circle' : 'fa-times-circle']"></i>
+            <span v-if="guessResult.is_correct">猜對了！</span>
+            <span v-else>
+              相似度 {{ Math.round((guessResult.similarity_score || 0) * 100) }}%
+              <span v-if="guessResult.correct_content" class="guess-answer">
+                正解：{{ guessResult.correct_content }}
+              </span>
+            </span>
+          </div>
+        </template>
+
+        <!-- Old message: lazy-fetch button -->
+        <button
+          v-else-if="!isTranslationLoading && !translation"
+          class="trans-btn trans-btn--fetch"
+          @click="fetchTranslation"
+        >
+          <i class="fas fa-language"></i> 翻譯
+        </button>
       </div>
     </div>
 
