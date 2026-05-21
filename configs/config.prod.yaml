@@ -66,6 +66,6 @@ deepl:
 llm:
   provider: ${LLM_PROVIDER}           # gemini or groq
   api_key: ${LLM_API_KEY}
-  model: ${LLM_MODEL}                  # e.g. gemini-1.5-flash, llama3-8b-8192
+  model: ${LLM_MODEL}                  # e.g. gemini: gemini-flash-latest；gemini-1.5-flash；groq: llama3-8b-8192
   similarity_threshold: 0.70
   enabled: true

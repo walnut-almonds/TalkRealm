@@ -66,7 +66,7 @@ deepl:
 llm:
   provider: "gemini"        # gemini 或 groq
   api_key: ""               # Gemini API Key 或 Groq API Key
-  model: "gemini-1.5-flash" # gemini: gemini-1.5-flash；groq: llama3-8b-8192
+  model: "gemini-1.5-flash" # gemini: gemini-flash-latest；gemini-1.5-flash；groq: llama3-8b-8192
   similarity_threshold: 0.70 # LLM 語意相似度門檻（0..1）
   enabled: false            # 設為 true 並填入 api_key 以啟用語意猜測評分
 
