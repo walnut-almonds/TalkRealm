@@ -112,6 +112,10 @@ func (s *guessService) SubmitGuess(
 		return nil, ErrLLMDisabled
 	}
 
+	if s.cfg.Provider == "" || s.cfg.APIKey == "" || s.cfg.Model == "" {
+		return nil, ErrLLMDisabled
+	}
+
 	// 呼叫 LLM 評估語意相似度
 	score, err := s.evaluateSimilarity(correctContent, req.GuessContent, req.HiddenLang)
 	if err != nil {

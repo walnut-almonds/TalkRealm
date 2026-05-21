@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/walnut-almonds/talkrealm/internal/service"
+	"github.com/walnut-almonds/talkrealm/pkg/logger"
 )
 
 // TranslationHandler 翻譯與猜測遊戲處理器
@@ -102,7 +103,11 @@ func (h *TranslationHandler) SubmitGuess(c *gin.Context) {
 		case errors.Is(err, service.ErrLLMDisabled):
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "guess service not configured"})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to evaluate guess"})
+			logger.Error("SubmitGuess failed", "error", err.Error())
+			c.JSON(
+				http.StatusInternalServerError,
+				gin.H{"error": "failed to evaluate guess", "detail": err.Error()},
+			)
 		}
 
 		return
