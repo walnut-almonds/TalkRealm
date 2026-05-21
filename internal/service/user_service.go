@@ -55,9 +55,10 @@ type PublicUser struct {
 
 // UpdateUserRequest 更新使用者請求
 type UpdateUserRequest struct {
-	Nickname string `json:"nickname" binding:"max=64"`
-	Avatar   string `json:"avatar"   binding:"max=256"`
-	Status   string `json:"status"   binding:"omitempty,oneof=online offline busy away"`
+	Nickname      string `json:"nickname"       binding:"max=64"`
+	Avatar        string `json:"avatar"         binding:"max=256"`
+	Status        string `json:"status"         binding:"omitempty,oneof=online offline busy away"`
+	PreferredLang string `json:"preferred_lang" binding:"omitempty,oneof=zh ja en"`
 }
 
 // OAuthUserInfo OAuth 登入時由 provider 提供的使用者資訊
@@ -225,6 +226,10 @@ func (s *userService) Update(id uint, req *UpdateUserRequest) (*model.User, erro
 
 	if req.Status != "" {
 		user.Status = req.Status
+	}
+
+	if req.PreferredLang != "" {
+		user.PreferredLang = req.PreferredLang
 	}
 
 	user.UpdatedAt = time.Now()

@@ -6,15 +6,16 @@ import (
 
 // User 使用者模型
 type User struct {
-	ID        uint      `gorm:"primarykey"           json:"id"`
-	Username  string    `gorm:"uniqueIndex;not null" json:"username"`
-	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
-	Password  string    `gorm:"default:null"         json:"-"`
-	Nickname  string    `                            json:"nickname"`
-	Avatar    string    `                            json:"avatar"`
-	Status    string    `gorm:"default:'offline'"    json:"status"` // online, offline, busy, away
-	CreatedAt time.Time `                            json:"created_at"`
-	UpdatedAt time.Time `                            json:"updated_at"`
+	ID            uint      `gorm:"primarykey"           json:"id"`
+	Username      string    `gorm:"uniqueIndex;not null" json:"username"`
+	Email         string    `gorm:"uniqueIndex;not null" json:"email"`
+	Password      string    `gorm:"default:null"         json:"-"`
+	Nickname      string    `                            json:"nickname"`
+	Avatar        string    `                            json:"avatar"`
+	Status        string    `gorm:"default:'offline'"    json:"status"`        // online, offline, busy, away
+	PreferredLang string    `gorm:"default:'zh'"         json:"preferred_lang"` // zh, ja, en
+	CreatedAt     time.Time `                            json:"created_at"`
+	UpdatedAt     time.Time `                            json:"updated_at"`
 }
 
 // UserOAuthProvider 使用者 OAuth 連結（一個帳號可綁多個 OAuth 廠商）
@@ -132,4 +133,31 @@ type RefreshToken struct {
 	ExpiresAt time.Time `gorm:"not null"             json:"expires_at"`
 	Revoked   bool      `gorm:"default:false"        json:"revoked"`
 	CreatedAt time.Time `                            json:"created_at"`
+}
+
+// MessageTranslation 訊息翻譯結果（三語全存，migration-friendly：每筆訊息一列，未來可直接遷至 Cassandra）
+type MessageTranslation struct {
+	MessageID         uint      `gorm:"primarykey"                json:"message_id"`
+	Message           Message   `gorm:"foreignKey:MessageID"      json:"-"`
+	OriginalLang      string    `gorm:"not null"                  json:"original_lang"`      // zh, ja, en
+	ContentZH         string    `gorm:"type:text"                 json:"content_zh"`
+	ContentJA         string    `gorm:"type:text"                 json:"content_ja"`
+	ContentEN         string    `gorm:"type:text"                 json:"content_en"`
+	TranslationStatus string    `gorm:"default:'pending'"         json:"translation_status"` // pending, completed, failed
+	TranslatedAt      time.Time `gorm:"default:now()"             json:"translated_at"`
+}
+
+// GameState 猜測遊戲狀態記錄
+type GameState struct {
+	ID              uint      `gorm:"primarykey"                                            json:"id"`
+	MessageID       uint      `gorm:"not null;index"                                        json:"message_id"`
+	Message         Message   `gorm:"foreignKey:MessageID"                                  json:"-"`
+	GuesserID       uint      `gorm:"not null;index"                                        json:"guesser_id"`
+	Guesser         User      `gorm:"foreignKey:GuesserID"                                  json:"-"`
+	HiddenLang      string    `gorm:"not null"                                              json:"hidden_lang"`      // which lang was hidden (zh, ja, en)
+	GuessContent    string    `gorm:"type:text;not null"                                    json:"guess_content"`
+	Mode            string    `gorm:"default:'semantic'"                                    json:"mode"`             // semantic (only mode for now)
+	IsCorrect       bool      `gorm:"default:false"                                         json:"is_correct"`
+	SimilarityScore float64   `gorm:"default:0"                                             json:"similarity_score"` // LLM similarity 0..1
+	GuessedAt       time.Time `gorm:"default:now()"                                         json:"guessed_at"`
 }

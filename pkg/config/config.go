@@ -18,6 +18,24 @@ type Config struct {
 	OAuth    OAuthConfig    `mapstructure:"oauth"`
 	Minio    MinioConfig    `mapstructure:"minio"`
 	LiveKit  LiveKitConfig  `mapstructure:"livekit"`
+	DeepL    DeepLConfig    `mapstructure:"deepl"`
+	LLM      LLMConfig      `mapstructure:"llm"`
+}
+
+// DeepLConfig DeepL 翻譯 API 配置
+type DeepLConfig struct {
+	APIKey  string `mapstructure:"api_key"`
+	APIURL  string `mapstructure:"api_url"` // 預設 Free: https://api-free.deepl.com/v2
+	Enabled bool   `mapstructure:"enabled"`
+}
+
+// LLMConfig LLM 語意評估配置
+type LLMConfig struct {
+	Provider           string  `mapstructure:"provider"`            // gemini, groq
+	APIKey             string  `mapstructure:"api_key"`
+	Model              string  `mapstructure:"model"`               // e.g. gemini-1.5-flash, llama3-8b-8192
+	SimilarityThreshold float64 `mapstructure:"similarity_threshold"` // 0..1, 預設 0.70
+	Enabled            bool    `mapstructure:"enabled"`
 }
 
 // OAuthConfig OAuth 配置
@@ -174,6 +192,16 @@ func setDefaults() {
 	viper.SetDefault("livekit.url", "ws://localhost:7880")
 	viper.SetDefault("livekit.public_url", "ws://localhost:7880")
 	viper.SetDefault("livekit.token_ttl", 3600)
+
+	// DeepL 預設值
+	viper.SetDefault("deepl.api_url", "https://api-free.deepl.com/v2")
+	viper.SetDefault("deepl.enabled", false)
+
+	// LLM 預設值
+	viper.SetDefault("llm.provider", "gemini")
+	viper.SetDefault("llm.model", "gemini-1.5-flash")
+	viper.SetDefault("llm.similarity_threshold", 0.70)
+	viper.SetDefault("llm.enabled", false)
 
 	// Minio 預設值
 	viper.SetDefault("minio.endpoint", "localhost:9000")

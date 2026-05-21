@@ -10,28 +10,36 @@ const store = useAppStore()
 const displayName = ref('')
 const avatarUrl = ref('')
 const status = ref('online')
+const preferredLang = ref('zh')
 const oldPassword = ref('')
 const newPassword = ref('')
 const saving = ref(false)
 
 onMounted(() => {
-  const user = store.currentUser
+  const user = store.user
   if (user) {
     displayName.value = user.display_name || user.username || ''
     avatarUrl.value = user.avatar_url || ''
     status.value = user.status || 'online'
+    preferredLang.value = user.preferred_lang || 'zh'
   }
 })
 
 async function saveProfile() {
   saving.value = true
   try {
-    await api.updateProfile({ display_name: displayName.value.trim(), avatar_url: avatarUrl.value.trim(), status: status.value })
+    await api.updateProfile({
+      display_name: displayName.value.trim(),
+      avatar_url: avatarUrl.value.trim(),
+      status: status.value,
+      preferred_lang: preferredLang.value,
+    })
     // update local user
-    if (store.currentUser) {
-      store.currentUser.display_name = displayName.value.trim()
-      store.currentUser.avatar_url = avatarUrl.value.trim()
-      store.currentUser.status = status.value
+    if (store.user) {
+      store.user.display_name = displayName.value.trim()
+      store.user.avatar_url = avatarUrl.value.trim()
+      store.user.status = status.value
+      store.user.preferred_lang = preferredLang.value
     }
     store.showNotification('個人資料已更新', 'success')
     emit('close')
@@ -86,6 +94,14 @@ async function changePassword() {
               <option value="idle">🌙 閒置</option>
               <option value="dnd">🔴 請勿打擾</option>
               <option value="invisible">⚫ 隱身</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>翻譯語言</label>
+            <select v-model="preferredLang">
+              <option value="zh">🇨🇳 中文</option>
+              <option value="ja">🇯🇵 日本語</option>
+              <option value="en">🇺🇸 English</option>
             </select>
           </div>
         </div>

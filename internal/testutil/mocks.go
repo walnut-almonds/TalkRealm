@@ -944,6 +944,8 @@ func (m *MockMessageService) SetWebSocketManager(manager service.WebSocketManage
 
 func (m *MockMessageService) SetFileService(_ service.FileService) {}
 
+func (m *MockMessageService) SetTranslationService(_ service.TranslationService) {}
+
 func (m *MockMessageService) CreateMessageWS(
 	userID, channelID uint,
 	content, contentType, nonce string,

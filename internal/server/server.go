@@ -22,19 +22,20 @@ import (
 
 // Server 代表應用程式伺服器
 type Server struct {
-	config          *config.Config
-	router          *gin.Engine
-	jwtManager      *auth.JWTManager
-	wsManager       *websocket.Manager
-	userHandler     *handler.UserHandler
-	guildHandler    *handler.GuildHandler
-	channelHandler  *handler.ChannelHandler
-	messageHandler  *handler.MessageHandler
-	oauthHandler    *handler.OAuthHandler
-	fileHandler     *handler.FileHandler
-	voiceHandler    *handler.VoiceHandler
-	rdb             *goredis.Client
-	guildMemberRepo repository.GuildMemberRepository
+	config             *config.Config
+	router             *gin.Engine
+	jwtManager         *auth.JWTManager
+	wsManager          *websocket.Manager
+	userHandler        *handler.UserHandler
+	guildHandler       *handler.GuildHandler
+	channelHandler     *handler.ChannelHandler
+	messageHandler     *handler.MessageHandler
+	oauthHandler       *handler.OAuthHandler
+	fileHandler        *handler.FileHandler
+	voiceHandler       *handler.VoiceHandler
+	translationHandler *handler.TranslationHandler
+	rdb                *goredis.Client
+	guildMemberRepo    repository.GuildMemberRepository
 }
 
 // New 創建新的伺服器實例
@@ -131,20 +132,31 @@ func New(cfg *config.Config) (*Server, error) {
 	voiceManager := voice.NewManager(&cfg.LiveKit)
 	voiceHandler := handler.NewVoiceHandler(voiceManager, wsManager)
 
+	// 初始化 Translation Service（DeepL 可選，未設定 api_key 時 enabled=false）
+	translationRepo := repository.NewTranslationRepository(db)
+	gameStateRepo := repository.NewGameStateRepository(db)
+	translationSvc := service.NewTranslationService(translationRepo, &cfg.DeepL)
+	translationSvc.SetWebSocketManager(wsManager)
+	messageService.SetTranslationService(translationSvc)
+
+	guessSvc := service.NewGuessService(gameStateRepo, translationRepo, &cfg.LLM)
+	translationHandler := handler.NewTranslationHandler(translationSvc, guessSvc)
+
 	s := &Server{
-		config:          cfg,
-		router:          router,
-		jwtManager:      jwtManager,
-		wsManager:       wsManager,
-		userHandler:     userHandler,
-		guildHandler:    guildHandler,
-		channelHandler:  channelHandler,
-		messageHandler:  messageHandler,
-		oauthHandler:    oauthHandler,
-		fileHandler:     fileHandler,
-		voiceHandler:    voiceHandler,
-		rdb:             rdb,
-		guildMemberRepo: guildMemberRepo,
+		config:              cfg,
+		router:              router,
+		jwtManager:          jwtManager,
+		wsManager:           wsManager,
+		userHandler:         userHandler,
+		guildHandler:        guildHandler,
+		channelHandler:      channelHandler,
+		messageHandler:      messageHandler,
+		oauthHandler:        oauthHandler,
+		fileHandler:         fileHandler,
+		voiceHandler:        voiceHandler,
+		rdb:                 rdb,
+		guildMemberRepo:     guildMemberRepo,
+		translationHandler:  translationHandler,
 	}
 
 	// 設定路由
@@ -283,6 +295,11 @@ func (s *Server) setupRoutes() {
 				messages.PUT("/:id", s.messageHandler.UpdateMessage)
 				messages.PATCH("/:id", s.messageHandler.UpdateMessage)
 				messages.DELETE("/:id", s.messageHandler.DeleteMessage)
+
+				// 翻譯 & 猜測遊戲
+				messages.GET("/:id/translation", s.translationHandler.GetTranslation)
+				messages.POST("/:id/guess", s.translationHandler.SubmitGuess)
+				messages.GET("/:id/game", s.translationHandler.GetGameStatus)
 			}
 		}
 
