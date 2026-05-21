@@ -9,6 +9,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const messageTypeText = "text"
+
 var (
 	ErrMessageNotFound     = errors.New("message not found")
 	ErrNotChannelMemberMsg = errors.New("not a member of this channel's guild")
@@ -132,10 +134,10 @@ func (s *messageService) CreateMessage(
 	// 驗證訊息類型
 	msgType := req.Type
 	if msgType == "" {
-		msgType = "text"
+		msgType = messageTypeText
 	}
 
-	if msgType != "text" && msgType != "image" && msgType != "file" {
+	if msgType != messageTypeText && msgType != "image" && msgType != "file" {
 		return nil, ErrInvalidMessageType
 	}
 
@@ -201,7 +203,7 @@ func (s *messageService) CreateMessage(
 	}
 
 	// 非同步翻譯（僅 text 類型）
-	if s.translationService != nil && msgType == "text" {
+	if s.translationService != nil && msgType == messageTypeText {
 		s.translationService.TranslateAndPush(fullMessage.ID, req.Content, req.ChannelID)
 	}
 

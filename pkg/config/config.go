@@ -31,11 +31,11 @@ type DeepLConfig struct {
 
 // LLMConfig LLM 語意評估配置
 type LLMConfig struct {
-	Provider           string  `mapstructure:"provider"`            // gemini, groq
-	APIKey             string  `mapstructure:"api_key"`
-	Model              string  `mapstructure:"model"`               // e.g. gemini-1.5-flash, llama3-8b-8192
+	Provider            string  `mapstructure:"provider"` // gemini, groq
+	APIKey              string  `mapstructure:"api_key"`
+	Model               string  `mapstructure:"model"`                // e.g. gemini-1.5-flash, llama3-8b-8192
 	SimilarityThreshold float64 `mapstructure:"similarity_threshold"` // 0..1, 預設 0.70
-	Enabled            bool    `mapstructure:"enabled"`
+	Enabled             bool    `mapstructure:"enabled"`
 }
 
 // OAuthConfig OAuth 配置

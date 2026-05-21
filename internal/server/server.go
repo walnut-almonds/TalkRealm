@@ -143,20 +143,20 @@ func New(cfg *config.Config) (*Server, error) {
 	translationHandler := handler.NewTranslationHandler(translationSvc, guessSvc)
 
 	s := &Server{
-		config:              cfg,
-		router:              router,
-		jwtManager:          jwtManager,
-		wsManager:           wsManager,
-		userHandler:         userHandler,
-		guildHandler:        guildHandler,
-		channelHandler:      channelHandler,
-		messageHandler:      messageHandler,
-		oauthHandler:        oauthHandler,
-		fileHandler:         fileHandler,
-		voiceHandler:        voiceHandler,
-		rdb:                 rdb,
-		guildMemberRepo:     guildMemberRepo,
-		translationHandler:  translationHandler,
+		config:             cfg,
+		router:             router,
+		jwtManager:         jwtManager,
+		wsManager:          wsManager,
+		userHandler:        userHandler,
+		guildHandler:       guildHandler,
+		channelHandler:     channelHandler,
+		messageHandler:     messageHandler,
+		oauthHandler:       oauthHandler,
+		fileHandler:        fileHandler,
+		voiceHandler:       voiceHandler,
+		rdb:                rdb,
+		guildMemberRepo:    guildMemberRepo,
+		translationHandler: translationHandler,
 	}
 
 	// 設定路由
@@ -185,6 +185,7 @@ func (s *Server) setupRoutes() {
 			c.JSON(404, gin.H{"error": "not found"})
 			return
 		}
+
 		c.File("./web/dist/index.html")
 	})
 

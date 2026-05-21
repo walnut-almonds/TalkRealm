@@ -29,7 +29,10 @@ func (r *gameStateRepository) Create(gs *model.GameState) error {
 }
 
 // GetByMessageAndGuesser 取得特定使用者對特定訊息的猜測狀態
-func (r *gameStateRepository) GetByMessageAndGuesser(messageID, guesserID uint, hiddenLang string) (*model.GameState, error) {
+func (r *gameStateRepository) GetByMessageAndGuesser(
+	messageID, guesserID uint,
+	hiddenLang string,
+) (*model.GameState, error) {
 	var gs model.GameState
 
 	err := r.db.Where("message_id = ? AND guesser_id = ? AND hidden_lang = ?",

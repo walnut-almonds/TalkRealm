@@ -16,7 +16,10 @@ type TranslationHandler struct {
 }
 
 // NewTranslationHandler 建立翻譯處理器
-func NewTranslationHandler(ts service.TranslationService, gs service.GuessService) *TranslationHandler {
+func NewTranslationHandler(
+	ts service.TranslationService,
+	gs service.GuessService,
+) *TranslationHandler {
 	return &TranslationHandler{
 		translationService: ts,
 		guessService:       gs,
