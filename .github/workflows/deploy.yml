@@ -75,6 +75,10 @@ jobs:
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
           LIVEKIT_PUBLIC_URL: ${{ secrets.LIVEKIT_PUBLIC_URL }}
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
         run: |
           test -n "$DB_PASSWORD"
           test -n "$REDIS_PASSWORD"

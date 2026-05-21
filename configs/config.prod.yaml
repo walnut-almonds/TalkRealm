@@ -57,3 +57,15 @@ livekit:
   url: "ws://livekit:7880"         # 後端連線用（Docker 內部）
   public_url: ${LIVEKIT_PUBLIC_URL} # e.g. wss://voice.qrumi.org
   token_ttl: 3600
+
+deepl:
+  api_key: ${DEEPL_API_KEY}
+  api_url: "https://api-free.deepl.com/v2" # Free tier endpoint
+  enabled: true
+
+llm:
+  provider: ${LLM_PROVIDER}           # gemini or groq
+  api_key: ${LLM_API_KEY}
+  model: ${LLM_MODEL}                  # e.g. gemini-1.5-flash, llama3-8b-8192
+  similarity_threshold: 0.70
+  enabled: true

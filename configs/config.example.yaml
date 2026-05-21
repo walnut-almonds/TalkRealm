@@ -58,3 +58,15 @@ livekit:
   public_url: "ws://localhost:7880"  # 前端連線用（宿主機）
   token_ttl: 3600           # Token 有效秒數
 
+deepl:
+  api_key: ""               # DeepL Free API Key（https://www.deepl.com/pro-api）
+  api_url: "https://api-free.deepl.com/v2" # Free tier endpoint；Pro 版改為 https://api.deepl.com/v2
+  enabled: false            # 設為 true 並填入 api_key 以啟用翻譯功能
+
+llm:
+  provider: "gemini"        # gemini 或 groq
+  api_key: ""               # Gemini API Key 或 Groq API Key
+  model: "gemini-1.5-flash" # gemini: gemini-1.5-flash；groq: llama3-8b-8192
+  similarity_threshold: 0.70 # LLM 語意相似度門檻（0..1）
+  enabled: false            # 設為 true 並填入 api_key 以啟用語意猜測評分
+
