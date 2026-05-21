@@ -242,7 +242,7 @@ func (s *guessService) callGemini(prompt string) (float64, error) {
 	}
 
 	apiURL := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+		"https://generativelanguage.googleapis.com/v1/models/%s:generateContent?key=%s",
 		s.cfg.Model, s.cfg.APIKey,
 	)
 
