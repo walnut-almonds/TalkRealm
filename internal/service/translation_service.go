@@ -17,6 +17,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const translationStatusCompleted = "completed"
+
 var ErrTranslationNotFound = errors.New("translation not found")
 
 // TranslationService 翻譯服務介面
@@ -70,11 +72,14 @@ func (s *translationService) TranslateAndPush(messageID uint, content string, ch
 		results := make(map[string]string, len(langs))
 		origLang := "unknown"
 
-		var mu sync.Mutex
-		var wg sync.WaitGroup
+		var (
+			mu sync.Mutex
+			wg sync.WaitGroup
+		)
 
 		for _, target := range langs {
 			wg.Add(1)
+
 			target := target
 
 			go func() {
@@ -87,6 +92,7 @@ func (s *translationService) TranslateAndPush(messageID uint, content string, ch
 
 				mu.Lock()
 				defer mu.Unlock()
+
 				results[target] = translated
 
 				// DeepL 偵測到的來源語言（第一個非 EN-US 的結果更可靠，但任一個都行）
@@ -105,7 +111,7 @@ func (s *translationService) TranslateAndPush(messageID uint, content string, ch
 			t.ContentJA = results["JA"]
 			t.ContentEN = results["EN-US"]
 			t.OriginalLang = origLang
-			t.TranslationStatus = "completed"
+			t.TranslationStatus = translationStatusCompleted
 			t.TranslatedAt = time.Now().UTC()
 		}
 
@@ -113,7 +119,7 @@ func (s *translationService) TranslateAndPush(messageID uint, content string, ch
 			return
 		}
 
-		if t.TranslationStatus == "completed" && s.wsManager != nil {
+		if t.TranslationStatus == translationStatusCompleted && s.wsManager != nil {
 			s.wsManager.BroadcastToChannel(channelID, "translation_ready", map[string]any{
 				"message_id":    messageID,
 				"original_lang": t.OriginalLang,
@@ -156,7 +162,9 @@ type deepLResponse struct {
 }
 
 // callDeepL 呼叫 DeepL Free API 翻譯單語
-func (s *translationService) callDeepL(text, targetLang string) (translated, sourceLang string, err error) {
+func (s *translationService) callDeepL(
+	text, targetLang string,
+) (translated, sourceLang string, err error) {
 	reqBody := deepLRequest{
 		Text:       []string{text},
 		TargetLang: targetLang,
@@ -168,8 +176,13 @@ func (s *translationService) callDeepL(text, targetLang string) (translated, sou
 	}
 
 	apiURL := s.cfg.APIURL + "/translate"
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, apiURL, bytes.NewReader(body))
 
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		apiURL,
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		return "", "", fmt.Errorf("create request: %w", err)
 	}
@@ -182,7 +195,7 @@ func (s *translationService) callDeepL(text, targetLang string) (translated, sou
 		return "", "", fmt.Errorf("do request: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)

@@ -74,7 +74,10 @@ func NewGuessService(
 }
 
 // SubmitGuess 提交猜測，呼叫 LLM 評估語意相似度
-func (s *guessService) SubmitGuess(messageID, guesserID uint, req *GuessRequest) (*GuessResult, error) {
+func (s *guessService) SubmitGuess(
+	messageID, guesserID uint,
+	req *GuessRequest,
+) (*GuessResult, error) {
 	if !isValidLang(req.HiddenLang) {
 		return nil, ErrInvalidHiddenLang
 	}
@@ -99,7 +102,7 @@ func (s *guessService) SubmitGuess(messageID, guesserID uint, req *GuessRequest)
 		return nil, err
 	}
 
-	if translation.TranslationStatus != "completed" {
+	if translation.TranslationStatus != translationStatusCompleted {
 		return nil, ErrTranslationNeeded
 	}
 
@@ -145,7 +148,10 @@ func (s *guessService) SubmitGuess(messageID, guesserID uint, req *GuessRequest)
 }
 
 // GetGameStatus 取得猜測狀態
-func (s *guessService) GetGameStatus(messageID, guesserID uint, hiddenLang string) (*GameStatus, error) {
+func (s *guessService) GetGameStatus(
+	messageID, guesserID uint,
+	hiddenLang string,
+) (*GameStatus, error) {
 	if !isValidLang(hiddenLang) {
 		return nil, ErrInvalidHiddenLang
 	}
@@ -236,7 +242,12 @@ func (s *guessService) callGemini(prompt string) (float64, error) {
 		s.cfg.Model, s.cfg.APIKey,
 	)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, apiURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		apiURL,
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -248,7 +259,7 @@ func (s *guessService) callGemini(prompt string) (float64, error) {
 		return 0, err
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -317,7 +328,7 @@ func (s *guessService) callGroq(prompt string) (float64, error) {
 		return 0, err
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
