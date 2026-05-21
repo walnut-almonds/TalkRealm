@@ -46,6 +46,17 @@ export const STORAGE_KEYS = {
     LAST_CHANNEL: 'talkrealm_last_channel',
 }
 
+/** 取得/設定某個 guild 最後停留的頻道 ID */
+export const guildLastChannel = {
+    get: (guildId) => {
+        const v = localStorage.getItem(`talkrealm_last_channel_${guildId}`)
+        return v ? parseInt(v) : null
+    },
+    set: (guildId, channelId) => {
+        localStorage.setItem(`talkrealm_last_channel_${guildId}`, channelId)
+    },
+}
+
 // ─── API 用戶端 ──────────────────────────────────────────────
 class ApiClient {
     constructor() {

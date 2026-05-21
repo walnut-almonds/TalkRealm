@@ -7,11 +7,17 @@ const store = useAppStore()
 async function selectGuild(guildId) {
   await store.selectGuild(guildId)
 }
+
+function goHome() {
+  store.currentGuild = null
+  store.currentChannel = null
+  store.messages = []
+}
 </script>
 
 <template>
   <div class="guilds-sidebar">
-    <div class="guild-item home" title="首頁" @click="store.currentGuild = null">
+    <div class="guild-item home" title="首頁" @click="goHome">
       <i class="fas fa-home"></i>
     </div>
     <div class="guilds-separator"></div>

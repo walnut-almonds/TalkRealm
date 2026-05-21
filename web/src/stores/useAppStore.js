@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, reactive } from 'vue'
-import { api, STORAGE_KEYS } from '@/api/index.js'
+import { api, STORAGE_KEYS, guildLastChannel } from '@/api/index.js'
 import { useVoiceStore } from './useVoiceStore.js'
 
 export const useAppStore = defineStore('app', () => {
@@ -142,12 +142,8 @@ export const useAppStore = defineStore('app', () => {
             if (lastGuildId) {
                 const g = guilds.value.find(g => g.id === parseInt(lastGuildId))
                 if (g) {
+                    // selectGuild 內部已自動恢復最後停留的頻道
                     await selectGuild(g.id)
-                    const lastChannelId = localStorage.getItem(STORAGE_KEYS.LAST_CHANNEL)
-                    if (lastChannelId) {
-                        const ch = channels.value.find(c => c.id === parseInt(lastChannelId))
-                        if (ch) await selectChannel(ch.id)
-                    }
                 }
             }
         } catch (e) {
@@ -194,6 +190,19 @@ export const useAppStore = defineStore('app', () => {
 
             localStorage.setItem(STORAGE_KEYS.LAST_GUILD, guildId)
 
+            // 切換群組時先清空頻道狀態，避免殘留上一個群組的頻道畫面
+            currentChannel.value = null
+            messages.value = []
+
+            // 恢復此群組最後停留的文字頻道，fallback 到第一個文字頻道
+            const allTextChannels = channels.value.filter(c => c.type === 'text')
+            const lastChId = guildLastChannel.get(guildId)
+            const targetChannel = (lastChId && allTextChannels.find(c => c.id === lastChId))
+                || allTextChannels[0]
+            if (targetChannel) {
+                await selectChannel(targetChannel.id)
+            }
+
             // 載入各語音頻道目前的成員（進入前可預覽誰在裡面）
             const voiceStore = useVoiceStore()
             const voiceChannels = channels.value.filter(c => c.type === 'voice')
@@ -230,7 +239,10 @@ export const useAppStore = defineStore('app', () => {
             currentChannel.value = channel
             messages.value = []
             await loadMessages(channelId)
-            localStorage.setItem(STORAGE_KEYS.LAST_CHANNEL, channelId)
+            // 記錄此頻道為該 guild 最後停留的頻道
+            if (currentGuild.value) {
+                guildLastChannel.set(currentGuild.value.id, channelId)
+            }
         } catch (e) {
             console.error('selectChannel failed', e)
             showNotification('載入頻道失敗', 'error')

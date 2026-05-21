@@ -49,6 +49,10 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-21 — 切換群組時自動恢復最後停留頻道：
+- **`web/src/api/index.js`**：新增 `guildLastChannel` helper（`get(guildId)`/`set(guildId, channelId)`），使用 `talkrealm_last_channel_{guildId}` 作為 localStorage key，實現 per-guild 頻道記憶
+- **`web/src/stores/useAppStore.js`**：`selectGuild()` 在重置 `currentChannel`/`messages` 後，自動 `await selectChannel()` 至最後停留頻道（fallback 至第一個文字頻道）；`selectChannel()` 改為呼叫 `guildLastChannel.set()` 而非全域 `LAST_CHANNEL`；`loadUserData()` 移除重複的頻道恢復邏輯（由 `selectGuild` 統一處理）
+- **`web/src/components/GuildSidebar.vue`**：首頁按鈕改呼叫 `goHome()` 函數，同時清空 `currentGuild`、`currentChannel`、`messages`
 2026-05-11 — 語音視訊 UX 強化（畫質/FPS 控制 + 音量滑桿 + 加入前參與者預覽）：
 - **`internal/websocket/manager.go`**：新增 `voiceParticipants map[uint]map[uint]string`（channelID→userID→username），初始化於 `NewManager`；新增 `UpsertVoiceParticipant`、`RemoveVoiceParticipant`、`GetVoiceParticipants` 方法（受 `m.mu` 保護）
 - **`internal/websocket/client.go`**：`handleVoiceStateUpdate` join/leave 分別呼叫 `UpsertVoiceParticipant`/`RemoveVoiceParticipant`
