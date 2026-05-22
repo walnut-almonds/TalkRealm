@@ -97,7 +97,7 @@ async function openAttachment(fileId) {
 }
 
 // ── Translation & Guess ───────────────────────────────────────
-const LANG_LABELS = { zh: '中文', ja: '日本語', en: 'English' }
+const LANG_LABELS = { zh: '中文（簡體）', 'zh-tw': '繁體中文', ja: '日本語', en: 'English' }
 
 const isTextMessage = computed(() => !props.message.type || props.message.type === 'text')
 const showTranslationSection = computed(() =>
@@ -114,7 +114,7 @@ const displayLang = computed(() => {
   if (!translation.value) return preferredLang.value
   const orig = translation.value.original_lang
   if (orig === preferredLang.value) {
-    return ['zh', 'ja', 'en'].find(l => l !== orig) || 'en'
+    return ['zh', 'zh-tw', 'ja', 'en'].find(l => l !== orig) || 'en'
   }
   return preferredLang.value
 })
@@ -123,7 +123,7 @@ const translatedText = computed(() => {
   if (!translation.value?.translations) return null
   // Don't show translation if original is already preferred AND there's nothing else to show
   if (translation.value.original_lang === preferredLang.value) {
-    const fallback = ['zh', 'ja', 'en'].find(l => l !== preferredLang.value)
+    const fallback = ['zh', 'zh-tw', 'ja', 'en'].find(l => l !== preferredLang.value)
     return fallback ? (translation.value.translations[fallback] || null) : null
   }
   return translation.value.translations[preferredLang.value] || null
@@ -140,7 +140,7 @@ async function fetchTranslation() {
   store.translationLoadingSet.add(props.message.id)
   try {
     // 單次請求：後端若已翻譯完成回傳 200 + 資料；尚未翻譯回傳 202（非同步觸發）並等 WS 事件
-    const result = await api.ensureTranslation(props.message.id)
+    const result = await api.ensureTranslation(props.message.id, preferredLang.value)
     if (result?.status === 'processing') {
       // 後端已觸發翻譯，保持 loading，等候 WS translation_ready
       return
@@ -149,7 +149,7 @@ async function fetchTranslation() {
     store.handleTranslationReady({
       message_id: props.message.id,
       original_lang: result.original_lang,
-      translations: { zh: result.content_zh, ja: result.content_ja, en: result.content_en },
+      translations: { zh: result.content_zh, 'zh-tw': result.content_zh_tw, ja: result.content_ja, en: result.content_en },
     })
   } catch {
     store.translationLoadingSet.delete(props.message.id)

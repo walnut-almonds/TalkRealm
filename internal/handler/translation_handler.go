@@ -207,6 +207,7 @@ func (h *TranslationHandler) RequestTranslation(c *gin.Context) {
 		messageID,
 		msg.Content,
 		msg.ChannelID,
+		c.Query("lang"), // 使用者偏好語言的 WS key（zh/zh-tw/ja/en）；空=翻譯所有
 	); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
 		return
@@ -246,7 +247,7 @@ func (h *TranslationHandler) EnsureTranslation(c *gin.Context) {
 		return
 	}
 
-	t, err := h.translationService.EnsureTranslation(messageID, msg.Content, msg.ChannelID)
+	t, err := h.translationService.EnsureTranslation(messageID, msg.Content, msg.ChannelID, c.Query("lang"))
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
 		return

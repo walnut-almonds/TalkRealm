@@ -135,12 +135,14 @@ type RefreshToken struct {
 	CreatedAt time.Time `                            json:"created_at"`
 }
 
-// MessageTranslation 訊息翻譯結果（三語全存，migration-friendly：每筆訊息一列，未來可直接遷至 Cassandra）
+// MessageTranslation 訊息翻譯結果（多語全存，migration-friendly：每筆訊息一列，未來可直接遷至 Cassandra）
+// 新增語言步驟：加欄位 → 更新 service.targetLangs → 執行 DB migration
 type MessageTranslation struct {
 	MessageID         uint      `gorm:"primarykey"           json:"message_id"`
 	Message           Message   `gorm:"foreignKey:MessageID" json:"-"`
-	OriginalLang      string    `gorm:"not null"             json:"original_lang"` // zh, ja, en
+	OriginalLang      string    `gorm:"not null"             json:"original_lang"` // zh, zh-tw, ja, en
 	ContentZH         string    `gorm:"type:text"            json:"content_zh"`
+	ContentZHTW       string    `gorm:"type:text"            json:"content_zh_tw"` // 繁體中文
 	ContentJA         string    `gorm:"type:text"            json:"content_ja"`
 	ContentEN         string    `gorm:"type:text"            json:"content_en"`
 	TranslationStatus string    `gorm:"default:'pending'"    json:"translation_status"` // pending, completed, failed

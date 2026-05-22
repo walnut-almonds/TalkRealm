@@ -58,7 +58,7 @@ type UpdateUserRequest struct {
 	Nickname      string `json:"nickname"       binding:"max=64"`
 	Avatar        string `json:"avatar"         binding:"max=256"`
 	Status        string `json:"status"         binding:"omitempty,oneof=online offline busy away"`
-	PreferredLang string `json:"preferred_lang" binding:"omitempty,oneof=zh ja en"`
+	PreferredLang string `json:"preferred_lang" binding:"omitempty,oneof=zh zh-tw ja en"`
 }
 
 // OAuthUserInfo OAuth 登入時由 provider 提供的使用者資訊

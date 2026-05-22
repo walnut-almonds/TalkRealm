@@ -99,7 +99,8 @@ async function changePassword() {
           <div class="form-group">
             <label>翻譯語言</label>
             <select v-model="preferredLang">
-              <option value="zh">🇨🇳 中文</option>
+              <option value="zh">🇨🇳 中文（簡體）</option>
+              <option value="zh-tw">🇹🇼 繁體中文</option>
               <option value="ja">🇯🇵 日本語</option>
               <option value="en">🇺🇸 English</option>
             </select>
