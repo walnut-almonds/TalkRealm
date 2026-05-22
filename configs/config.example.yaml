@@ -62,6 +62,7 @@ deepl:
   api_key: ""               # DeepL Free API Key（https://www.deepl.com/pro-api）
   api_url: "https://api-free.deepl.com/v2" # Free tier endpoint；Pro 版改為 https://api.deepl.com/v2
   enabled: false            # 設為 true 並填入 api_key 以啟用翻譯功能
+  auto_translate: false     # true = 發訊息時自動翻譯；false（預設）= 使用者點擊翻譯按鈕才觸發
 
 llm:
   provider: "gemini"        # gemini 或 groq

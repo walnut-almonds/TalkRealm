@@ -1751,6 +1751,187 @@
                 }
             }
         },
+        "/api/v1/messages/{id}/game": {
+            "get": {
+                "description": "取得目前使用者對指定訊息的猜測狀態",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "translation"
+                ],
+                "summary": "取得猜測狀態",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "訊息 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "隱藏語言 (zh/ja/en)",
+                        "name": "hidden_lang",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.GameStatus"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/messages/{id}/guess": {
+            "post": {
+                "description": "對指定訊息提交語意猜測，呼叫 LLM 評估相似度",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "translation"
+                ],
+                "summary": "提交猜測",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "訊息 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "猜測請求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.GuessRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.GuessResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/messages/{id}/translation": {
+            "get": {
+                "description": "取得指定訊息的翻譯結果（三語）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "translation"
+                ],
+                "summary": "取得訊息翻譯",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "訊息 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MessageTranslation"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "使用者點擊翻譯按鈕時呼叫此介面，觸發非同步翻譯；翻譯完成後透過 WS translation_ready 事件推送",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "translation"
+                ],
+                "summary": "觸發訊息翻譯",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "訊息 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/users/{id}": {
             "get": {
                 "produces": [
@@ -2097,6 +2278,34 @@
                 }
             }
         },
+        "model.MessageTranslation": {
+            "type": "object",
+            "properties": {
+                "content_en": {
+                    "type": "string"
+                },
+                "content_ja": {
+                    "type": "string"
+                },
+                "content_zh": {
+                    "type": "string"
+                },
+                "message_id": {
+                    "type": "integer"
+                },
+                "original_lang": {
+                    "description": "zh, ja, en",
+                    "type": "string"
+                },
+                "translated_at": {
+                    "type": "string"
+                },
+                "translation_status": {
+                    "description": "pending, completed, failed",
+                    "type": "string"
+                }
+            }
+        },
         "model.User": {
             "type": "object",
             "properties": {
@@ -2113,6 +2322,10 @@
                     "type": "integer"
                 },
                 "nickname": {
+                    "type": "string"
+                },
+                "preferred_lang": {
+                    "description": "zh, ja, en",
                     "type": "string"
                 },
                 "status": {
@@ -2215,6 +2428,54 @@
                 "type": {
                     "description": "text, image, file (預設: text)",
                     "type": "string"
+                }
+            }
+        },
+        "service.GameStatus": {
+            "type": "object",
+            "properties": {
+                "has_guessed": {
+                    "type": "boolean"
+                },
+                "hidden_lang": {
+                    "type": "string"
+                },
+                "is_correct": {
+                    "type": "boolean"
+                },
+                "similarity_score": {
+                    "type": "number"
+                }
+            }
+        },
+        "service.GuessRequest": {
+            "type": "object",
+            "required": [
+                "guess_content",
+                "hidden_lang"
+            ],
+            "properties": {
+                "guess_content": {
+                    "type": "string"
+                },
+                "hidden_lang": {
+                    "description": "zh, ja, en",
+                    "type": "string"
+                }
+            }
+        },
+        "service.GuessResult": {
+            "type": "object",
+            "properties": {
+                "correct_content": {
+                    "description": "回傳正確答案（猜中或用戶已猜過）",
+                    "type": "string"
+                },
+                "is_correct": {
+                    "type": "boolean"
+                },
+                "similarity_score": {
+                    "type": "number"
                 }
             }
         },
@@ -2418,6 +2679,14 @@
                 "nickname": {
                     "type": "string",
                     "maxLength": 64
+                },
+                "preferred_lang": {
+                    "type": "string",
+                    "enum": [
+                        "zh",
+                        "ja",
+                        "en"
+                    ]
                 },
                 "status": {
                     "type": "string",

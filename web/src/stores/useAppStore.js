@@ -276,15 +276,12 @@ export const useAppStore = defineStore('app', () => {
             if (idx !== -1) {
                 // splice 觸發完整的响應式更新
                 messages.value.splice(idx, 1, msg)
-                if (msg.type === 'text' && msg.id) translationLoadingSet.add(msg.id)
                 return
             }
             // 已存在相同 nonce 的真實訊息，不重複新增
             if (messages.value.some(m => m.nonce === msg.nonce && !m._pending)) return
         }
         messages.value.push(msg)
-        // Mark new text messages for async translation
-        if (msg.type === 'text' && msg.id) translationLoadingSet.add(msg.id)
     }
 
     function handleTranslationReady(data) {

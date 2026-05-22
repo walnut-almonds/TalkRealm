@@ -14,16 +14,19 @@ import (
 type TranslationHandler struct {
 	translationService service.TranslationService
 	guessService       service.GuessService
+	messageService     service.MessageService
 }
 
 // NewTranslationHandler 建立翻譯處理器
 func NewTranslationHandler(
 	ts service.TranslationService,
 	gs service.GuessService,
+	ms service.MessageService,
 ) *TranslationHandler {
 	return &TranslationHandler{
 		translationService: ts,
 		guessService:       gs,
+		messageService:     ms,
 	}
 }
 
@@ -167,4 +170,47 @@ func parseUintParam(c *gin.Context, name string) (uint, error) {
 	}
 
 	return uint(val), nil
+}
+
+// RequestTranslation 觸發訊息按需翻譯
+//
+//	@Summary		觸發訊息翻譯
+//	@Description	使用者點擊翻譯按鈕時呼叫此介面，觸發非同步翻譯；翻譯完成後透過 WS translation_ready 事件推送
+//	@Tags			translation
+//	@Produce		json
+//	@Param			id	path		int	true	"訊息 ID"
+//	@Success		202	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Failure		503	{object}	map[string]string
+//	@Router			/api/v1/messages/{id}/translation [post]
+func (h *TranslationHandler) RequestTranslation(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	messageID, err := parseUintParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message id"})
+		return
+	}
+
+	// 取得訊息（同時驗證使用者是否為該社群成員）
+	msg, err := h.messageService.GetMessage(messageID, userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	if err := h.translationService.RequestTranslation(
+		messageID,
+		msg.Content,
+		msg.ChannelID,
+	); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{"status": "processing"})
 }

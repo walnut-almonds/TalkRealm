@@ -24,9 +24,10 @@ type Config struct {
 
 // DeepLConfig DeepL 翻譯 API 配置
 type DeepLConfig struct {
-	APIKey  string `mapstructure:"api_key"`
-	APIURL  string `mapstructure:"api_url"` // 預設 Free: https://api-free.deepl.com/v2
-	Enabled bool   `mapstructure:"enabled"`
+	APIKey        string `mapstructure:"api_key"`
+	APIURL        string `mapstructure:"api_url"` // 預設 Free: https://api-free.deepl.com/v2
+	Enabled       bool   `mapstructure:"enabled"`
+	AutoTranslate bool   `mapstructure:"auto_translate"` // true = 發訊息時自動翻譯；false（預設）= 使用者點擊翻譯才觸發
 }
 
 // LLMConfig LLM 語意評估配置

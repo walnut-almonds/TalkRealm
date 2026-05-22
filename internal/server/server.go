@@ -140,7 +140,7 @@ func New(cfg *config.Config) (*Server, error) {
 	messageService.SetTranslationService(translationSvc)
 
 	guessSvc := service.NewGuessService(gameStateRepo, translationRepo, &cfg.LLM)
-	translationHandler := handler.NewTranslationHandler(translationSvc, guessSvc)
+	translationHandler := handler.NewTranslationHandler(translationSvc, guessSvc, messageService)
 
 	s := &Server{
 		config:             cfg,
@@ -299,6 +299,7 @@ func (s *Server) setupRoutes() {
 
 				// 翻譯 & 猜測遊戲
 				messages.GET("/:id/translation", s.translationHandler.GetTranslation)
+				messages.POST("/:id/translation", s.translationHandler.RequestTranslation)
 				messages.POST("/:id/guess", s.translationHandler.SubmitGuess)
 				messages.GET("/:id/game", s.translationHandler.GetGameStatus)
 			}

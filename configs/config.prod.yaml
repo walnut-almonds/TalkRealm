@@ -62,6 +62,7 @@ deepl:
   api_key: ${DEEPL_API_KEY}
   api_url: "https://api-free.deepl.com/v2" # Free tier endpoint
   enabled: true
+  auto_translate: false     # true = 發訊息時自動翻譯；false（預設）= 使用者點擊翻譯按鈕才觸發
 
 llm:
   provider: ${LLM_PROVIDER}           # gemini or groq
