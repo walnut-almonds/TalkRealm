@@ -35,6 +35,7 @@ export const EP = {
     VOICE_TOKEN: (channelId) => `/api/v1/channels/${channelId}/voice/token`,
     VOICE_PARTICIPANTS: (channelId) => `/api/v1/channels/${channelId}/voice/participants`,
     MESSAGE_TRANSLATION: (id) => `/api/v1/messages/${id}/translation`,
+    MESSAGE_TRANSLATION_ENSURE: (id) => `/api/v1/messages/${id}/translation/ensure`,
     MESSAGE_GUESS: (id) => `/api/v1/messages/${id}/guess`,
     MESSAGE_GAME: (id) => `/api/v1/messages/${id}/game`,
 }
@@ -217,6 +218,7 @@ class ApiClient {
     // ── Translation ──
     getTranslation(messageId) { return this.get(EP.MESSAGE_TRANSLATION(messageId)) }
     requestTranslation(messageId) { return this.post(EP.MESSAGE_TRANSLATION(messageId), {}) }
+    ensureTranslation(messageId) { return this.get(EP.MESSAGE_TRANSLATION_ENSURE(messageId)) }
     submitGuess(messageId, guessContent, hiddenLang) {
         return this.post(EP.MESSAGE_GUESS(messageId), { guess_content: guessContent, hidden_lang: hiddenLang })
     }

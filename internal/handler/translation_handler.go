@@ -214,3 +214,48 @@ func (h *TranslationHandler) RequestTranslation(c *gin.Context) {
 
 	c.JSON(http.StatusAccepted, gin.H{"status": "processing"})
 }
+
+// EnsureTranslation 單次 GET 即可「取得或觸發」翻譯
+//
+//	@Summary		取得或觸發訊息翻譯
+//	@Description	翻譯已完成 → 200 直接回傳資料；翻譯尚未建立 → 觸發非同步翻譯並回傳 202，結果透過 WS translation_ready 推送
+//	@Tags			translation
+//	@Produce		json
+//	@Param			id	path		int						true	"訊息 ID"
+//	@Success		200	{object}	model.MessageTranslation
+//	@Success		202	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Failure		503	{object}	map[string]string
+//	@Router			/api/v1/messages/{id}/translation/ensure [get]
+func (h *TranslationHandler) EnsureTranslation(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	messageID, err := parseUintParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message id"})
+		return
+	}
+
+	msg, err := h.messageService.GetMessage(messageID, userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	t, err := h.translationService.EnsureTranslation(messageID, msg.Content, msg.ChannelID)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+
+	if t != nil {
+		c.JSON(http.StatusOK, t)
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{"status": "processing"})
+}

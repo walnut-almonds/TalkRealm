@@ -299,6 +299,7 @@ func (s *Server) setupRoutes() {
 
 				// 翻譯 & 猜測遊戲
 				messages.GET("/:id/translation", s.translationHandler.GetTranslation)
+				messages.GET("/:id/translation/ensure", s.translationHandler.EnsureTranslation)
 				messages.POST("/:id/translation", s.translationHandler.RequestTranslation)
 				messages.POST("/:id/guess", s.translationHandler.SubmitGuess)
 				messages.GET("/:id/game", s.translationHandler.GetGameStatus)

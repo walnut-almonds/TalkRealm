@@ -29,6 +29,10 @@ type TranslationService interface {
 	// RequestTranslation 按需翻譯（使用者點擊翻譯按鈕時呼叫）
 	// 不受 AutoTranslate 設定影響，但仍需 Enabled=true
 	RequestTranslation(messageID uint, content string, channelID uint) error
+	// EnsureTranslation 单次呼叫即可「取得或觸發」：
+	// - 翻譯已完成 → 回傳結果（*MessageTranslation）
+	// - 翻譯尚未建立 → 觸發非同步翻譯带 WS 推送，回傳 nil
+	EnsureTranslation(messageID uint, content string, channelID uint) (*model.MessageTranslation, error)
 	// GetTranslation 取得已完成的翻譯結果
 	GetTranslation(messageID uint) (*model.MessageTranslation, error)
 	// SetWebSocketManager 注入 WS manager（由 server.go 組裝時呼叫）
@@ -102,6 +106,26 @@ func (s *translationService) RequestTranslation(
 	go s.asyncTranslate(messageID, content, channelID)
 
 	return nil
+}
+
+// EnsureTranslation 單次呼叫「取得或觸發」翻譯：
+// - 翻譯已完成 → 直接回傳結果（前端免等 WS）
+// - 翻譯尚未建立 → 非同步觸發，回傳 nil（前端等候 WS translation_ready 事件）
+func (s *translationService) EnsureTranslation(
+	messageID uint, content string, channelID uint,
+) (*model.MessageTranslation, error) {
+	if !s.cfg.Enabled {
+		return nil, errors.New("translation not enabled")
+	}
+
+	existing, err := s.repo.GetByMessageID(messageID)
+	if err == nil && existing.TranslationStatus == translationStatusCompleted {
+		return existing, nil
+	}
+
+	go s.asyncTranslate(messageID, content, channelID)
+
+	return nil, nil //nolint:nilnil
 }
 
 // asyncTranslate 實際翻譯邏輯，在 goroutine 內執行

@@ -139,24 +139,20 @@ async function fetchTranslation() {
   if (translation.value || isTranslationLoading.value) return
   store.translationLoadingSet.add(props.message.id)
   try {
-    // 先嘗試取得已完成的翻譯（例如：auto_translate=true 時後端已翻譯好）
-    const result = await api.getTranslation(props.message.id)
-    if (result) {
-      store.handleTranslationReady({
-        message_id: props.message.id,
-        original_lang: result.original_lang,
-        translations: { zh: result.content_zh, ja: result.content_ja, en: result.content_en },
-      })
+    // 單次請求：後端若已翻譯完成回傳 200 + 資料；尚未翻譯回傳 202（非同步觸發）並等 WS 事件
+    const result = await api.ensureTranslation(props.message.id)
+    if (result?.status === 'processing') {
+      // 後端已觸發翻譯，保持 loading，等候 WS translation_ready
+      return
     }
+    // 翻譯已完成，直接顯示
+    store.handleTranslationReady({
+      message_id: props.message.id,
+      original_lang: result.original_lang,
+      translations: { zh: result.content_zh, ja: result.content_ja, en: result.content_en },
+    })
   } catch {
-    // 翻譯尚未存在，發送 POST 觸發翻譯；結果會透過 WS translation_ready 事件推送
-    try {
-      await api.requestTranslation(props.message.id)
-      // 保持 translationLoadingSet 中，等待 WS 事件
-    } catch {
-      // 觸發失敗（例如翻譯未啟用），移除 loading 狀態
-      store.translationLoadingSet.delete(props.message.id)
-    }
+    store.translationLoadingSet.delete(props.message.id)
   }
 }
 
