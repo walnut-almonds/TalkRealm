@@ -20,7 +20,7 @@ import (
 var (
 	ErrGameStateNotFound = errors.New("game state not found")
 	ErrAlreadyGuessed    = errors.New("already guessed this message")
-	ErrInvalidHiddenLang = errors.New("invalid hidden_lang: must be zh, ja, or en")
+	ErrInvalidHiddenLang = errors.New("invalid hidden_lang: must be zh, zh-tw, ja, or en")
 	ErrTranslationNeeded = errors.New("translation not ready yet")
 	ErrLLMDisabled       = errors.New("LLM service not configured")
 )
@@ -28,7 +28,7 @@ var (
 // GuessRequest 猜測請求
 type GuessRequest struct {
 	GuessContent string `json:"guess_content" binding:"required"`
-	HiddenLang   string `json:"hidden_lang"   binding:"required"` // zh, ja, en
+	HiddenLang   string `json:"hidden_lang"   binding:"required"` // zh, zh-tw, ja, en
 }
 
 // GuessResult 猜測結果
@@ -193,7 +193,7 @@ func (s *guessService) evaluateSimilarity(reference, guess, lang string) (float6
 
 // buildSimilarityPrompt 建立語意相似度評估 prompt
 func buildSimilarityPrompt(reference, guess, lang string) string {
-	langName := map[string]string{"zh": "Chinese", "ja": "Japanese", "en": "English"}[lang]
+	langName := map[string]string{"zh": "Chinese", "zh-tw": "Traditional Chinese", "ja": "Japanese", "en": "English"}[lang]
 	if langName == "" {
 		langName = lang
 	}
@@ -381,6 +381,8 @@ func extractContent(t *model.MessageTranslation, lang string) string {
 	switch lang {
 	case "zh":
 		return t.ContentZH
+	case "zh-tw":
+		return t.ContentZHTW
 	case "ja":
 		return t.ContentJA
 	default:
@@ -390,5 +392,5 @@ func extractContent(t *model.MessageTranslation, lang string) string {
 
 // isValidLang 驗證語言代碼
 func isValidLang(lang string) bool {
-	return lang == "zh" || lang == "ja" || lang == "en"
+	return lang == "zh" || lang == "zh-tw" || lang == "ja" || lang == "en"
 }
