@@ -299,25 +299,30 @@ async function submitGuess() {
           </div>
         </template>
 
-        <!-- Old message: lazy-fetch button -->
-        <button
-          v-else-if="!isTranslationLoading && !translation"
-          class="trans-btn trans-btn--fetch"
-          @click="fetchTranslation"
-        >
-          <i class="fas fa-language"></i> 翻譯
-        </button>
       </div>
     </div>
 
-    <!-- Hover action bar (right side) — only for own non-pending messages -->
-    <div v-if="isCurrentUser && message.id && !isEditing" class="message-actions-bar">
-      <button class="msg-action-btn" title="編輯" @click="startEdit">
-        <i class="fas fa-pencil"></i>
+    <!-- Hover action bar (right side) -->
+    <div
+      v-if="message.id && !isEditing && (isCurrentUser || (showTranslationSection && !translation && !isTranslationLoading))"
+      class="message-actions-bar"
+    >
+      <button
+        v-if="showTranslationSection && !translation && !isTranslationLoading"
+        class="msg-action-btn"
+        title="翻譯"
+        @click="fetchTranslation"
+      >
+        <i class="fas fa-language"></i>
       </button>
-      <button class="msg-action-btn danger" title="刪除" @click="deleteMessage">
-        <i class="fas fa-trash"></i>
-      </button>
+      <template v-if="isCurrentUser">
+        <button class="msg-action-btn" title="編輯" @click="startEdit">
+          <i class="fas fa-pencil"></i>
+        </button>
+        <button class="msg-action-btn danger" title="刪除" @click="deleteMessage">
+          <i class="fas fa-trash"></i>
+        </button>
+      </template>
     </div>
   </div>
 </template>
