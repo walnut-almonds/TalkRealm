@@ -130,12 +130,14 @@ const translatedText = computed(() => {
 })
 
 const translationVisible = ref(false)
+const translationDismissed = ref(false)
 const guessMode = ref(false)
 const guessInput = ref('')
 const guessResult = ref(null)  // { is_correct, similarity_score, correct_content }
 const isGuessing = ref(false)
 
 async function fetchTranslation() {
+  translationDismissed.value = false
   if (translation.value || isTranslationLoading.value) return
   store.translationLoadingSet.add(props.message.id)
   try {
@@ -232,7 +234,7 @@ async function submitGuess() {
       </div>
 
       <!-- Translation section -->
-      <div v-if="showTranslationSection" class="translation-section">
+      <div v-if="showTranslationSection && !translationDismissed" class="translation-section">
         <!-- In-flight: waiting for translation_ready WS event -->
         <div v-if="isTranslationLoading && !translation" class="translation-loading">
           <i class="fas fa-circle-notch fa-spin"></i>
@@ -264,6 +266,13 @@ async function submitGuess() {
                 @click="guessMode = !guessMode"
               >
                 <i class="fas fa-question-circle"></i>
+              </button>
+              <button
+                class="trans-btn"
+                title="收起翻譯"
+                @click="translationDismissed = true; translationVisible = false; guessMode = false"
+              >
+                <i class="fas fa-xmark"></i>
               </button>
             </div>
           </div>
@@ -304,11 +313,11 @@ async function submitGuess() {
 
     <!-- Hover action bar (right side) -->
     <div
-      v-if="message.id && !isEditing && (isCurrentUser || (showTranslationSection && !translation && !isTranslationLoading))"
+      v-if="message.id && !isEditing && (isCurrentUser || (showTranslationSection && (!translation || translationDismissed) && !isTranslationLoading))"
       class="message-actions-bar"
     >
       <button
-        v-if="showTranslationSection && !translation && !isTranslationLoading"
+        v-if="showTranslationSection && (!translation || translationDismissed) && !isTranslationLoading"
         class="msg-action-btn"
         title="翻譯"
         @click="fetchTranslation"
