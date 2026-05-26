@@ -15,7 +15,9 @@ onMounted(() => {
 })
 
 function getPartner(channel) {
-    return channel.user1 || channel.user2 || {}
+    const selfId = store.user?.id
+    if (channel.user1?.id !== selfId) return channel.user1 || {}
+    return channel.user2 || {}
 }
 
 // Members that can be DM'd (exclude self, filter by search)
