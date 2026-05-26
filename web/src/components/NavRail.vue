@@ -27,7 +27,7 @@ function selectGuild(id) {
 
 function openDM() {
   router.push('/')
-  dm.isDMMode.value = true
+  dm.isDMMode = true
   store.currentGuild = null
 }
 </script>
