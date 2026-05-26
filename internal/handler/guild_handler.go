@@ -11,10 +11,16 @@ import (
 	"github.com/walnut-almonds/talkrealm/pkg/logger"
 )
 
+// OnlineChecker 檢查使用者是否在線（由 WS Manager 實作，避免循環依賴）
+type OnlineChecker interface {
+	IsUserOnline(userID uint) bool
+}
+
 type GuildHandler struct {
 	guildService       service.GuildService
 	guildMemberService service.GuildMemberService
 	guildInviteService service.GuildInviteService
+	onlineChecker      OnlineChecker
 }
 
 func NewGuildHandler(
@@ -27,6 +33,11 @@ func NewGuildHandler(
 		guildMemberService: guildMemberService,
 		guildInviteService: guildInviteService,
 	}
+}
+
+// SetOnlineChecker 注入線上狀態檢查器（選擇性）
+func (h *GuildHandler) SetOnlineChecker(oc OnlineChecker) {
+	h.onlineChecker = oc
 }
 
 // CreateGuild 建立社群
@@ -389,6 +400,21 @@ func (h *GuildHandler) ListGuildMembers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 
 		return
+	}
+
+	// 以 Redis 實時判斷線上狀態：在線 → 強制 online；不在線 → 保留 DB 偏好值（busy/away/offline），
+	// 但若 DB 殘留 "online"（舊資料或用戶誤設）則改為 offline，避免鬼線上問題
+	if h.onlineChecker != nil {
+		for i := range members {
+			if members[i].User.ID == 0 {
+				continue
+			}
+			if h.onlineChecker.IsUserOnline(members[i].User.ID) {
+				members[i].User.Status = "online"
+			} else if members[i].User.Status == "online" {
+				members[i].User.Status = "offline"
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, members)

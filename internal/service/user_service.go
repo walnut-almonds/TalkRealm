@@ -57,7 +57,7 @@ type PublicUser struct {
 type UpdateUserRequest struct {
 	Nickname      string `json:"nickname"       binding:"max=64"`
 	Avatar        string `json:"avatar"         binding:"max=256"`
-	Status        string `json:"status"         binding:"omitempty,oneof=online offline busy away"`
+	Status        string `json:"status"         binding:"omitempty,oneof=offline busy away"`
 	PreferredLang string `json:"preferred_lang" binding:"omitempty,oneof=zh zh-tw ja en"`
 }
 
@@ -185,9 +185,6 @@ func (s *userService) Login(req *LoginRequest) (*LoginResponse, error) {
 	if err := s.refreshTokenRepo.Create(rt); err != nil {
 		return nil, err
 	}
-
-	// 更新使用者狀態為上線
-	_ = s.repo.UpdateStatus(user.ID, "online")
 
 	return &LoginResponse{
 		AccessToken:  accessToken,
@@ -434,8 +431,6 @@ func (s *userService) OAuthLoginOrRegister(info *OAuthUserInfo) (*LoginResponse,
 	if err := s.refreshTokenRepo.Create(rt); err != nil {
 		return nil, err
 	}
-
-	_ = s.repo.UpdateStatus(user.ID, "online")
 
 	return &LoginResponse{
 		AccessToken:  accessToken,

@@ -120,6 +120,8 @@ func (m *Manager) Run() {
 // handleUnregister 處理客戶端斷線：清理訂閱、語音狀態、Redis；廣播下線與語音離開事件
 func (m *Manager) handleUnregister(client *Client) {
 	m.mu.Lock()
+	hasOtherConnections := false
+
 	if _, ok := m.clients[client]; ok {
 		// 從所有頻道訂閱中移除
 		for channelID := range client.channels {
@@ -140,6 +142,15 @@ func (m *Manager) handleUnregister(client *Client) {
 		if client.identified {
 			log.Printf("Client disconnected: User %s (ID: %d). Total clients: %d",
 				client.username, client.userID, len(m.clients))
+
+			// 檢查同一使用者是否還有其他活躍連線（多標籤頁情境）
+			for c := range m.clients {
+				if c.identified && c.userID == client.userID {
+					hasOtherConnections = true
+
+					break
+				}
+			}
 		} else {
 			log.Printf("Unauthenticated client disconnected. Total clients: %d", len(m.clients))
 		}
@@ -170,13 +181,12 @@ func (m *Manager) handleUnregister(client *Client) {
 		}
 	}
 
-	// Redis 清理（在鎖外執行）
-	if wasIdentified {
+	// 只有在該使用者沒有其他活躍連線時，才清理 Redis 並廣播下線（避免多標籤頁誤判）
+	if wasIdentified && !hasOtherConnections {
+		// Redis 清理（在鎖外執行）
 		m.redisOnDisconnect(userID)
-	}
 
-	// 廣播下線狀態（在鎖外執行，避免死鎖）
-	if wasIdentified {
+		// 廣播下線狀態
 		m.broadcastPresenceUpdate(userID, username, "offline")
 	}
 }

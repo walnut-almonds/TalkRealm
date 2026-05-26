@@ -110,6 +110,7 @@ func New(cfg *config.Config) (*Server, error) {
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
 	guildHandler := handler.NewGuildHandler(guildService, guildMemberService, guildInviteService)
+	guildHandler.SetOnlineChecker(wsManager)
 	channelHandler := handler.NewChannelHandler(channelService)
 	messageHandler := handler.NewMessageHandler(messageService)
 	oauthHandler := handler.NewOAuthHandler(userService, cfg)

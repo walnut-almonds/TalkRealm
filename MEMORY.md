@@ -36,6 +36,13 @@ make check        # 全部檢查（lint + build + test）
 - `message_service.go` 中 WS Manager 以 interface 注入（避免循環依賴），需 `SetWebSocketManager()` 設定；另有 `CreateMessageWS()` 供 WS `send_message` op 呼叫（`MessageSender` interface 注入到 Manager）
 - handler.go 仍有 TODO stub functions（已被 user_handler.go 等各自的 handler 取代）
 - 部署到 VPS 使用 `docker-compose.prod.yml` 時，`POSTGRES_PASSWORD` / `REDIS_PASSWORD` 需由同目錄 `.env` 或 `--env-file` 提供；否則 Compose 會以空字串替代，造成 postgres healthcheck 失敗。
+- **Presence（在線狀態）架構**：Redis 為唯一「是否在線」的判斷依據；DB `User.Status` 保留為使用者自選狀態偏好（offline/busy/away）。
+  - `user_service.Login` / `OAuthLoginOrRegister` **不再** 自動寫 `online` 到 DB。
+  - WS `handleIdentify` 只做 Redis 寫入（`redisOnIdentify`）；`handleUnregister` 只做 Redis 清理（`redisOnDisconnect`）+ 廣播，不碰 DB。
+  - 多標籤頁修正已實裝：`handleUnregister` 先掃描 `hasOtherConnections`，只在最後一個連線斷開時才執行 Redis 清理與廣播。
+  - `handler.GuildHandler` 新增 `OnlineChecker` interface + `SetOnlineChecker` setter；`ListGuildMembers` 回傳前以 `IsUserOnline` 動態覆寫狀態為 `"online"`（若 Redis 確認在線）。
+  - `server.go` 以 `guildHandler.SetOnlineChecker(wsManager)` 注入；不再有 `SetUserStatusUpdater`。
+  - `UpdateStatus` 方法（repo/service）仍保留，供使用者透過 REST 設定 busy/away 偏好用途。
 - `golangci-lint --fix` + `whole-files: true` 坑：修改 `mocks.go` 會曝露所有既有的 nilnil 問題。已用 `//nolint:nilnil` 全部標記。新增 mock 方法必須一同加標記。
 - `golangci-lint --fix` 會重新格式化 oauth_handler.go，造成 `NewRequestWithContext` 行號改變；`wsl_v5` 需在 `if err != nil { c.JSON(); return }` 的 return 前加空行。
 - 前端拖曳檔案判斷不可只用 `e.dataTransfer.types.includes('Files')`：Safari/部分瀏覽器 `types` 是 `DOMStringList`，需改用 `types.contains('Files')` 或 `Array.from(types).includes('Files')`；另外要在 `window.dragover` `preventDefault()`，避免瀏覽器直接開啟拖入檔案。
@@ -49,7 +56,7 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
-2026-05-21 — 切換群組時自動恢復最後停留頻道：
+2026-05-22 — Presence 系統改為 Redis-only 架構（移除 ghost-online bug）：
 - **`web/src/api/index.js`**：新增 `guildLastChannel` helper（`get(guildId)`/`set(guildId, channelId)`），使用 `talkrealm_last_channel_{guildId}` 作為 localStorage key，實現 per-guild 頻道記憶
 - **`web/src/stores/useAppStore.js`**：`selectGuild()` 在重置 `currentChannel`/`messages` 後，自動 `await selectChannel()` 至最後停留頻道（fallback 至第一個文字頻道）；`selectChannel()` 改為呼叫 `guildLastChannel.set()` 而非全域 `LAST_CHANNEL`；`loadUserData()` 移除重複的頻道恢復邏輯（由 `selectGuild` 統一處理）
 - **`web/src/components/GuildSidebar.vue`**：首頁按鈕改呼叫 `goHome()` 函數，同時清空 `currentGuild`、`currentChannel`、`messages`
