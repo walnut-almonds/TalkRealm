@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { apiClient } from '@/api/index.js'
+import { api as apiClient } from '@/api/index.js'
 
 const dmChannels = ref([])
 const currentDMChannel = ref(null)
