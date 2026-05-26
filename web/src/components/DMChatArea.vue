@@ -34,16 +34,16 @@ watch(() => dm.dmMessages.length, () => scrollToBottom())
 watch(() => dm.currentDMChannel?.id, () => scrollToBottom())
 
 onMounted(() => {
-    ws.onMessage('dm_message', onDMMessage)
+    ws.onMessage(onDMMessage)
     scrollToBottom()
 })
 
 onUnmounted(() => {
-    ws.offMessage('dm_message', onDMMessage)
+    ws.offMessage(onDMMessage)
 })
 
-function onDMMessage(msg) {
-    dm.pushIncomingDM(msg)
+function onDMMessage(type, data) {
+    if (type === 'dm_message') dm.pushIncomingDM(data)
 }
 
 async function send() {
