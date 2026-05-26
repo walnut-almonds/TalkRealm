@@ -38,6 +38,10 @@ export const EP = {
     MESSAGE_TRANSLATION_ENSURE: (id) => `/api/v1/messages/${id}/translation/ensure`,
     MESSAGE_GUESS: (id) => `/api/v1/messages/${id}/guess`,
     MESSAGE_GAME: (id) => `/api/v1/messages/${id}/game`,
+    // DM
+    DM_CHANNELS: '/api/v1/dm/channels',
+    DM_CHANNEL: (id) => `/api/v1/dm/channels/${id}`,
+    DM_MESSAGES: (id) => `/api/v1/dm/channels/${id}/messages`,
 }
 
 export const STORAGE_KEYS = {
@@ -210,6 +214,20 @@ class ApiClient {
     // ── Voice ──
     getVoiceToken(channelId) { return this.get(EP.VOICE_TOKEN(channelId)) }
     getVoiceParticipants(channelId) { return this.get(EP.VOICE_PARTICIPANTS(channelId)) }
+
+    // ── DM ──
+    openDMChannel(targetUserId) { return this.post(EP.DM_CHANNELS, { target_user_id: targetUserId }) }
+    listDMChannels() { return this.get(EP.DM_CHANNELS) }
+    getDMMessages(dmChannelId, limit = 50, before = null) {
+        let url = `${EP.DM_MESSAGES(dmChannelId)}?limit=${limit}`
+        if (before) url += `&before=${before}`
+        return this.get(url)
+    }
+    sendDMMessage(dmChannelId, content, nonce = null) {
+        const body = { content }
+        if (nonce) body.nonce = nonce
+        return this.post(EP.DM_MESSAGES(dmChannelId), body)
+    }
 
     // ── Profile (aliases) ──
     updateProfile(updates) { return this.patch(EP.UPDATE_ME, updates) }

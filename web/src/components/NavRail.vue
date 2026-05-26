@@ -2,9 +2,11 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/useAppStore.js'
+import { useDMStore } from '@/stores/useDMStore.js'
 
 const emit = defineEmits(['create-guild', 'join-guild'])
 const store = useAppStore()
+const dm = useDMStore()
 const router = useRouter()
 const route  = useRoute()
 
@@ -18,7 +20,16 @@ const sections = [
 ]
 
 function goTo(path) { router.push(path) }
-function selectGuild(id) { store.selectGuild(id) }
+function selectGuild(id) {
+  dm.exitDMMode()
+  store.selectGuild(id)
+}
+
+function openDM() {
+  router.push('/')
+  dm.isDMMode.value = true
+  store.currentGuild = null
+}
 </script>
 
 <template>
@@ -43,13 +54,15 @@ function selectGuild(id) { store.selectGuild(id) }
     <!-- Guild list (only in chat section) -->
     <Transition name="fade">
       <div v-if="currentSection === 'chat'" class="nav-guilds">
-        <button
-          class="nav-guild-btn home"
-          :class="{ active: !store.currentGuild }"
-          title="首頁"
-          @click="store.currentGuild = null"
-        >
+        <button class="nav-guild-btn home" title="首頁" @click="dm.exitDMMode(); store.currentGuild = null">
           <i class="fas fa-home"></i>
+        </button>
+        <button
+          :class="['nav-guild-btn', 'home', { active: dm.isDMMode }]"
+          title="私人訊息"
+          @click="openDM()"
+        >
+          <i class="fas fa-envelope"></i>
         </button>
         <div class="nav-guilds-separator"></div>
         <button

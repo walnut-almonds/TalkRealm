@@ -85,6 +85,10 @@ function createWebSocketManager() {
         return send({ op: 'send_message', d: { channel_id: channelId, content, type, nonce, file_ids: fileIds } })
     }
 
+    function sendDM(dmChannelId, content, nonce = '') {
+        return send({ op: 'send_dm', d: { dm_channel_id: dmChannelId, content, nonce } })
+    }
+
     function sendVoiceStateUpdate(channelId, action, guildId) {
         return send({ op: 'voice_state_update', d: { channel_id: channelId, guild_id: guildId || 0, action } })
     }
@@ -116,6 +120,7 @@ function createWebSocketManager() {
             case 'message_create': notify('message', msg.d); break
             case 'message_update': notify('message_update', msg.d); break
             case 'message_delete': notify('message_delete', msg.d); break
+            case 'dm_message_create': notify('dm_message', msg.d); break
             case 'typing_start': notify('typing', msg.d); break
             case 'presence_update': notify('user_status', msg.d); break
             case 'channel_create': notify('channel_create', msg.d); break
@@ -148,7 +153,7 @@ function createWebSocketManager() {
         isConnected,
         connect, disconnect,
         send, sendIdentify, subscribeToChannel, unsubscribeFromChannel,
-        sendTyping, sendMessage, sendVoiceStateUpdate,
+        sendTyping, sendMessage, sendDM, sendVoiceStateUpdate,
         onMessage, offMessage,
     }
 }

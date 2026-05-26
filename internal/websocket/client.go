@@ -230,6 +230,9 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 	case "send_message":
 		c.handleSendMessage(msg.Data)
 
+	case "send_dm":
+		c.handleSendDM(msg.Data)
+
 	case "typing_start":
 		var payload struct {
 			ChannelID uint `json:"channel_id"`
@@ -413,6 +416,9 @@ func (c *Client) handleIdentify(raw json.RawMessage) {
 	// 訂閱所屬的所有 guild（非同步 DB 查詢，不阻塞 readPump）
 	go c.manager.SubscribeClientToUserGuilds(c)
 
+	// 將 client 加入使用者訂閱索引（用於 DM 推播）
+	c.manager.RegisterUserClient(c)
+
 	// 回應 ready
 	c.sendJSON(OutgoingMessage{
 		Op: "ready",
@@ -471,4 +477,51 @@ func (c *Client) SendMessage(data []byte) {
 // IsSubscribed 檢查客戶端是否訂閱了指定頻道
 func (c *Client) IsSubscribed(channelID uint) bool {
 	return c.channels[channelID]
+}
+
+// handleSendDM 處理 send_dm op：建立私訊並廣播給雙方
+func (c *Client) handleSendDM(raw json.RawMessage) {
+	var payload struct {
+		DMChannelID uint   `json:"dm_channel_id"`
+		Content     string `json:"content"`
+		Nonce       string `json:"nonce"`
+	}
+
+	if err := json.Unmarshal(raw, &payload); err != nil || payload.DMChannelID == 0 || payload.Content == "" {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "invalid send_dm payload: dm_channel_id and content required"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	if !c.manager.CheckRateLimit(c.userID, 10) {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "rate limit exceeded; please slow down"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	if c.manager.dmSender == nil {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "dm not available"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	if _, err := c.manager.dmSender.SendDM(c.userID, payload.DMChannelID, payload.Content, payload.Nonce); err != nil {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": err.Error()},
+			Timestamp: time.Now().UnixMilli(),
+		})
+	}
 }

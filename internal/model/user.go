@@ -163,3 +163,28 @@ type GameState struct {
 	SimilarityScore float64   `gorm:"default:0"            json:"similarity_score"` // LLM similarity 0..1
 	GuessedAt       time.Time `gorm:"default:now()"        json:"guessed_at"`
 }
+
+// DirectMessageChannel 兩位使用者之間的私聊頻道
+// 強制 user1_id < user2_id 以確保每對使用者只有一個頻道（由 service 層維護）
+type DirectMessageChannel struct {
+	ID        uint      `gorm:"primarykey"                        json:"id"`
+	User1ID   uint      `gorm:"not null;uniqueIndex:idx_dm_users" json:"user1_id"`
+	User2ID   uint      `gorm:"not null;uniqueIndex:idx_dm_users" json:"user2_id"`
+	User1     User      `gorm:"foreignKey:User1ID"                json:"user1"`
+	User2     User      `gorm:"foreignKey:User2ID"                json:"user2"`
+	CreatedAt time.Time `                                         json:"created_at"`
+	UpdatedAt time.Time `                                         json:"updated_at"`
+}
+
+// DirectMessage 私訊訊息
+type DirectMessage struct {
+	ID          uint      `gorm:"primarykey"                            json:"id"`
+	DMChannelID uint      `gorm:"not null;index"                        json:"dm_channel_id"`
+	SenderID    uint      `gorm:"not null"                              json:"sender_id"`
+	Sender      User      `gorm:"foreignKey:SenderID"                   json:"sender"`
+	Content     string    `gorm:"not null"                              json:"content"`
+	IsEdited    bool      `gorm:"default:false"                         json:"is_edited"`
+	Nonce       string    `gorm:"uniqueIndex:idx_dm_nonce;default:null" json:"nonce"` // 冪等 key（可選）
+	CreatedAt   time.Time `                                             json:"created_at"`
+	UpdatedAt   time.Time `                                             json:"updated_at"`
+}

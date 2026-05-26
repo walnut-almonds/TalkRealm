@@ -27,6 +27,12 @@ type MessageSender interface {
 	) (any, error)
 }
 
+// DMSender 私訊建立介面（避免循環依賴）
+// 由 DMService 實作，注入 Manager 後供 send_dm op 使用
+type DMSender interface {
+	SendDM(senderID, dmChannelID uint, content, nonce string) (any, error)
+}
+
 // serverID 用於 Redis user server mapping（單體架構下固定為 "1"）
 const serverID = "1"
 
@@ -67,6 +73,12 @@ type Manager struct {
 
 	// voiceParticipants 追蹤目前在各語音頻道的成員（channelID → { userID → username }）
 	voiceParticipants map[uint]map[uint]string
+
+	// userSubscriptions 使用者訂閱索引：userID -> 該使用者的所有 clients（多裝置/多標籤頁推播）
+	userSubscriptions map[uint]map[*Client]bool
+
+	// dmSender 私訊建立器（注入 DMService，避免循環依賴）
+	dmSender DMSender
 }
 
 // NewManager 創建新的 WebSocket 管理器
@@ -75,6 +87,7 @@ func NewManager(jwtManager *auth.JWTManager) *Manager {
 		clients:              make(map[*Client]bool),
 		channelSubscriptions: make(map[uint]map[*Client]bool),
 		guildSubscriptions:   make(map[uint]map[*Client]bool),
+		userSubscriptions:    make(map[uint]map[*Client]bool),
 		broadcast:            make(chan []byte, 256),
 		register:             make(chan *Client),
 		unregister:           make(chan *Client),
@@ -134,6 +147,11 @@ func (m *Manager) handleUnregister(client *Client) {
 			if subscribers, ok := m.guildSubscriptions[guildID]; ok {
 				delete(subscribers, client)
 			}
+		}
+
+		// 從使用者訂閱索引中移除
+		if client.identified {
+			m.unregisterUserClient(client)
 		}
 
 		delete(m.clients, client)
@@ -433,6 +451,65 @@ func (m *Manager) SetMessageSender(s MessageSender) {
 	m.msgSender = s
 }
 
+// SetDMSender 注入私訊建立器（供 send_dm op 使用）
+func (m *Manager) SetDMSender(s DMSender) {
+	m.dmSender = s
+}
+
+// RegisterUserClient 將 client 加入使用者訂閱索引（identify 後呼叫）
+func (m *Manager) RegisterUserClient(client *Client) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.userSubscriptions[client.userID] == nil {
+		m.userSubscriptions[client.userID] = make(map[*Client]bool)
+	}
+
+	m.userSubscriptions[client.userID][client] = true
+}
+
+// unregisterUserClient 將 client 從使用者訂閱索引中移除（handleUnregister 呼叫）
+func (m *Manager) unregisterUserClient(client *Client) {
+	if subs, ok := m.userSubscriptions[client.userID]; ok {
+		delete(subs, client)
+
+		if len(subs) == 0 {
+			delete(m.userSubscriptions, client.userID)
+		}
+	}
+}
+
+// BroadcastToUser 向指定使用者的所有連線廣播訊息（多裝置/多標籤頁均可收到）
+func (m *Manager) BroadcastToUser(userID uint, msgType string, data any) {
+	message := OutgoingMessage{
+		Op:        msgType,
+		Data:      data,
+		Timestamp: time.Now().UnixMilli(),
+	}
+
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling dm message: %v", err)
+		return
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	subs, ok := m.userSubscriptions[userID]
+	if !ok {
+		return
+	}
+
+	for client := range subs {
+		select {
+		case client.send <- messageBytes:
+		default:
+			log.Printf("BroadcastToUser: failed to send to user %d client (buffer full)", userID)
+		}
+	}
+}
+
 // CheckRateLimit 檢查使用者是否超出速率限制（每秒 maxMsg 則）
 // 回傳 true 表示允許，false 表示超限
 func (m *Manager) CheckRateLimit(userID uint, maxMsg int) bool {
@@ -580,35 +657,6 @@ func (m *Manager) BroadcastToAll(msgType string, data any) {
 	}
 
 	m.broadcast <- messageBytes
-}
-
-// BroadcastToUser 向指定使用者發送消息
-func (m *Manager) BroadcastToUser(userID uint, msgType string, data any) {
-	message := OutgoingMessage{
-		Op:        msgType,
-		Data:      data,
-		Timestamp: time.Now().UnixMilli(),
-	}
-
-	messageBytes, err := json.Marshal(message)
-	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
-		return
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	for client := range m.clients {
-		if client.userID == userID {
-			select {
-			case client.send <- messageBytes:
-				log.Printf("Sent %s message to user %d", msgType, userID)
-			default:
-				log.Printf("Failed to send message to user %d (buffer full)", userID)
-			}
-		}
-	}
 }
 
 // UpsertVoiceParticipant 記錄使用者加入語音頻道

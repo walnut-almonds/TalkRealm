@@ -34,6 +34,7 @@ type Server struct {
 	fileHandler        *handler.FileHandler
 	voiceHandler       *handler.VoiceHandler
 	translationHandler *handler.TranslationHandler
+	dmHandler          *handler.DMHandler
 	rdb                *goredis.Client
 	guildMemberRepo    repository.GuildMemberRepository
 }
@@ -97,6 +98,10 @@ func New(cfg *config.Config) (*Server, error) {
 	channelService := service.NewChannelService(channelRepo, guildRepo, guildMemberRepo)
 	messageService := service.NewMessageService(messageRepo, channelRepo, guildMemberRepo)
 
+	// DM 服務
+	dmRepo := repository.NewDMRepository(db)
+	dmService := service.NewDMService(dmRepo, userRepo)
+
 	// 設定 WebSocket 管理器到各 Service
 	messageService.SetWebSocketManager(wsManager)
 	guildService.SetWebSocketManager(wsManager)
@@ -107,6 +112,10 @@ func New(cfg *config.Config) (*Server, error) {
 	// 設定 MessageSender：讓 WS Manager 能處理 send_message op
 	wsManager.SetMessageSender(messageService)
 
+	// 設定 DMSender：讓 WS Manager 能處理 send_dm op
+	wsManager.SetDMSender(dmService)
+	dmService.SetWebSocketManager(wsManager)
+
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
 	guildHandler := handler.NewGuildHandler(guildService, guildMemberService, guildInviteService)
@@ -114,6 +123,7 @@ func New(cfg *config.Config) (*Server, error) {
 	channelHandler := handler.NewChannelHandler(channelService)
 	messageHandler := handler.NewMessageHandler(messageService)
 	oauthHandler := handler.NewOAuthHandler(userService, cfg)
+	dmHandler := handler.NewDMHandler(dmService)
 
 	// 初始化 File Service（Minio 可選，失敗時記錄 warning）
 	var fileHandler *handler.FileHandler
@@ -158,6 +168,7 @@ func New(cfg *config.Config) (*Server, error) {
 		rdb:                rdb,
 		guildMemberRepo:    guildMemberRepo,
 		translationHandler: translationHandler,
+		dmHandler:          dmHandler,
 	}
 
 	// 設定路由
@@ -304,6 +315,15 @@ func (s *Server) setupRoutes() {
 				messages.POST("/:id/translation", s.translationHandler.RequestTranslation)
 				messages.POST("/:id/guess", s.translationHandler.SubmitGuess)
 				messages.GET("/:id/game", s.translationHandler.GetGameStatus)
+			}
+
+			// 私訊（DM）相關
+			dm := protected.Group("/dm")
+			{
+				dm.POST("/channels", s.dmHandler.GetOrCreateDMChannel)
+				dm.GET("/channels", s.dmHandler.ListDMChannels)
+				dm.GET("/channels/:id/messages", s.dmHandler.ListDMMessages)
+				dm.POST("/channels/:id/messages", s.dmHandler.SendDMMessage)
 			}
 		}
 
