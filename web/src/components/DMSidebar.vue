@@ -5,6 +5,8 @@ import { useAppStore } from '@/stores/useAppStore.js'
 import { useWebSocket } from '@/composables/useWebSocket.js'
 import UserPanel from './UserPanel.vue'
 
+const emit = defineEmits(['channel-selected'])
+
 const dm = useDMStore()
 const store = useAppStore()
 const ws = useWebSocket()
@@ -51,6 +53,7 @@ async function selectUser(member) {
     await dm.openDMWith(member.user_id)
     // subscribe to the new DM channel if not already
     if (dm.currentDMChannel) ws.subscribeToChannel(dm.currentDMChannel.id)
+    emit('channel-selected')
 }
 </script>
 
@@ -103,7 +106,7 @@ async function selectUser(member) {
                 v-for="ch in dm.dmChannels"
                 :key="ch.id"
                 :class="['dm-item', { active: dm.currentDMChannel?.id === ch.id }]"
-                @click="dm.openDMChannel(ch)"
+                @click="dm.openDMChannel(ch); emit('channel-selected')"
             >
                 <div class="dm-avatar">
                     <img v-if="getPartner(ch).avatar" :src="getPartner(ch).avatar" :alt="getPartner(ch).username" />
@@ -278,5 +281,25 @@ async function selectUser(member) {
     text-align: center;
     color: var(--text-muted, #8e9297);
     font-size: 13px;
+}
+
+/* ── Mobile: slide-in overlay from left ─────────────────── */
+@media (max-width: 768px) {
+    .dm-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: min(300px, 85vw);
+        height: 100%;
+        transform: translateX(-100%);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 501;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
+    }
+
+    .dm-sidebar.mobile-open {
+        transform: translateX(0);
+    }
 }
 </style>

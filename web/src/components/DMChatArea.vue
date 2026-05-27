@@ -7,6 +7,8 @@ import { useFileUpload } from '@/composables/useFileUpload.js'
 import { randomUUID } from '@/utils/format.js'
 import MessageItem from '@/components/MessageItem.vue'
 
+const emit = defineEmits(['open-sidebar'])
+
 const dm = useDMStore()
 const ws = useWebSocket()
 const store = useAppStore()
@@ -127,6 +129,9 @@ function onKeydown(e) {
     <div class="dm-chat-area" v-if="dm.currentDMChannel" @drop="onDrop" @dragover="onDragover">
         <!-- Header -->
         <div class="dm-chat-header">
+            <button class="mobile-hamburger" @click="emit('open-sidebar')" title="私訊列表">
+                <i class="fas fa-bars"></i>
+            </button>
             <div class="dm-partner-info" v-if="partner">
                 <div class="dm-partner-avatar">
                     <img v-if="partner.avatar" :src="partner.avatar" :alt="partner.username" />

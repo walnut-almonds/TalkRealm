@@ -27,6 +27,11 @@
     --offline: #747F8D;
 }
 
+html {
+    overflow: hidden;
+    max-width: 100%;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -38,6 +43,7 @@ body {
     background: var(--bg-tertiary);
     color: var(--text-primary);
     overflow: hidden;
+    max-width: 100%;
     font-size: 14px;
     line-height: 1.5;
 }
@@ -103,6 +109,7 @@ select {
     display: flex;
     flex: 1;
     overflow: hidden;
+    min-width: 0;
 }
 
 /* ── Buttons ─────────────────────────────────────────────── */

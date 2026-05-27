@@ -13,6 +13,7 @@ const dm = useDMStore()
 const showMemberSidebar = ref(true)
 const mobileChannelSidebarOpen = ref(false)
 const mobileMemberSidebarOpen = ref(false)
+const mobileDMSidebarOpen = ref(false)
 
 function toggleMembers() {
   if (window.innerWidth <= 768) {
@@ -38,18 +39,24 @@ function onTouchEnd(e) {
   if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 0.75) return
 
   if (dx < 0) {
-    // Swipe left → close channel sidebar, OR open members sidebar
+    // Swipe left → close any open left sidebar, OR open members sidebar
     if (mobileChannelSidebarOpen.value) {
       mobileChannelSidebarOpen.value = false
+    } else if (mobileDMSidebarOpen.value) {
+      mobileDMSidebarOpen.value = false
     } else if (!mobileMemberSidebarOpen.value && store.currentGuild) {
       mobileMemberSidebarOpen.value = true
     }
   } else {
-    // Swipe right → close members sidebar, OR open channel sidebar
+    // Swipe right → close members sidebar, OR open the appropriate left sidebar
     if (mobileMemberSidebarOpen.value) {
       mobileMemberSidebarOpen.value = false
-    } else if (!mobileChannelSidebarOpen.value) {
-      mobileChannelSidebarOpen.value = true
+    } else if (!mobileChannelSidebarOpen.value && !mobileDMSidebarOpen.value) {
+      if (dm.isDMMode) {
+        mobileDMSidebarOpen.value = true
+      } else {
+        mobileChannelSidebarOpen.value = true
+      }
     }
   }
 }
@@ -64,9 +71,9 @@ function onTouchEnd(e) {
     <!-- Mobile backdrop – closes channel sidebar on tap -->
     <Teleport to="body">
       <div
-        v-if="mobileChannelSidebarOpen"
+        v-if="mobileChannelSidebarOpen || mobileDMSidebarOpen"
         class="mobile-sidebar-backdrop"
-        @click="mobileChannelSidebarOpen = false"
+        @click="mobileChannelSidebarOpen = false; mobileDMSidebarOpen = false"
       ></div>
     </Teleport>
 
@@ -80,8 +87,11 @@ function onTouchEnd(e) {
     </Teleport>
 
     <template v-if="dm.isDMMode">
-      <DMSidebar />
-      <DMChatArea />
+      <DMSidebar
+        :class="{ 'mobile-open': mobileDMSidebarOpen }"
+        @channel-selected="mobileDMSidebarOpen = false"
+      />
+      <DMChatArea @open-sidebar="mobileDMSidebarOpen = true" />
     </template>
     <template v-else>
       <ChannelSidebar
