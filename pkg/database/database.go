@@ -101,7 +101,22 @@ func AutoMigrate() error {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
+	if err := patchChannelGuildIDNullable(); err != nil {
+		return err
+	}
+
 	logger.Info("Database migrations completed successfully")
+
+	return nil
+}
+
+// patchChannelGuildIDNullable ensures channels.guild_id allows NULL for DM channels.
+// GORM AutoMigrate may not relax an existing NOT NULL constraint in place.
+func patchChannelGuildIDNullable() error {
+	err := db.Exec(`ALTER TABLE channels ALTER COLUMN guild_id DROP NOT NULL`).Error
+	if err != nil {
+		return fmt.Errorf("failed to patch channels.guild_id nullable: %w", err)
+	}
 
 	return nil
 }
