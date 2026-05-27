@@ -5,6 +5,7 @@ import { api } from '@/api/index.js'
 import { escapeHtml } from '@/utils/format.js'
 import { getStatusText } from '@/utils/format.js'
 
+const emit = defineEmits(['close-mobile'])
 const store = useAppStore()
 const voiceStore = useVoiceStore()
 
@@ -50,6 +51,9 @@ async function updateRole(guildId, userId, username, currentRole) {
   <div class="members-sidebar">
     <div class="members-header">
       <h3>成員 — {{ store.members.length }}</h3>
+      <button class="members-close-btn" @click="emit('close-mobile')" title="關閉">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
     <div class="members-list">
       <div

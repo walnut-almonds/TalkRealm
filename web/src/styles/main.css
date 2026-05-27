@@ -1912,6 +1912,9 @@ select {
 .members-header {
     padding: 16px;
     border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .members-header h3 {
@@ -1920,6 +1923,24 @@ select {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-muted);
+}
+
+/* Mobile close button – hidden on desktop */
+.members-close-btn {
+    display: none;
+    background: none;
+    color: var(--text-secondary);
+    padding: 4px 6px;
+    border-radius: var(--radius);
+    font-size: 16px;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+}
+
+.members-close-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
 }
 
 .members-list {
@@ -2464,6 +2485,17 @@ select {
     z-index: 499;
 }
 
+/* ── Mobile: Members backdrop (right-side overlay) ───────── */
+.mobile-members-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 499;
+}
+
 /* ═══════════════════════════════════════════════════════════
    Mobile Responsive  (≤ 768px)
    ═══════════════════════════════════════════════════════════ */
@@ -2471,9 +2503,10 @@ select {
 
     /* Use dynamic viewport height to handle mobile browser bars */
     .app-shell {
-        height: 100dvh;
         height: 100vh;
-        /* fallback */
+        /* fallback for older browsers */
+        height: 100dvh;
+        /* dynamic viewport: excludes browser chrome */
     }
 
     /* ── Nav Rail: shrink to icon-only strip ─────────────── */
@@ -2501,17 +2534,16 @@ select {
         font-size: 14px;
     }
 
-    /* ── Channel sidebar: slide-in overlay ───────────────── */
+    /* ── Channel sidebar: slide-in from left, covers nav-rail ── */
     .channels-sidebar {
         position: fixed;
-        left: 56px;
-        /* starts just after the nav rail */
+        left: 0;
         top: 0;
         bottom: 0;
-        width: min(280px, calc(100vw - 56px));
+        width: min(300px, 85vw);
         transform: translateX(-100%);
         transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        z-index: 500;
+        z-index: 501;
         box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
     }
 
@@ -2519,14 +2551,33 @@ select {
         transform: translateX(0);
     }
 
-    /* Backdrop left offset matches nav-rail width */
+    /* Backdrop: full-screen overlay */
     .mobile-sidebar-backdrop {
-        left: 56px;
+        left: 0;
+        z-index: 500;
     }
 
-    /* ── Members sidebar: hidden on mobile ───────────────── */
+    /* ── Members sidebar: slide-in from right on mobile ──────── */
     .members-sidebar {
-        display: none !important;
+        display: flex !important;
+        position: fixed;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: min(280px, 80vw);
+        transform: translateX(100%);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 501;
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.45);
+    }
+
+    .members-sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    /* Mobile close button inside members header */
+    .members-close-btn {
+        display: flex;
     }
 
     /* ── Channel header: show hamburger, hide topic ──────── */
@@ -2553,7 +2604,7 @@ select {
 
     /* Image attachments: cap width to viewport */
     .message-attachment--image {
-        max-width: calc(100vw - 56px - 44px);
+        max-width: calc(100vw - 56px - 32px);
     }
 
     /* ── Auth page: full-width card ──────────────────────── */
