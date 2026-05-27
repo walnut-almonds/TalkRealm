@@ -34,6 +34,9 @@ func newTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, *sql.DB) {
 	return gdb, mock, sqlDB
 }
 
+// ptrU returns a pointer to the given uint value.
+func ptrU(v uint) *uint { return &v }
+
 // ---------------------------------------------------------------------------
 // UserRepository tests
 // ---------------------------------------------------------------------------
@@ -350,7 +353,7 @@ func TestChannelRepository_Create_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	repo := repository.NewChannelRepository(db)
-	ch := &model.Channel{GuildID: 1, Name: "general", Type: "text"}
+	ch := &model.Channel{GuildID: ptrU(1), Name: "general", Type: "text"}
 	err := repo.Create(ch)
 	require.NoError(t, err)
 }
@@ -378,7 +381,7 @@ func TestChannelRepository_Update_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	repo := repository.NewChannelRepository(db)
-	ch := &model.Channel{ID: 1, GuildID: 1, Name: "updated", Type: "text"}
+	ch := &model.Channel{ID: 1, GuildID: ptrU(1), Name: "updated", Type: "text"}
 	err := repo.Update(ch)
 	require.NoError(t, err)
 }

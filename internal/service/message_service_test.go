@@ -13,7 +13,7 @@ import (
 )
 
 func TestMessageService_CreateMessage_Success(t *testing.T) {
-	channel := &model.Channel{ID: 1, GuildID: 10}
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	member := &model.GuildMember{ID: 1, GuildID: 10, UserID: 5}
 	msg := &model.Message{ID: 1, Content: "hello", ChannelID: 1, UserID: 5, CreatedAt: time.Now()}
 
@@ -30,7 +30,10 @@ func TestMessageService_CreateMessage_Success(t *testing.T) {
 
 	svc := service.NewMessageService(mockMsg, mockCh, mockMember)
 
-	result, err := svc.CreateMessage(5, &service.CreateMessageRequest{ChannelID: 1, Content: "hello"})
+	result, err := svc.CreateMessage(
+		5,
+		&service.CreateMessageRequest{ChannelID: 1, Content: "hello"},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, "hello", result.Content)
 }
@@ -53,7 +56,10 @@ func TestMessageService_CreateMessage_InvalidType(t *testing.T) {
 		&testutil.MockGuildMemberRepository{},
 	)
 
-	_, err := svc.CreateMessage(1, &service.CreateMessageRequest{ChannelID: 1, Content: "hi", Type: "invalid"})
+	_, err := svc.CreateMessage(
+		1,
+		&service.CreateMessageRequest{ChannelID: 1, Content: "hi", Type: "invalid"},
+	)
 	assert.ErrorIs(t, err, service.ErrInvalidMessageType)
 }
 
@@ -72,7 +78,7 @@ func TestMessageService_CreateMessage_ChannelNotFound(t *testing.T) {
 }
 
 func TestMessageService_CreateMessage_NotMember(t *testing.T) {
-	channel := &model.Channel{ID: 1, GuildID: 10}
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	mockCh := &testutil.MockChannelRepository{
 		GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
 	}
@@ -86,7 +92,7 @@ func TestMessageService_CreateMessage_NotMember(t *testing.T) {
 }
 
 func TestMessageService_CreateMessage_WithWSManager(t *testing.T) {
-	channel := &model.Channel{ID: 1, GuildID: 10}
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	member := &model.GuildMember{ID: 1, GuildID: 10, UserID: 5}
 	savedMsg := &model.Message{ID: 1, Content: "hi", ChannelID: 1, UserID: 5}
 
@@ -114,7 +120,7 @@ func TestMessageService_CreateMessage_WithWSManager(t *testing.T) {
 
 func TestMessageService_GetMessage_Success(t *testing.T) {
 	msg := &model.Message{ID: 1, ChannelID: 1, UserID: 5}
-	channel := &model.Channel{ID: 1, GuildID: 10}
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	member := &model.GuildMember{ID: 1}
 
 	mockMsg := &testutil.MockMessageRepository{
@@ -137,19 +143,23 @@ func TestMessageService_GetMessage_NotFound(t *testing.T) {
 	mockMsg := &testutil.MockMessageRepository{
 		GetByIDFn: func(id uint) (*model.Message, error) { return nil, errors.New("not found") },
 	}
-	svc := service.NewMessageService(mockMsg, &testutil.MockChannelRepository{}, &testutil.MockGuildMemberRepository{})
+	svc := service.NewMessageService(
+		mockMsg,
+		&testutil.MockChannelRepository{},
+		&testutil.MockGuildMemberRepository{},
+	)
 
 	_, err := svc.GetMessage(999, 1)
 	assert.ErrorIs(t, err, service.ErrMessageNotFound)
 }
 
 func TestMessageService_ListChannelMessages_Success(t *testing.T) {
-	channel := &model.Channel{ID: 1, GuildID: 10}
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	member := &model.GuildMember{ID: 1}
 	msgs := []*model.Message{{ID: 3}, {ID: 2}, {ID: 1}}
 
 	mockMsg := &testutil.MockMessageRepository{
-		GetByChannelIDCursorFn: func(channelID uint, before uint, limit int) ([]*model.Message, error) {
+		GetByChannelIDCursorFn: func(channelID, before uint, limit int) ([]*model.Message, error) {
 			return msgs, nil
 		},
 	}
@@ -174,7 +184,11 @@ func TestMessageService_UpdateMessage_Success(t *testing.T) {
 		GetByIDFn: func(id uint) (*model.Message, error) { return msg, nil },
 		UpdateFn:  func(m *model.Message) error { updated = true; return nil },
 	}
-	svc := service.NewMessageService(mockMsg, &testutil.MockChannelRepository{}, &testutil.MockGuildMemberRepository{})
+	svc := service.NewMessageService(
+		mockMsg,
+		&testutil.MockChannelRepository{},
+		&testutil.MockGuildMemberRepository{},
+	)
 
 	got, err := svc.UpdateMessage(1, 5, &service.UpdateMessageRequest{Content: "new content"})
 	require.NoError(t, err)
@@ -187,7 +201,11 @@ func TestMessageService_UpdateMessage_NotOwner(t *testing.T) {
 	mockMsg := &testutil.MockMessageRepository{
 		GetByIDFn: func(id uint) (*model.Message, error) { return msg, nil },
 	}
-	svc := service.NewMessageService(mockMsg, &testutil.MockChannelRepository{}, &testutil.MockGuildMemberRepository{})
+	svc := service.NewMessageService(
+		mockMsg,
+		&testutil.MockChannelRepository{},
+		&testutil.MockGuildMemberRepository{},
+	)
 
 	_, err := svc.UpdateMessage(1, 5, &service.UpdateMessageRequest{Content: "new"})
 	assert.ErrorIs(t, err, service.ErrNotMessageOwner)
@@ -195,7 +213,7 @@ func TestMessageService_UpdateMessage_NotOwner(t *testing.T) {
 
 func TestMessageService_DeleteMessage_Success(t *testing.T) {
 	msg := &model.Message{ID: 1, UserID: 5, ChannelID: 1}
-	channel := &model.Channel{ID: 1, GuildID: 10}
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	member := &model.GuildMember{ID: 1, UserID: 5, Role: "member"}
 	deleted := false
 
@@ -218,7 +236,7 @@ func TestMessageService_DeleteMessage_Success(t *testing.T) {
 
 func TestMessageService_DeleteMessage_NotOwnerAndNotAdmin(t *testing.T) {
 	msg := &model.Message{ID: 1, UserID: 99, ChannelID: 1}
-	channel := &model.Channel{ID: 1, GuildID: 10}
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	member := &model.GuildMember{ID: 1, UserID: 5, Role: "member"}
 
 	mockMsg := &testutil.MockMessageRepository{

@@ -1,12 +1,50 @@
 import { ref } from 'vue'
 import { api } from '@/api/index.js'
 
-export function useFileUpload(appStore) {
+/**
+ * useFileUpload
+ * @param {object} context - Either appStore (guild chat) or a DM context object:
+ *   {
+ *     checkReady?: () => boolean,       // optional gate (e.g. channel selected)
+ *     onNotReady?: () => void,          // called when gate fails
+ *     addFileId: (id) => void,          // push confirmed fileId somewhere
+ *     removeFileId: (id) => void,       // remove fileId on chip removal
+ *     showNotification: (msg, type) => void,
+ *   }
+ *
+ * Backward compat: if context has `pendingFileIds` array and `currentChannel`,
+ * it's treated as the legacy appStore.
+ */
+export function useFileUpload(context) {
     const pendingChips = ref([]) // [{ id, name, progress, done, fileId }]
 
+    function isLegacyStore(ctx) {
+        return Array.isArray(ctx.pendingFileIds)
+    }
+
+    function resolveContext(ctx) {
+        if (isLegacyStore(ctx)) {
+            return {
+                checkReady: () => !!ctx.currentChannel,
+                onNotReady: () => ctx.showNotification('請先選擇一個頻道', 'error'),
+                addFileId: (id) => ctx.pendingFileIds.push(id),
+                removeFileId: (id) => { ctx.pendingFileIds = ctx.pendingFileIds.filter(x => String(x) !== String(id)) },
+                showNotification: ctx.showNotification.bind(ctx),
+            }
+        }
+        return {
+            checkReady: ctx.checkReady ?? (() => true),
+            onNotReady: ctx.onNotReady ?? (() => { }),
+            addFileId: ctx.addFileId,
+            removeFileId: ctx.removeFileId,
+            showNotification: ctx.showNotification,
+        }
+    }
+
     async function uploadFile(file) {
-        if (!appStore.currentChannel) {
-            appStore.showNotification('請先選擇一個頻道', 'error')
+        const ctx = resolveContext(context)
+        if (!ctx.checkReady()) {
+            ctx.onNotReady()
             return
         }
         const chipId = `upload-${Date.now()}-${Math.random()}`
@@ -21,16 +59,17 @@ export function useFileUpload(appStore) {
             await api.confirmUpload(file_id)
             const chip = pendingChips.value.find(c => c.id === chipId)
             if (chip) { chip.done = true; chip.fileId = file_id }
-            appStore.pendingFileIds.push(file_id)
+            ctx.addFileId(file_id)
         } catch (e) {
             console.error('Upload failed', e)
-            appStore.showNotification(`上傳失敗：${e.message}`, 'error')
+            ctx.showNotification(`上傳失敗：${e.message}`, 'error')
             pendingChips.value = pendingChips.value.filter(c => c.id !== chipId)
         }
     }
 
     function removeChip(chipId, fileId) {
-        appStore.pendingFileIds = appStore.pendingFileIds.filter(id => String(id) !== String(fileId))
+        const ctx = resolveContext(context)
+        ctx.removeFileId(fileId)
         pendingChips.value = pendingChips.value.filter(c => c.id !== chipId)
     }
 

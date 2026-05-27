@@ -1,12 +1,7 @@
 package service
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -20,81 +15,6 @@ import (
 const translationStatusCompleted = "completed"
 
 var ErrTranslationNotFound = errors.New("translation not found")
-
-// langEntry 定義單一目標語言的 DeepL 代碼、model 欄位存取函式與 WS event key。
-// 新增語言只需在 targetLangs 加一筆，其餘邏輯（翻譯、stale 檢查、WS 推送）自動支援。
-type langEntry struct {
-	DeepLCode  string
-	WSKey      string
-	SetContent func(*model.MessageTranslation, string)
-	GetContent func(*model.MessageTranslation) string
-}
-
-// targetLangs 是目前支援的翻譯目標語言清單，集中管理避免散落各處。
-// 新增語言步驟：
-//  1. 在 model.MessageTranslation 加欄位（如 ContentZHTW）
-//  2. 加一筆 langEntry
-//  3. 更新 normalizeLang（區分偵測到的來源語言）
-//  4. 執行 DB migration
-var targetLangs = []langEntry{
-	{
-		DeepLCode:  "ZH",
-		WSKey:      "zh",
-		SetContent: func(t *model.MessageTranslation, s string) { t.ContentZH = s },
-		GetContent: func(t *model.MessageTranslation) string { return t.ContentZH },
-	},
-	{
-		DeepLCode:  "ZH-HANT",
-		WSKey:      "zh-tw",
-		SetContent: func(t *model.MessageTranslation, s string) { t.ContentZHTW = s },
-		GetContent: func(t *model.MessageTranslation) string { return t.ContentZHTW },
-	},
-	{
-		DeepLCode:  "JA",
-		WSKey:      "ja",
-		SetContent: func(t *model.MessageTranslation, s string) { t.ContentJA = s },
-		GetContent: func(t *model.MessageTranslation) string { return t.ContentJA },
-	},
-	{
-		DeepLCode:  "EN-US",
-		WSKey:      "en",
-		SetContent: func(t *model.MessageTranslation, s string) { t.ContentEN = s },
-		GetContent: func(t *model.MessageTranslation) string { return t.ContentEN },
-	},
-}
-
-// hasAllLangs 檢查翻譯記錄是否已填入所有目前設定的語言欄位。
-// completed 但某欄位為空，代表這是「舊記錄，缺少後來新增的語言」（stale）。
-func hasAllLangs(t *model.MessageTranslation) bool {
-	for _, entry := range targetLangs {
-		if entry.GetContent(t) == "" {
-			return false
-		}
-	}
-
-	return true
-}
-
-// buildWSTranslations 從翻譯記錄組出 WS event 的 translations map。
-func buildWSTranslations(t *model.MessageTranslation) map[string]string {
-	m := make(map[string]string, len(targetLangs))
-	for _, entry := range targetLangs {
-		m[entry.WSKey] = entry.GetContent(t)
-	}
-
-	return m
-}
-
-// findLangEntry 依 WSKey 查找 langEntry；回傳 nil 代表不支援該語言。
-func findLangEntry(wsKey string) *langEntry {
-	for i := range targetLangs {
-		if targetLangs[i].WSKey == wsKey {
-			return &targetLangs[i]
-		}
-	}
-
-	return nil
-}
 
 // TranslationService 翻譯服務介面
 type TranslationService interface {
@@ -199,6 +119,7 @@ func (s *translationService) RequestTranslation(
 
 	// 計算需要翻譯的語言清單
 	var langs []langEntry
+
 	if targetLang != "" {
 		if entry := findLangEntry(targetLang); entry != nil {
 			langs = []langEntry{*entry}
@@ -235,6 +156,7 @@ func (s *translationService) EnsureTranslation(
 
 	// 計算需要翻譯的語言清單
 	var langs []langEntry
+
 	if targetLang != "" {
 		if entry := findLangEntry(targetLang); entry != nil {
 			langs = []langEntry{*entry}
@@ -311,7 +233,7 @@ func (s *translationService) asyncTranslate(
 		go func() {
 			defer wg.Done()
 
-			translated, sourceLang, err := s.callDeepL(content, entry.DeepLCode)
+			translated, sourceLang, err := callDeepL(s.client, s.cfg, content, entry.DeepLCode)
 			if err != nil {
 				return
 			}
@@ -369,87 +291,4 @@ func (s *translationService) GetTranslation(messageID uint) (*model.MessageTrans
 	}
 
 	return t, nil
-}
-
-// deepLRequest DeepL API 請求體
-type deepLRequest struct {
-	Text       []string `json:"text"`
-	TargetLang string   `json:"target_lang"`
-}
-
-// deepLResponse DeepL API 回應體
-type deepLResponse struct {
-	Translations []struct {
-		DetectedSourceLanguage string `json:"detected_source_language"`
-		Text                   string `json:"text"`
-	} `json:"translations"`
-}
-
-// callDeepL 呼叫 DeepL Free API 翻譯單語
-func (s *translationService) callDeepL(
-	text, targetLang string,
-) (translated, sourceLang string, err error) {
-	reqBody := deepLRequest{
-		Text:       []string{text},
-		TargetLang: targetLang,
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return "", "", fmt.Errorf("marshal request: %w", err)
-	}
-
-	apiURL := s.cfg.APIURL + "/translate"
-
-	req, err := http.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		apiURL,
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		return "", "", fmt.Errorf("create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "DeepL-Auth-Key "+s.cfg.APIKey)
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return "", "", fmt.Errorf("do request: %w", err)
-	}
-
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-
-		return "", "", fmt.Errorf("deepl api error %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	var dlResp deepLResponse
-	if err := json.NewDecoder(resp.Body).Decode(&dlResp); err != nil {
-		return "", "", fmt.Errorf("decode response: %w", err)
-	}
-
-	if len(dlResp.Translations) == 0 {
-		return "", "", fmt.Errorf("empty translation response")
-	}
-
-	return dlResp.Translations[0].Text, dlResp.Translations[0].DetectedSourceLanguage, nil
-}
-
-// normalizeLang 將 DeepL 偵測到的來源語言代碼正規化為 WS/前端使用的 key。
-// 需與 targetLangs 中的 WSKey 保持一致。
-func normalizeLang(lang string) string {
-	switch lang {
-	case "ZH", "ZH-HANS":
-		return "zh"
-	case "ZH-HANT":
-		return "zh-tw"
-	case "JA":
-		return "ja"
-	default:
-		return "en"
-	}
 }

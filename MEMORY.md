@@ -30,6 +30,9 @@ make check        # 全部檢查（lint + build + test）
 - 目前訊息分頁是 offset，計畫改為 cursor-based（before message_id）
 
 ## Pitfalls
+- DM 與群組訊息共用 `MessageItem` 時，編輯/刪除/翻譯 API 不能固定呼叫 `/messages/:id/*`；DM 需要走 `/dm/messages/:id/*`。建議以 `isDM` prop 分流，否則 DM 會出現 404/權限錯誤。
+- Vue SFC 大改版時要避免「新版內容 + 舊版內容同檔重複貼上」；會造成 `<script>/<template>/<style>` 區塊重複、前端編譯直接失敗。
+- DM 與群組訊息整合後，後端 `message_create` payload 主要欄位是 `channel_id`（不再保證有 `dm_channel_id`）。前端 DM store 若仍只讀 `dm_channel_id`，會導致私訊新訊息不顯示、頻道排序不更新。
 - 前端聊天室 `renderMessages()` 會在每次新訊息時重繪整個訊息區；若圖片附件每次都重新呼叫 `getFileDownloadUrl`（pre-signed URL），會導致「每發話一次就重新下載歷史圖片」。已在 `web/js/app.js` 加入 `attachmentImageURLCache` 與 in-flight 去重，優先重用既有 URL，並在圖片 URL 過期時僅重抓一次。
 - **File routes 404**：`/api/v1/files/*` 路由只在 Minio 初始化成功時才掛載。Minio 未設定或連線失敗會導致 `fileHandler == nil`，所有 file API 回傳 404 而非 503。已改為無條件掛載路由，Minio 不可用時回傳 503。若遇 404，先確認 Minio 容器是否正常運行及環境變數（`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY`、`MINIO_BUCKET`）是否設定正確。
 - WS Manager 已有 channel subscription index（Phase 1 完成）；Presence 系統目前無 Redis（狀態不持久化）
@@ -45,6 +48,7 @@ make check        # 全部檢查（lint + build + test）
   - `UpdateStatus` 方法（repo/service）仍保留，供使用者透過 REST 設定 busy/away 偏好用途。
 - `golangci-lint --fix` + `whole-files: true` 坑：修改 `mocks.go` 會曝露所有既有的 nilnil 問題。已用 `//nolint:nilnil` 全部標記。新增 mock 方法必須一同加標記。
 - `golangci-lint --fix` 會重新格式化 oauth_handler.go，造成 `NewRequestWithContext` 行號改變；`wsl_v5` 需在 `if err != nil { c.JSON(); return }` 的 return 前加空行。
+- `wsl_v5` 在 service 邏輯中也會要求 guard-return 後與下一個賦值語句之間保留空行（例如 `if channel.GuildID == nil { return ... }` 之後的 `member, err := ...`），否則會報 `missing whitespace above this line`。
 - 前端拖曳檔案判斷不可只用 `e.dataTransfer.types.includes('Files')`：Safari/部分瀏覽器 `types` 是 `DOMStringList`，需改用 `types.contains('Files')` 或 `Array.from(types).includes('Files')`；另外要在 `window.dragover` `preventDefault()`，避免瀏覽器直接開啟拖入檔案。
 - 若部署使用 `docker-compose.prod.yml`，必須包含 `livekit` service（`livekit:7880` 供 nginx upstream 轉發）。缺少該容器會導致 `wss://voice.../rtc/v1` 連線失敗，前端可能同時看到 `/rtc/v1/validate` CORS 錯誤（實際上常是 upstream 不可達）。
 - LiveKit `--keys` 參數格式必須是 **`"key: secret"`**（冒號後必須有空白）。在 compose 建議整段 `command` 用單引號包住，避免 YAML 把 `:` 誤判為 mapping。
@@ -56,6 +60,7 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-27 — DM/群組訊息整合收斂：補上 DM 翻譯讀取授權檢查、修正 WebSocket `msgSender` 欄位名、前端 DM store 移除重複定義並相容 `channel_id`。
 2026-05-22 — Presence 系統改為 Redis-only 架構（移除 ghost-online bug）：
 - **`web/src/api/index.js`**：新增 `guildLastChannel` helper（`get(guildId)`/`set(guildId, channelId)`），使用 `talkrealm_last_channel_{guildId}` 作為 localStorage key，實現 per-guild 頻道記憶
 - **`web/src/stores/useAppStore.js`**：`selectGuild()` 在重置 `currentChannel`/`messages` 後，自動 `await selectChannel()` 至最後停留頻道（fallback 至第一個文字頻道）；`selectChannel()` 改為呼叫 `guildLastChannel.set()` 而非全域 `LAST_CHANNEL`；`loadUserData()` 移除重複的頻道恢復邏輯（由 `selectGuild` 統一處理）

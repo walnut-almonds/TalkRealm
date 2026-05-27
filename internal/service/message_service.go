@@ -9,7 +9,11 @@ import (
 	"gorm.io/gorm"
 )
 
-const messageTypeText = "text"
+const (
+	messageTypeText = "text"
+	roleOwner       = "owner"
+	roleAdmin       = "admin"
+)
 
 var (
 	ErrMessageNotFound     = errors.New("message not found")
@@ -126,32 +130,18 @@ func (s *messageService) CreateMessage(
 	userID uint,
 	req *CreateMessageRequest,
 ) (*model.Message, error) {
-	// 驗證訊息內容
-	if req.Content == "" {
-		return nil, ErrEmptyMessageContent
+	msgType, err := validateCreateRequest(req)
+	if err != nil {
+		return nil, err
 	}
 
-	// 驗證訊息類型
-	msgType := req.Type
-	if msgType == "" {
-		msgType = messageTypeText
+	existing, found, err := s.findMessageByNonce(userID, req.Nonce)
+	if err != nil {
+		return nil, err
 	}
 
-	if msgType != messageTypeText && msgType != "image" && msgType != "file" {
-		return nil, ErrInvalidMessageType
-	}
-
-	// 冪等去重：若 client 提供 nonce，先查 DB 是否已存在
-	if req.Nonce != "" {
-		existing, err := s.messageRepo.GetByNonce(userID, req.Nonce)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
-		}
-
-		if existing != nil {
-			// 已存在：直接返回原訊息，不重複寫入
-			return existing, nil
-		}
+	if found {
+		return existing, nil
 	}
 
 	// 檢查頻道是否存在
@@ -160,10 +150,8 @@ func (s *messageService) CreateMessage(
 		return nil, errors.New("channel not found")
 	}
 
-	// 檢查使用者是否為該社群成員
-	member, err := s.guildMemberRepo.GetMember(channel.GuildID, userID)
-	if err != nil || member == nil {
-		return nil, ErrNotChannelMemberMsg
+	if err := s.ensureChannelAccess(channel, req.ChannelID, userID); err != nil {
+		return nil, err
 	}
 
 	// 建立訊息
@@ -182,14 +170,7 @@ func (s *messageService) CreateMessage(
 	}
 
 	// 建立附件關聯
-	if s.fileService != nil && len(req.FileIDs) > 0 {
-		for _, fid := range req.FileIDs {
-			if _, err := s.fileService.AttachToMessage(message.ID, fid); err != nil {
-				// 附件關聯失敗不中斷訊息發送，僅記錄
-				_ = err
-			}
-		}
-	}
+	s.attachFiles(message.ID, req.FileIDs)
 
 	// 重新取得訊息（包含關聯資料）
 	fullMessage, err := s.messageRepo.GetByID(message.ID)
@@ -210,6 +191,77 @@ func (s *messageService) CreateMessage(
 	return fullMessage, nil
 }
 
+func validateCreateRequest(req *CreateMessageRequest) (string, error) {
+	if req.Content == "" && len(req.FileIDs) == 0 {
+		return "", ErrEmptyMessageContent
+	}
+
+	msgType := req.Type
+	if msgType == "" {
+		msgType = messageTypeText
+	}
+
+	if msgType != messageTypeText && msgType != "image" && msgType != "file" {
+		return "", ErrInvalidMessageType
+	}
+
+	return msgType, nil
+}
+
+func (s *messageService) findMessageByNonce(
+	userID uint,
+	nonce string,
+) (*model.Message, bool, error) {
+	if nonce == "" {
+		return nil, false, nil
+	}
+
+	existing, err := s.messageRepo.GetByNonce(userID, nonce)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, err
+	}
+
+	if existing == nil {
+		return nil, false, nil
+	}
+
+	return existing, true, nil
+}
+
+func (s *messageService) ensureChannelAccess(channel *model.Channel, channelID, userID uint) error {
+	if channel.Type == "dm" {
+		ok, err := s.channelRepo.IsDMParticipant(channelID, userID)
+		if err != nil || !ok {
+			return ErrNotChannelMemberMsg
+		}
+
+		return nil
+	}
+
+	if channel.GuildID == nil {
+		return errors.New("invalid channel: missing guild_id")
+	}
+
+	member, err := s.guildMemberRepo.GetMember(*channel.GuildID, userID)
+	if err != nil || member == nil {
+		return ErrNotChannelMemberMsg
+	}
+
+	return nil
+}
+
+func (s *messageService) attachFiles(messageID uint, fileIDs []uint) {
+	if s.fileService == nil || len(fileIDs) == 0 {
+		return
+	}
+
+	for _, fid := range fileIDs {
+		if _, err := s.fileService.AttachToMessage(messageID, fid); err != nil {
+			_ = err
+		}
+	}
+}
+
 // GetMessage 取得訊息
 func (s *messageService) GetMessage(messageID, userID uint) (*model.Message, error) {
 	// 取得訊息
@@ -224,9 +276,20 @@ func (s *messageService) GetMessage(messageID, userID uint) (*model.Message, err
 		return nil, errors.New("channel not found")
 	}
 
-	member, err := s.guildMemberRepo.GetMember(channel.GuildID, userID)
-	if err != nil || member == nil {
-		return nil, ErrNotChannelMemberMsg
+	if channel.Type == "dm" {
+		ok, err := s.channelRepo.IsDMParticipant(message.ChannelID, userID)
+		if err != nil || !ok {
+			return nil, ErrNotChannelMemberMsg
+		}
+	} else {
+		if channel.GuildID == nil {
+			return nil, errors.New("invalid channel: missing guild_id")
+		}
+
+		member, err := s.guildMemberRepo.GetMember(*channel.GuildID, userID)
+		if err != nil || member == nil {
+			return nil, ErrNotChannelMemberMsg
+		}
 	}
 
 	return message, nil
@@ -244,10 +307,21 @@ func (s *messageService) ListChannelMessages(
 		return nil, errors.New("channel not found")
 	}
 
-	// 檢查使用者是否為該社群成員
-	member, err := s.guildMemberRepo.GetMember(channel.GuildID, userID)
-	if err != nil || member == nil {
-		return nil, ErrNotChannelMemberMsg
+	// 檢查使用者是否有權限讀取
+	if channel.Type == "dm" {
+		ok, err := s.channelRepo.IsDMParticipant(channelID, userID)
+		if err != nil || !ok {
+			return nil, ErrNotChannelMemberMsg
+		}
+	} else {
+		if channel.GuildID == nil {
+			return nil, errors.New("invalid channel: missing guild_id")
+		}
+
+		member, err := s.guildMemberRepo.GetMember(*channel.GuildID, userID)
+		if err != nil || member == nil {
+			return nil, ErrNotChannelMemberMsg
+		}
 	}
 
 	if limit < 1 || limit > 100 {
@@ -333,13 +407,22 @@ func (s *messageService) DeleteMessage(messageID, userID uint) error {
 			return errors.New("channel not found")
 		}
 
-		member, err := s.guildMemberRepo.GetMember(channel.GuildID, userID)
+		if channel.Type == "dm" {
+			// DM 頻道：只有訊息發送者可刪除
+			return ErrNotMessageOwner
+		}
+
+		if channel.GuildID == nil {
+			return errors.New("invalid channel: missing guild_id")
+		}
+
+		member, err := s.guildMemberRepo.GetMember(*channel.GuildID, userID)
 		if err != nil || member == nil {
 			return ErrNotChannelMemberMsg
 		}
 
 		// 只有擁有者或管理員可以刪除他人訊息
-		if member.Role != "owner" && member.Role != "admin" {
+		if member.Role != roleOwner && member.Role != roleAdmin {
 			return ErrNotMessageOwner
 		}
 	}

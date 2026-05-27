@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
+import { useDMStore } from '@/stores/useDMStore.js'
 import { renderMarkdown } from '@/utils/markdown.js'
 import { formatTimestamp, formatFullTimestamp, formatFileSize, IMAGE_TYPES } from '@/utils/format.js'
 import { api } from '@/api/index.js'
@@ -10,10 +11,12 @@ const props = defineProps({
   message: Object,
   grouped: Boolean,
   isSpeaking: Boolean,
+  isDM: Boolean,
 })
 
 const store = useAppStore()
 const voiceStore = useVoiceStore()
+const dm = useDMStore()
 
 const user = computed(() => store.resolveMessageUser(props.message))
 const nickname = computed(() => user.value?.nickname || user.value?.username || 'Unknown')
@@ -42,8 +45,11 @@ async function saveEdit() {
   const text = editContent.value.trim()
   if (!text || text === props.message.content) { cancelEdit(); return }
   try {
-    const updated = await api.updateMessage(props.message.id, text)
+    const updated = props.isDM
+      ? await api.updateDMMessage(props.message.id, text)
+      : await api.updateMessage(props.message.id, text)
     store.handleMessageUpdate({ ...props.message, ...(updated || {}), content: text, is_edited: true })
+    dm.handleDMMessageUpdate({ ...props.message, ...(updated || {}), content: text, is_edited: true })
     cancelEdit()
   } catch (e) {
     store.showNotification('編輯失敗', 'error')
@@ -59,9 +65,13 @@ function onEditKeydown(e) {
 async function deleteMessage() {
   if (!confirm('確定要刪除此訊息？')) return
   try {
-    await api.deleteMessage(props.message.id)
-    // Immediately update local state — don't wait for WS echo
+    if (props.isDM) {
+      await api.deleteDMMessage(props.message.id)
+    } else {
+      await api.deleteMessage(props.message.id)
+    }
     store.handleMessageDelete({ message_id: props.message.id })
+    dm.handleDMMessageDelete({ id: props.message.id })
   } catch (e) {
     store.showNotification('刪除失敗', 'error')
   }
@@ -104,8 +114,12 @@ const showTranslationSection = computed(() =>
   isTextMessage.value && props.message.id && !props.message._pending
 )
 
-const translation = computed(() => store.translationCache.get(props.message.id) ?? null)
-const isTranslationLoading = computed(() => store.translationLoadingSet.has(props.message.id))
+const translation = computed(() => {
+  return store.translationCache.get(props.message.id) ?? dm.dmTranslationCache.get(props.message.id) ?? null
+})
+const isTranslationLoading = computed(() => {
+  return store.translationLoadingSet.has(props.message.id) || dm.dmTranslationLoadingSet.has(props.message.id)
+})
 
 const preferredLang = computed(() => store.user?.preferred_lang || 'zh')
 
@@ -120,8 +134,8 @@ const displayLang = computed(() => {
 })
 
 const translatedText = computed(() => {
+  if (!translation.value) return null
   if (!translation.value?.translations) return null
-  // Don't show translation if original is already preferred AND there's nothing else to show
   if (translation.value.original_lang === preferredLang.value) {
     const fallback = ['zh', 'zh-tw', 'ja', 'en'].find(l => l !== preferredLang.value)
     return fallback ? (translation.value.translations[fallback] || null) : null
@@ -140,21 +154,22 @@ async function fetchTranslation() {
   translationDismissed.value = false
   if (translation.value || isTranslationLoading.value) return
   store.translationLoadingSet.add(props.message.id)
+  dm.dmTranslationLoadingSet.add(props.message.id)
   try {
-    // 單次請求：後端若已翻譯完成回傳 200 + 資料；尚未翻譯回傳 202（非同步觸發）並等 WS 事件
-    const result = await api.ensureTranslation(props.message.id, preferredLang.value)
-    if (result?.status === 'processing') {
-      // 後端已觸發翻譯，保持 loading，等候 WS translation_ready
-      return
-    }
-    // 翻譯已完成，直接顯示
-    store.handleTranslationReady({
+    const result = props.isDM
+      ? await api.ensureDMTranslation(props.message.id, preferredLang.value)
+      : await api.ensureTranslation(props.message.id, preferredLang.value)
+    if (result?.status === 'processing') return
+    const payload = {
       message_id: props.message.id,
       original_lang: result.original_lang,
-      translations: { zh: result.content_zh, 'zh-tw': result.content_zh_tw, ja: result.content_ja, en: result.content_en },
-    })
+      translations: result.translations || { zh: result.content_zh, 'zh-tw': result.content_zh_tw, ja: result.content_ja, en: result.content_en },
+    }
+    store.handleTranslationReady(payload)
+    dm.handleDMTranslationReady(payload)
   } catch {
     store.translationLoadingSet.delete(props.message.id)
+    dm.dmTranslationLoadingSet.delete(props.message.id)
   }
 }
 

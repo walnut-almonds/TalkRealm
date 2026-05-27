@@ -86,14 +86,13 @@ func (s *channelService) CreateChannel(
 			return nil, ErrNotGuildMemberCh
 		}
 
-		//nolint:goconst // 足夠清晰不需要 const
-		if member.Role != "admin" && member.Role != "owner" {
+		if member.Role != roleAdmin && member.Role != roleOwner {
 			return nil, errors.New("only owner or admin can create channels")
 		}
 	}
 
 	// 驗證頻道類型
-	//nolint:goconst // 足夠清晰不需要 const
+
 	if req.Type != "text" && req.Type != "voice" {
 		return nil, ErrInvalidChannelType
 	}
@@ -108,7 +107,7 @@ func (s *channelService) CreateChannel(
 	}
 
 	channel := &model.Channel{
-		GuildID:   req.GuildID,
+		GuildID:   &req.GuildID,
 		Name:      req.Name,
 		Type:      req.Type,
 		Topic:     req.Topic,
@@ -122,7 +121,9 @@ func (s *channelService) CreateChannel(
 	}
 
 	if s.wsManager != nil {
-		s.wsManager.BroadcastToGuild(channel.GuildID, "channel_create", channel)
+		if channel.GuildID != nil {
+			s.wsManager.BroadcastToGuild(*channel.GuildID, "channel_create", channel)
+		}
 	}
 
 	return channel, nil
@@ -136,7 +137,11 @@ func (s *channelService) GetChannel(channelID, userID uint) (*model.Channel, err
 	}
 
 	// 檢查使用者是否為該社群成員
-	member, err := s.guildMemberRepo.GetMember(channel.GuildID, userID)
+	if channel.GuildID == nil {
+		return nil, ErrNotGuildMemberCh
+	}
+
+	member, err := s.guildMemberRepo.GetMember(*channel.GuildID, userID)
 	if err != nil || member == nil {
 		return nil, ErrNotGuildMemberCh
 	}
@@ -173,18 +178,22 @@ func (s *channelService) UpdateChannel(
 	}
 
 	// 檢查權限（只有擁有者或管理員可以更新）
-	guild, err := s.guildRepo.GetByID(channel.GuildID)
+	if channel.GuildID == nil {
+		return nil, ErrGuildNotFound
+	}
+
+	guild, err := s.guildRepo.GetByID(*channel.GuildID)
 	if err != nil {
 		return nil, ErrGuildNotFound
 	}
 
 	if guild.OwnerID != userID {
-		member, err := s.guildMemberRepo.GetMember(channel.GuildID, userID)
+		member, err := s.guildMemberRepo.GetMember(*channel.GuildID, userID)
 		if err != nil || member == nil {
 			return nil, ErrNotGuildMemberCh
 		}
 
-		if member.Role != "admin" && member.Role != "owner" {
+		if member.Role != roleAdmin && member.Role != roleOwner {
 			return nil, errors.New("only owner or admin can update channels")
 		}
 	}
@@ -216,8 +225,8 @@ func (s *channelService) UpdateChannel(
 		return nil, err
 	}
 
-	if s.wsManager != nil {
-		s.wsManager.BroadcastToGuild(channel.GuildID, "channel_update", channel)
+	if s.wsManager != nil && channel.GuildID != nil {
+		s.wsManager.BroadcastToGuild(*channel.GuildID, "channel_update", channel)
 	}
 
 	return channel, nil
@@ -232,18 +241,22 @@ func (s *channelService) DeleteChannel(channelID, userID uint) error {
 	}
 
 	// 檢查權限（只有擁有者或管理員可以刪除）
-	guild, err := s.guildRepo.GetByID(channel.GuildID)
+	if channel.GuildID == nil {
+		return ErrGuildNotFound
+	}
+
+	guild, err := s.guildRepo.GetByID(*channel.GuildID)
 	if err != nil {
 		return ErrGuildNotFound
 	}
 
 	if guild.OwnerID != userID {
-		member, err := s.guildMemberRepo.GetMember(channel.GuildID, userID)
+		member, err := s.guildMemberRepo.GetMember(*channel.GuildID, userID)
 		if err != nil || member == nil {
 			return ErrNotGuildMemberCh
 		}
 
-		if member.Role != "admin" && member.Role != "owner" {
+		if member.Role != roleAdmin && member.Role != roleOwner {
 			return errors.New("only owner or admin can delete channels")
 		}
 	}
@@ -252,10 +265,10 @@ func (s *channelService) DeleteChannel(channelID, userID uint) error {
 		return err
 	}
 
-	if s.wsManager != nil {
-		s.wsManager.BroadcastToGuild(channel.GuildID, "channel_delete", map[string]any{
+	if s.wsManager != nil && channel.GuildID != nil {
+		s.wsManager.BroadcastToGuild(*channel.GuildID, "channel_delete", map[string]any{
 			"channel_id": channelID,
-			"guild_id":   channel.GuildID,
+			"guild_id":   *channel.GuildID,
 		})
 	}
 
@@ -271,18 +284,22 @@ func (s *channelService) UpdateChannelPosition(channelID, userID uint, position 
 	}
 
 	// 檢查權限
-	guild, err := s.guildRepo.GetByID(channel.GuildID)
+	if channel.GuildID == nil {
+		return ErrGuildNotFound
+	}
+
+	guild, err := s.guildRepo.GetByID(*channel.GuildID)
 	if err != nil {
 		return ErrGuildNotFound
 	}
 
 	if guild.OwnerID != userID {
-		member, err := s.guildMemberRepo.GetMember(channel.GuildID, userID)
+		member, err := s.guildMemberRepo.GetMember(*channel.GuildID, userID)
 		if err != nil || member == nil {
 			return ErrNotGuildMemberCh
 		}
 
-		if member.Role != "admin" && member.Role != "owner" {
+		if member.Role != roleAdmin && member.Role != roleOwner {
 			return errors.New("only owner or admin can update channel position")
 		}
 	}
@@ -294,8 +311,8 @@ func (s *channelService) UpdateChannelPosition(channelID, userID uint, position 
 		return err
 	}
 
-	if s.wsManager != nil {
-		s.wsManager.BroadcastToGuild(channel.GuildID, "channel_update", channel)
+	if s.wsManager != nil && channel.GuildID != nil {
+		s.wsManager.BroadcastToGuild(*channel.GuildID, "channel_update", channel)
 	}
 
 	return nil

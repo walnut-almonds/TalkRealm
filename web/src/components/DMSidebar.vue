@@ -2,20 +2,27 @@
 import { ref, computed, onMounted } from 'vue'
 import { useDMStore } from '@/stores/useDMStore.js'
 import { useAppStore } from '@/stores/useAppStore.js'
+import { useWebSocket } from '@/composables/useWebSocket.js'
 import UserPanel from './UserPanel.vue'
 
 const dm = useDMStore()
 const store = useAppStore()
+const ws = useWebSocket()
 
 const showPicker = ref(false)
 const searchQuery = ref('')
 
-onMounted(() => {
-    dm.loadDMChannels()
+onMounted(async () => {
+    await dm.loadDMChannels()
+    dm.dmChannels.forEach(ch => ws.subscribeToChannel(ch.id))
 })
 
 function getPartner(channel) {
     const selfId = store.user?.id
+    if (channel.participants) {
+        const p = channel.participants.find(p => p.user_id !== selfId)
+        return p?.user || {}
+    }
     if (channel.user1?.id !== selfId) return channel.user1 || {}
     return channel.user2 || {}
 }
@@ -42,6 +49,8 @@ function openPicker() {
 async function selectUser(member) {
     showPicker.value = false
     await dm.openDMWith(member.user_id)
+    // subscribe to the new DM channel if not already
+    if (dm.currentDMChannel) ws.subscribeToChannel(dm.currentDMChannel.id)
 }
 </script>
 

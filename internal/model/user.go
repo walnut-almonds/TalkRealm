@@ -41,17 +41,28 @@ type Guild struct {
 	UpdatedAt   time.Time `                          json:"updated_at"`
 }
 
-// Channel 頻道模型
+// Channel 頻道模型（支援 guild 頻道與 DM 頻道，GuildID 為 nil 時代表 DM 頻道）
 type Channel struct {
-	ID        uint      `gorm:"primarykey"         json:"id"`
-	GuildID   uint      `gorm:"not null"           json:"guild_id"`
-	Guild     Guild     `gorm:"foreignKey:GuildID" json:"-"`
-	Name      string    `gorm:"not null"           json:"name"`
-	Type      string    `gorm:"not null"           json:"type"` // text, voice
-	Topic     string    `                          json:"topic"`
-	Position  int       `gorm:"default:0"          json:"position"`
-	CreatedAt time.Time `                          json:"created_at"`
-	UpdatedAt time.Time `                          json:"updated_at"`
+	ID           uint                  `gorm:"primarykey"           json:"id"`
+	GuildID      *uint                 `gorm:"index"                json:"guild_id"` // nil for DM channels
+	Guild        *Guild                `gorm:"foreignKey:GuildID"   json:"-"`
+	Name         string                `                            json:"name"` // empty for DM channels
+	Type         string                `gorm:"not null"             json:"type"` // text, voice, dm
+	Topic        string                `                            json:"topic"`
+	Position     int                   `gorm:"default:0"            json:"position"`
+	Participants []*ChannelParticipant `gorm:"foreignKey:ChannelID" json:"participants,omitempty"`
+	CreatedAt    time.Time             `                            json:"created_at"`
+	UpdatedAt    time.Time             `                            json:"updated_at"`
+}
+
+// ChannelParticipant DM 頻道的參與者（僅 type='dm' 的 Channel 使用）
+type ChannelParticipant struct {
+	ID        uint      `gorm:"primarykey"                               json:"id"`
+	ChannelID uint      `gorm:"not null;uniqueIndex:idx_cp_channel_user" json:"channel_id"`
+	Channel   Channel   `gorm:"foreignKey:ChannelID"                     json:"-"`
+	UserID    uint      `gorm:"not null;uniqueIndex:idx_cp_channel_user" json:"user_id"`
+	User      User      `gorm:"foreignKey:UserID"                        json:"user"`
+	CreatedAt time.Time `                                                json:"created_at"`
 }
 
 // Message 訊息模型
@@ -162,29 +173,4 @@ type GameState struct {
 	IsCorrect       bool      `gorm:"default:false"        json:"is_correct"`
 	SimilarityScore float64   `gorm:"default:0"            json:"similarity_score"` // LLM similarity 0..1
 	GuessedAt       time.Time `gorm:"default:now()"        json:"guessed_at"`
-}
-
-// DirectMessageChannel 兩位使用者之間的私聊頻道
-// 強制 user1_id < user2_id 以確保每對使用者只有一個頻道（由 service 層維護）
-type DirectMessageChannel struct {
-	ID        uint      `gorm:"primarykey"                        json:"id"`
-	User1ID   uint      `gorm:"not null;uniqueIndex:idx_dm_users" json:"user1_id"`
-	User2ID   uint      `gorm:"not null;uniqueIndex:idx_dm_users" json:"user2_id"`
-	User1     User      `gorm:"foreignKey:User1ID"                json:"user1"`
-	User2     User      `gorm:"foreignKey:User2ID"                json:"user2"`
-	CreatedAt time.Time `                                         json:"created_at"`
-	UpdatedAt time.Time `                                         json:"updated_at"`
-}
-
-// DirectMessage 私訊訊息
-type DirectMessage struct {
-	ID          uint      `gorm:"primarykey"                            json:"id"`
-	DMChannelID uint      `gorm:"not null;index"                        json:"dm_channel_id"`
-	SenderID    uint      `gorm:"not null"                              json:"sender_id"`
-	Sender      User      `gorm:"foreignKey:SenderID"                   json:"sender"`
-	Content     string    `gorm:"not null"                              json:"content"`
-	IsEdited    bool      `gorm:"default:false"                         json:"is_edited"`
-	Nonce       string    `gorm:"uniqueIndex:idx_dm_nonce;default:null" json:"nonce"` // 冪等 key（可選）
-	CreatedAt   time.Time `                                             json:"created_at"`
-	UpdatedAt   time.Time `                                             json:"updated_at"`
 }

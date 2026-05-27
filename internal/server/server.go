@@ -99,8 +99,7 @@ func New(cfg *config.Config) (*Server, error) {
 	messageService := service.NewMessageService(messageRepo, channelRepo, guildMemberRepo)
 
 	// DM 服務
-	dmRepo := repository.NewDMRepository(db)
-	dmService := service.NewDMService(dmRepo, userRepo)
+	dmService := service.NewDMService(channelRepo, userRepo)
 
 	// 設定 WebSocket 管理器到各 Service
 	messageService.SetWebSocketManager(wsManager)
@@ -111,19 +110,14 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// 設定 MessageSender：讓 WS Manager 能處理 send_message op
 	wsManager.SetMessageSender(messageService)
-
-	// 設定 DMSender：讓 WS Manager 能處理 send_dm op
-	wsManager.SetDMSender(dmService)
-	dmService.SetWebSocketManager(wsManager)
-
 	// 初始化 Handler
 	userHandler := handler.NewUserHandler(userService)
 	guildHandler := handler.NewGuildHandler(guildService, guildMemberService, guildInviteService)
 	guildHandler.SetOnlineChecker(wsManager)
+
 	channelHandler := handler.NewChannelHandler(channelService)
 	messageHandler := handler.NewMessageHandler(messageService)
 	oauthHandler := handler.NewOAuthHandler(userService, cfg)
-	dmHandler := handler.NewDMHandler(dmService)
 
 	// 初始化 File Service（Minio 可選，失敗時記錄 warning）
 	var fileHandler *handler.FileHandler
@@ -152,6 +146,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 	guessSvc := service.NewGuessService(gameStateRepo, translationRepo, &cfg.LLM)
 	translationHandler := handler.NewTranslationHandler(translationSvc, guessSvc, messageService)
+	dmHandler := handler.NewDMHandler(dmService, messageService, translationSvc)
 
 	s := &Server{
 		config:             cfg,
@@ -324,6 +319,10 @@ func (s *Server) setupRoutes() {
 				dm.GET("/channels", s.dmHandler.ListDMChannels)
 				dm.GET("/channels/:id/messages", s.dmHandler.ListDMMessages)
 				dm.POST("/channels/:id/messages", s.dmHandler.SendDMMessage)
+				dm.PATCH("/messages/:id", s.dmHandler.UpdateDMMessage)
+				dm.DELETE("/messages/:id", s.dmHandler.DeleteDMMessage)
+				dm.GET("/messages/:id/translation", s.dmHandler.GetDMTranslation)
+				dm.GET("/messages/:id/translation/ensure", s.dmHandler.EnsureDMTranslation)
 			}
 		}
 

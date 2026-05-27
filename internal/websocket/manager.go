@@ -27,12 +27,6 @@ type MessageSender interface {
 	) (any, error)
 }
 
-// DMSender 私訊建立介面（避免循環依賴）
-// 由 DMService 實作，注入 Manager 後供 send_dm op 使用
-type DMSender interface {
-	SendDM(senderID, dmChannelID uint, content, nonce string) (any, error)
-}
-
 // serverID 用於 Redis user server mapping（單體架構下固定為 "1"）
 const serverID = "1"
 
@@ -76,9 +70,6 @@ type Manager struct {
 
 	// userSubscriptions 使用者訂閱索引：userID -> 該使用者的所有 clients（多裝置/多標籤頁推播）
 	userSubscriptions map[uint]map[*Client]bool
-
-	// dmSender 私訊建立器（注入 DMService，避免循環依賴）
-	dmSender DMSender
 }
 
 // NewManager 創建新的 WebSocket 管理器
@@ -136,18 +127,7 @@ func (m *Manager) handleUnregister(client *Client) {
 	hasOtherConnections := false
 
 	if _, ok := m.clients[client]; ok {
-		// 從所有頻道訂閱中移除
-		for channelID := range client.channels {
-			if subscribers, ok := m.channelSubscriptions[channelID]; ok {
-				delete(subscribers, client)
-			}
-		}
-
-		for guildID := range client.guilds {
-			if subscribers, ok := m.guildSubscriptions[guildID]; ok {
-				delete(subscribers, client)
-			}
-		}
+		m.removeClientSubscriptions(client)
 
 		// 從使用者訂閱索引中移除
 		if client.identified {
@@ -160,15 +140,7 @@ func (m *Manager) handleUnregister(client *Client) {
 		if client.identified {
 			log.Printf("Client disconnected: User %s (ID: %d). Total clients: %d",
 				client.username, client.userID, len(m.clients))
-
-			// 檢查同一使用者是否還有其他活躍連線（多標籤頁情境）
-			for c := range m.clients {
-				if c.identified && c.userID == client.userID {
-					hasOtherConnections = true
-
-					break
-				}
-			}
+			hasOtherConnections = m.hasOtherUserConnections(client.userID)
 		} else {
 			log.Printf("Unauthenticated client disconnected. Total clients: %d", len(m.clients))
 		}
@@ -207,6 +179,30 @@ func (m *Manager) handleUnregister(client *Client) {
 		// 廣播下線狀態
 		m.broadcastPresenceUpdate(userID, username, "offline")
 	}
+}
+
+func (m *Manager) removeClientSubscriptions(client *Client) {
+	for channelID := range client.channels {
+		if subscribers, ok := m.channelSubscriptions[channelID]; ok {
+			delete(subscribers, client)
+		}
+	}
+
+	for guildID := range client.guilds {
+		if subscribers, ok := m.guildSubscriptions[guildID]; ok {
+			delete(subscribers, client)
+		}
+	}
+}
+
+func (m *Manager) hasOtherUserConnections(userID uint) bool {
+	for c := range m.clients {
+		if c.identified && c.userID == userID {
+			return true
+		}
+	}
+
+	return false
 }
 
 // RegisterClient 註冊新客戶端，啟動讀寫 goroutines
@@ -449,11 +445,6 @@ func (m *Manager) SetGuildLookup(l GuildMemberLookup) {
 // SetMessageSender 注入訊息建立器（供 send_message op 使用）
 func (m *Manager) SetMessageSender(s MessageSender) {
 	m.msgSender = s
-}
-
-// SetDMSender 注入私訊建立器（供 send_dm op 使用）
-func (m *Manager) SetDMSender(s DMSender) {
-	m.dmSender = s
 }
 
 // RegisterUserClient 將 client 加入使用者訂閱索引（identify 後呼叫）

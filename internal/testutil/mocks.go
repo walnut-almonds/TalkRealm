@@ -530,6 +530,26 @@ func (m *MockChannelRepository) GetByType(
 	return nil, nil
 }
 
+func (m *MockChannelRepository) GetOrCreateDMChannel(
+	user1ID, user2ID uint,
+) (*model.Channel, error) {
+	return nil, nil //nolint:nilnil
+}
+
+func (m *MockChannelRepository) ListDMChannels(userID uint) ([]*model.Channel, error) {
+	return nil, nil
+}
+
+func (m *MockChannelRepository) IsDMParticipant(channelID, userID uint) (bool, error) {
+	return true, nil
+}
+
+func (m *MockChannelRepository) GetDMParticipants(
+	channelID uint,
+) ([]*model.ChannelParticipant, error) {
+	return nil, nil
+}
+
 // ---------------------------------------------------------------------------
 // MockGuildInviteRepository
 // ---------------------------------------------------------------------------
@@ -1034,3 +1054,6 @@ func (m *MockChannelService) SetWebSocketManager(mgr service.GuildEventBroadcast
 		m.SetWebSocketManagerFn(mgr)
 	}
 }
+
+// PtrUint returns a pointer to the given uint value.
+func PtrUint(v uint) *uint { return &v }

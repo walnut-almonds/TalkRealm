@@ -93,7 +93,12 @@ func TestChannelService_CreateChannel_NotAdmin(t *testing.T) {
 func TestChannelService_GetChannel_Success(t *testing.T) {
 	channelRepo := &testutil.MockChannelRepository{
 		GetByIDFn: func(id uint) (*model.Channel, error) {
-			return &model.Channel{ID: id, GuildID: 1, Name: "general", Type: "text"}, nil
+			return &model.Channel{
+				ID:      id,
+				GuildID: testutil.PtrUint(1),
+				Name:    "general",
+				Type:    "text",
+			}, nil
 		},
 	}
 	guildRepo := &testutil.MockGuildRepository{}
@@ -126,7 +131,7 @@ func TestChannelService_GetChannel_NotFound(t *testing.T) {
 func TestChannelService_GetChannel_NotMember(t *testing.T) {
 	channelRepo := &testutil.MockChannelRepository{
 		GetByIDFn: func(id uint) (*model.Channel, error) {
-			return &model.Channel{ID: id, GuildID: 1}, nil
+			return &model.Channel{ID: id, GuildID: testutil.PtrUint(1)}, nil
 		},
 	}
 	guildRepo := &testutil.MockGuildRepository{}
@@ -179,7 +184,12 @@ func TestChannelService_ListGuildChannels_GuildNotFound(t *testing.T) {
 func TestChannelService_UpdateChannel_Success_Owner(t *testing.T) {
 	channelRepo := &testutil.MockChannelRepository{
 		GetByIDFn: func(id uint) (*model.Channel, error) {
-			return &model.Channel{ID: id, GuildID: 1, Name: "old", Type: "text"}, nil
+			return &model.Channel{
+				ID:      id,
+				GuildID: testutil.PtrUint(1),
+				Name:    "old",
+				Type:    "text",
+			}, nil
 		},
 		UpdateFn: func(ch *model.Channel) error { return nil },
 	}
@@ -212,7 +222,7 @@ func TestChannelService_UpdateChannel_ChannelNotFound(t *testing.T) {
 func TestChannelService_DeleteChannel_Success(t *testing.T) {
 	channelRepo := &testutil.MockChannelRepository{
 		GetByIDFn: func(id uint) (*model.Channel, error) {
-			return &model.Channel{ID: id, GuildID: 1}, nil
+			return &model.Channel{ID: id, GuildID: testutil.PtrUint(1)}, nil
 		},
 		DeleteFn: func(id uint) error { return nil },
 	}
@@ -243,7 +253,7 @@ func TestChannelService_DeleteChannel_NotFound(t *testing.T) {
 func TestChannelService_UpdateChannelPosition_Success(t *testing.T) {
 	channelRepo := &testutil.MockChannelRepository{
 		GetByIDFn: func(id uint) (*model.Channel, error) {
-			return &model.Channel{ID: id, GuildID: 1}, nil
+			return &model.Channel{ID: id, GuildID: testutil.PtrUint(1)}, nil
 		},
 		UpdateFn: func(ch *model.Channel) error { return nil },
 	}

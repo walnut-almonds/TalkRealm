@@ -47,20 +47,39 @@ definitions:
       created_at:
         type: string
       guild_id:
+        description: nil for DM channels
         type: integer
       id:
         type: integer
       name:
+        description: empty for DM channels
         type: string
+      participants:
+        items:
+          $ref: '#/definitions/model.ChannelParticipant'
+        type: array
       position:
         type: integer
       topic:
         type: string
       type:
-        description: text, voice
+        description: text, voice, dm
         type: string
       updated_at:
         type: string
+    type: object
+  model.ChannelParticipant:
+    properties:
+      channel_id:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      user:
+        $ref: '#/definitions/model.User'
+      user_id:
+        type: integer
     type: object
   model.File:
     properties:
@@ -213,10 +232,13 @@ definitions:
         type: string
       content_zh:
         type: string
+      content_zh_tw:
+        description: 繁體中文
+        type: string
       message_id:
         type: integer
       original_lang:
-        description: zh, ja, en
+        description: zh, zh-tw, ja, en
         type: string
       translated_at:
         type: string
@@ -327,7 +349,7 @@ definitions:
       guess_content:
         type: string
       hidden_lang:
-        description: zh, ja, en
+        description: zh, zh-tw, ja, en
         type: string
     required:
     - guess_content
@@ -484,12 +506,12 @@ definitions:
       preferred_lang:
         enum:
         - zh
+        - zh-tw
         - ja
         - en
         type: string
       status:
         enum:
-        - online
         - offline
         - busy
         - away
@@ -1776,6 +1798,44 @@ paths:
               type: string
             type: object
       summary: 觸發訊息翻譯
+      tags:
+      - translation
+  /api/v1/messages/{id}/translation/ensure:
+    get:
+      description: 翻譯已完成 → 200 直接回傳資料；翻譯尚未建立 → 觸發非同步翻譯並回傳 202，結果透過 WS translation_ready
+        推送
+      parameters:
+      - description: 訊息 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.MessageTranslation'
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 取得或觸發訊息翻譯
       tags:
       - translation
   /api/v1/users/{id}:

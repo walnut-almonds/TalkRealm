@@ -42,6 +42,9 @@ export const EP = {
     DM_CHANNELS: '/api/v1/dm/channels',
     DM_CHANNEL: (id) => `/api/v1/dm/channels/${id}`,
     DM_MESSAGES: (id) => `/api/v1/dm/channels/${id}/messages`,
+    DM_MESSAGE: (id) => `/api/v1/dm/messages/${id}`,
+    DM_MESSAGE_TRANSLATION: (id) => `/api/v1/dm/messages/${id}/translation`,
+    DM_MESSAGE_TRANSLATION_ENSURE: (id) => `/api/v1/dm/messages/${id}/translation/ensure`,
 }
 
 export const STORAGE_KEYS = {
@@ -223,10 +226,18 @@ class ApiClient {
         if (before) url += `&before=${before}`
         return this.get(url)
     }
-    sendDMMessage(dmChannelId, content, nonce = null) {
+    sendDMMessage(dmChannelId, content, nonce = null, fileIds = []) {
         const body = { content }
         if (nonce) body.nonce = nonce
+        if (fileIds?.length) body.file_ids = fileIds
         return this.post(EP.DM_MESSAGES(dmChannelId), body)
+    }
+    updateDMMessage(id, content) { return this.patch(EP.DM_MESSAGE(id), { content }) }
+    deleteDMMessage(id) { return this.del(EP.DM_MESSAGE(id)) }
+    getDMTranslation(id) { return this.get(EP.DM_MESSAGE_TRANSLATION(id)) }
+    ensureDMTranslation(id, lang) {
+        const q = lang ? `?lang=${encodeURIComponent(lang)}` : ''
+        return this.get(EP.DM_MESSAGE_TRANSLATION_ENSURE(id) + q)
     }
 
     // ── Profile (aliases) ──

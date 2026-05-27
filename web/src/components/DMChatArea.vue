@@ -3,7 +3,9 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useDMStore } from '@/stores/useDMStore.js'
 import { useWebSocket } from '@/composables/useWebSocket.js'
 import { useAppStore } from '@/stores/useAppStore.js'
+import { useFileUpload } from '@/composables/useFileUpload.js'
 import { randomUUID } from '@/utils/format.js'
+import MessageItem from '@/components/MessageItem.vue'
 
 const dm = useDMStore()
 const ws = useWebSocket()
@@ -11,17 +13,47 @@ const store = useAppStore()
 
 const messageListEl = ref(null)
 const inputEl = ref(null)
+const fileInputEl = ref(null)
 const content = ref('')
 
 const partner = computed(() => {
     const ch = dm.currentDMChannel
     if (!ch) return null
     const currentUserId = store.user?.id
-    if (ch.user1 && ch.user1.id !== currentUserId) return ch.user1
-    if (ch.user2 && ch.user2.id !== currentUserId) return ch.user2
-    return ch.user1 || ch.user2
+    if (ch.participants) {
+        const p = ch.participants.find(p => p.user_id !== currentUserId)
+        return p?.user || null
+    }
+    return null
 })
 
+// ── File upload (DM context) ──────────────────────────────────
+const { pendingChips, uploadFile, removeChip, clearChips } = useFileUpload({
+    checkReady: () => !!dm.currentDMChannel,
+    onNotReady: () => store.showNotification('請先選擇一個對話', 'error'),
+    addFileId: (id) => dm.dmPendingFileIds.push(id),
+    removeFileId: (id) => {
+        const idx = dm.dmPendingFileIds.indexOf(id)
+        if (idx !== -1) dm.dmPendingFileIds.splice(idx, 1)
+    },
+    showNotification: (msg, type) => store.showNotification(msg, type),
+})
+
+function onFileInput(e) {
+    const files = Array.from(e.target.files || [])
+    files.forEach(f => uploadFile(f))
+    e.target.value = ''
+}
+
+function onDrop(e) {
+    e.preventDefault()
+    const files = Array.from(e.dataTransfer.files || [])
+    files.forEach(f => uploadFile(f))
+}
+
+function onDragover(e) { e.preventDefault() }
+
+// ── Scroll ────────────────────────────────────────────────────
 function scrollToBottom() {
     nextTick(() => {
         if (messageListEl.value) {
@@ -33,26 +65,48 @@ function scrollToBottom() {
 watch(() => dm.dmMessages.length, () => scrollToBottom())
 watch(() => dm.currentDMChannel?.id, () => scrollToBottom())
 
+// ── Message grouping ─────────────────────────────────────────
+function isGrouped(index) {
+    if (index === 0) return false
+    const cur = dm.dmMessages[index]
+    const prev = dm.dmMessages[index - 1]
+    if (!cur || !prev) return false
+    const sameAuthor = cur.user_id === prev.user_id
+    const timeDiff = new Date(cur.created_at) - new Date(prev.created_at)
+    return sameAuthor && timeDiff < 5 * 60 * 1000
+}
+
+// ── WS events ─────────────────────────────────────────────────
 onMounted(() => {
-    ws.onMessage(onDMMessage)
+    ws.onMessage(onWSMessage)
     scrollToBottom()
 })
 
 onUnmounted(() => {
-    ws.offMessage(onDMMessage)
+    ws.offMessage(onWSMessage)
 })
 
-function onDMMessage(type, data) {
-    if (type === 'dm_message') dm.pushIncomingDM(data)
+function onWSMessage(type, data) {
+    const channelId = data?.channel_id || data?.dm_channel_id
+    const isDMChannel = (id) => dm.dmChannels.some(c => c.id === id)
+    if ((type === 'message_create' || type === 'dm_message' || type === 'dm_message_create') && isDMChannel(channelId)) dm.pushIncomingDM(data)
+    else if ((type === 'message_update' || type === 'dm_message_update') && isDMChannel(channelId)) dm.handleDMMessageUpdate(data)
+    else if ((type === 'message_delete' || type === 'dm_message_delete') && channelId && isDMChannel(channelId)) dm.handleDMMessageDelete(data)
+    else if ((type === 'translation_ready' || type === 'dm_translation_ready') && data.message_id) dm.handleDMTranslationReady(data)
 }
 
+// ── Send ──────────────────────────────────────────────────────
 async function send() {
     const text = content.value.trim()
-    if (!text || !dm.currentDMChannel) return
+    const fileIds = [...dm.dmPendingFileIds]
+    if (!text && fileIds.length === 0) return
+    if (!dm.currentDMChannel) return
     const nonce = randomUUID()
     content.value = ''
+    dm.dmPendingFileIds.splice(0)
+    clearChips()
     autoResize()
-    await dm.sendDM(text, nonce)
+    await dm.sendDM(text, nonce, fileIds)
 }
 
 function autoResize() {
@@ -67,14 +121,10 @@ function onKeydown(e) {
         send()
     }
 }
-
-function formatTime(ts) {
-    return new Date(ts).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
-}
 </script>
 
 <template>
-    <div class="dm-chat-area" v-if="dm.currentDMChannel">
+    <div class="dm-chat-area" v-if="dm.currentDMChannel" @drop="onDrop" @dragover="onDragover">
         <!-- Header -->
         <div class="dm-chat-header">
             <div class="dm-partner-info" v-if="partner">
@@ -95,31 +145,35 @@ function formatTime(ts) {
             <div v-if="dm.isLoadingMessages && dm.dmMessages.length === 0" class="dm-loading">
                 載入中...
             </div>
-            <div
-                v-for="msg in dm.dmMessages"
+            <MessageItem
+                v-for="(msg, idx) in dm.dmMessages"
                 :key="msg.id || msg.nonce"
-                class="dm-message"
-            >
-                <div class="dm-msg-avatar">
-                    <img v-if="msg.sender?.avatar" :src="msg.sender.avatar" :alt="msg.sender.username" />
-                    <span v-else>{{ (msg.sender?.username || '?').charAt(0).toUpperCase() }}</span>
-                </div>
-                <div class="dm-msg-body">
-                    <div class="dm-msg-meta">
-                        <span class="dm-msg-author">{{ msg.sender?.display_name || msg.sender?.username }}</span>
-                        <span class="dm-msg-time">{{ formatTime(msg.created_at) }}</span>
-                        <span v-if="msg.is_edited" class="dm-msg-edited">(已編輯)</span>
-                    </div>
-                    <div class="dm-msg-content">{{ msg.content }}</div>
-                </div>
-            </div>
+                :message="msg"
+                :grouped="isGrouped(idx)"
+                :is-d-m="true"
+            />
             <div v-if="!dm.isLoadingMessages && dm.dmMessages.length === 0" class="dm-no-messages">
                 <p>這是你與 {{ partner?.display_name || partner?.username }} 的對話開始</p>
             </div>
         </div>
 
+        <!-- Pending file chips -->
+        <div v-if="pendingChips.length > 0" class="dm-file-chips">
+            <div v-for="chip in pendingChips" :key="chip.id" class="file-chip">
+                <span class="file-chip-name">{{ chip.name }}</span>
+                <span v-if="!chip.done" class="file-chip-progress">{{ chip.progress }}%</span>
+                <button v-else class="file-chip-remove" @click="removeChip(chip.id, chip.fileId)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Input -->
         <div class="dm-input-area">
+            <label class="dm-attach-btn" title="上傳檔案">
+                <i class="fas fa-paperclip"></i>
+                <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileInput" />
+            </label>
             <textarea
                 ref="inputEl"
                 v-model="content"
@@ -128,7 +182,7 @@ function formatTime(ts) {
                 @input="autoResize"
                 @keydown="onKeydown"
             ></textarea>
-            <button class="dm-send-btn" @click="send" :disabled="!content.trim()">
+            <button class="dm-send-btn" @click="send" :disabled="!content.trim() && dm.dmPendingFileIds.length === 0">
                 <i class="fas fa-paper-plane"></i>
             </button>
         </div>
@@ -235,67 +289,45 @@ function formatTime(ts) {
     padding: 16px;
 }
 
-.dm-message {
+.dm-file-chips {
     display: flex;
-    gap: 12px;
-    padding: 4px 0;
-    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 16px 8px;
 }
 
-.dm-msg-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    overflow: hidden;
-    flex-shrink: 0;
+.file-chip {
     display: flex;
     align-items: center;
-    justify-content: center;
-    background: var(--accent, #5865f2);
-    color: #fff;
-    font-weight: 600;
-    font-size: 14px;
-}
-
-.dm-msg-avatar img {
-    width: 100%; height: 100%; object-fit: cover;
-}
-
-.dm-msg-body {
-    flex: 1;
-}
-
-.dm-msg-meta {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 2px;
-}
-
-.dm-msg-author {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary, #dcddde);
-}
-
-.dm-msg-time {
-    font-size: 11px;
-    color: var(--text-muted, #8e9297);
-}
-
-.dm-msg-edited {
-    font-size: 11px;
-    color: var(--text-muted, #8e9297);
-    font-style: italic;
-}
-
-.dm-msg-content {
-    font-size: 14px;
+    gap: 6px;
+    background: var(--bg-secondary, #2f3136);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
     color: var(--text-normal, #dcddde);
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-word;
 }
+
+.file-chip-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-chip-progress {
+    color: var(--text-muted, #8e9297);
+}
+
+.file-chip-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted, #8e9297);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.file-chip-remove:hover { color: var(--text-primary, #dcddde); }
 
 .dm-input-area {
     padding: 0 16px 16px;
@@ -303,6 +335,21 @@ function formatTime(ts) {
     gap: 8px;
     align-items: flex-end;
 }
+
+.dm-attach-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted, #8e9297);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 4px 8px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    transition: color 0.1s;
+}
+
+.dm-attach-btn:hover { color: var(--text-primary, #dcddde); }
 
 .dm-input-area textarea {
     flex: 1;

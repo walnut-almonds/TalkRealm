@@ -11,3 +11,5 @@ if command -v asdf &> /dev/null; then
     # See: https://asdf-vm.com/guide/getting-started.html#_2-configure-asdf
     . <(asdf completion bash)
 fi
+
+unset GOROOT

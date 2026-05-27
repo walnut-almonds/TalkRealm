@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import { api as apiClient } from '@/api/index.js'
 
 export const useDMStore = defineStore('dm', () => {
@@ -9,6 +9,9 @@ export const useDMStore = defineStore('dm', () => {
     const isDMMode = ref(false)
     const isLoadingMessages = ref(false)
     const hasMoreMessages = ref(false)
+    const dmPendingFileIds = ref([])
+    const dmTranslationCache = reactive(new Map())
+    const dmTranslationLoadingSet = reactive(new Set())
 
     async function loadDMChannels() {
         const res = await apiClient.listDMChannels()
@@ -47,25 +50,50 @@ export const useDMStore = defineStore('dm', () => {
         }
     }
 
-    async function sendDM(content, nonce = null) {
+    async function sendDM(content, nonce = null, fileIds = []) {
         if (!currentDMChannel.value) return
-        const msg = await apiClient.sendDMMessage(currentDMChannel.value.id, content, nonce)
-        // Optimistic: server will broadcast via WS, but also push locally
+        const msg = await apiClient.sendDMMessage(currentDMChannel.value.id, content, nonce, fileIds)
         pushIncomingDM(msg)
         return msg
     }
 
+    function getMessageChannelId(message) {
+        return message?.channel_id || message?.dm_channel_id || 0
+    }
+
     function pushIncomingDM(message) {
-        if (currentDMChannel.value && message.dm_channel_id === currentDMChannel.value.id) {
-            // Avoid duplicates (nonce match)
+        const messageChannelID = getMessageChannelId(message)
+        if (currentDMChannel.value && messageChannelID === currentDMChannel.value.id) {
+            // Avoid duplicates from optimistic/REST + WS echoes.
+            if (message.id && dmMessages.value.some(m => m.id === message.id)) return
             if (message.nonce && dmMessages.value.some(m => m.nonce === message.nonce)) return
             dmMessages.value.push(message)
         }
         // Move channel to top of list
-        const idx = dmChannels.value.findIndex(c => c.id === message.dm_channel_id)
+        const idx = dmChannels.value.findIndex(c => c.id === messageChannelID)
         if (idx > 0) {
             const [ch] = dmChannels.value.splice(idx, 1)
             dmChannels.value.unshift(ch)
+        }
+    }
+
+    function handleDMMessageUpdate(data) {
+        const idx = dmMessages.value.findIndex(m => m.id === data.id)
+        if (idx !== -1) {
+            dmMessages.value[idx] = { ...dmMessages.value[idx], ...data }
+        }
+    }
+
+    function handleDMMessageDelete(data) {
+        const msgId = data.message_id || data.id
+        dmMessages.value = dmMessages.value.filter(m => m.id !== msgId)
+    }
+
+    function handleDMTranslationReady(data) {
+        const msgId = data.message_id || data.dm_message_id
+        if (msgId) {
+            dmTranslationCache.set(msgId, data)
+            dmTranslationLoadingSet.delete(msgId)
         }
     }
 
@@ -82,12 +110,18 @@ export const useDMStore = defineStore('dm', () => {
         isDMMode,
         isLoadingMessages,
         hasMoreMessages,
+        dmPendingFileIds,
+        dmTranslationCache,
+        dmTranslationLoadingSet,
         loadDMChannels,
         openDMWith,
         openDMChannel,
         loadDMMessages,
         sendDM,
         pushIncomingDM,
+        handleDMMessageUpdate,
+        handleDMMessageDelete,
+        handleDMTranslationReady,
         exitDMMode,
     }
 })

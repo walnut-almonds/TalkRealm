@@ -487,10 +487,16 @@ func (c *Client) handleSendDM(raw json.RawMessage) {
 		Nonce       string `json:"nonce"`
 	}
 
-	if err := json.Unmarshal(raw, &payload); err != nil || payload.DMChannelID == 0 || payload.Content == "" {
+	if err := json.Unmarshal(
+		raw,
+		&payload,
+	); err != nil || payload.DMChannelID == 0 ||
+		payload.Content == "" {
 		c.sendJSON(OutgoingMessage{
-			Op:        "error",
-			Data:      map[string]string{"message": "invalid send_dm payload: dm_channel_id and content required"},
+			Op: "error",
+			Data: map[string]string{
+				"message": "invalid send_dm payload: dm_channel_id and content required",
+			},
 			Timestamp: time.Now().UnixMilli(),
 		})
 
@@ -507,7 +513,7 @@ func (c *Client) handleSendDM(raw json.RawMessage) {
 		return
 	}
 
-	if c.manager.dmSender == nil {
+	if c.manager.msgSender == nil {
 		c.sendJSON(OutgoingMessage{
 			Op:        "error",
 			Data:      map[string]string{"message": "dm not available"},
@@ -517,7 +523,14 @@ func (c *Client) handleSendDM(raw json.RawMessage) {
 		return
 	}
 
-	if _, err := c.manager.dmSender.SendDM(c.userID, payload.DMChannelID, payload.Content, payload.Nonce); err != nil {
+	if _, err := c.manager.msgSender.CreateMessageWS(
+		c.userID,
+		payload.DMChannelID,
+		payload.Content,
+		"text",
+		payload.Nonce,
+		nil,
+	); err != nil {
 		c.sendJSON(OutgoingMessage{
 			Op:        "error",
 			Data:      map[string]string{"message": err.Error()},
