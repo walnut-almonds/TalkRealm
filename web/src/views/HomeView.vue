@@ -55,6 +55,7 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', updateSize)
     stopSim()
     stopAnimLoop()
+    if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null }
 })
 
 // ── Stars – three layers (bright cross-stars + regular) ───────
@@ -457,7 +458,10 @@ const tooltipGuild = computed(() => {
     return { guild, members, onlineCount, msgCount, palette: guildPalette(hoverGuildId.value) }
 })
 
+let hoverLeaveTimer = null
+
 function onGuildEnter(e, guildId) {
+    if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null }
     hoverGuildId.value = guildId
     updateHoverPos(e)
 }
@@ -467,7 +471,10 @@ function onGuildMove(e) {
 }
 
 function onGuildLeave() {
-    hoverGuildId.value = null
+    hoverLeaveTimer = setTimeout(() => {
+        hoverGuildId.value = null
+        hoverLeaveTimer = null
+    }, 120)
 }
 
 function updateHoverPos(e) {
@@ -905,7 +912,7 @@ function goToFriend(friendUserId) {
                 v-if="tooltipGuild"
                 class="sg-tooltip-card"
                 :style="`left:${hoverPos.x}px; top:${hoverPos.y}px; --tip-color:${tooltipGuild.palette.hex}`"
-                @pointerenter="hoverGuildId = tooltipGuild.guild.id"
+                @pointerenter="tooltipGuild && (hoverLeaveTimer ? (clearTimeout(hoverLeaveTimer), hoverLeaveTimer = null) : null)"
                 @pointerleave="onGuildLeave"
             >
                 <div class="sg-tip-header">
