@@ -17,6 +17,9 @@ export const useAppStore = defineStore('app', () => {
     const pendingFileIds = ref([])
     const lightboxUrl = ref(null)
 
+    // Online user IDs (global, populated by presence_update WS events)
+    const onlineUserIds = reactive(new Set())
+
     // Translation cache: messageId → { original_lang, translations: {zh, ja, en} }
     const translationCache = reactive(new Map())
     // messageIds whose translation is in-flight (show loading indicator)
@@ -321,6 +324,12 @@ export const useAppStore = defineStore('app', () => {
     function handleUserStatus(data) {
         const m = members.value.find(m => m.user_id === data.user_id)
         if (m?.user) m.user.status = data.status
+        // Track global online set for HomeView galaxy
+        if (data.status === 'online') {
+            onlineUserIds.add(data.user_id)
+        } else {
+            onlineUserIds.delete(data.user_id)
+        }
     }
 
     // ── Guild events ─────────────────────────────────────────────
@@ -388,7 +397,7 @@ export const useAppStore = defineStore('app', () => {
         user, guilds, currentGuild, channels, currentChannel,
         members, messages, isLoading, notification, pendingFileIds,
         lightboxUrl, typingUsers, typingList,
-        translationCache, translationLoadingSet,
+        translationCache, translationLoadingSet, onlineUserIds,
         // computed
         textChannels, voiceChannels, isAuthenticated, currentUserRole,
         // methods

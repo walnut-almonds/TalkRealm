@@ -7,6 +7,7 @@ import ChatArea from '@/components/ChatArea.vue'
 import MemberSidebar from '@/components/MemberSidebar.vue'
 import DMSidebar from '@/components/DMSidebar.vue'
 import DMChatArea from '@/components/DMChatArea.vue'
+import HomeView from '@/views/HomeView.vue'
 
 const store = useAppStore()
 const dm = useDMStore()
@@ -92,6 +93,9 @@ function onTouchEnd(e) {
         @channel-selected="mobileDMSidebarOpen = false"
       />
       <DMChatArea @open-sidebar="mobileDMSidebarOpen = true" />
+    </template>
+    <template v-else-if="!store.currentGuild">
+      <HomeView />
     </template>
     <template v-else>
       <ChannelSidebar

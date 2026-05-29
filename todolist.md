@@ -4,6 +4,26 @@
 
 ---
 
+## 🌌 Social Galaxy — 首頁銀河可視化
+
+> 詳細設計見 [`social_galaxy.md`](./social_galaxy.md)。  
+> 目標：取代首頁空白畫面，以 SVG force-layout 呈現使用者的社群宇宙。  
+> 實作策略：純 Vue + SVG + CSS 動畫，不引入新 npm 套件（MVP）。
+
+### MVP（Phase 1）
+- [x] **HomeView.vue**：SVG 星空背景 + 圓形軌道佈局，用戶居中、Guild 節點環繞，點擊節點進入社群
+- [x] **onlineUserIds（AppStore）**：新增全域在線集合，`handleUserStatus` 同步更新，供 HomeView 顯示在線狀態光暈
+- [x] **ChatView 整合**：`!currentGuild && !isDMMode` 時渲染 `<HomeView />`，取代空白畫面
+
+### Phase 2（後續）
+- [ ] **互動強度 API**：後端新增 `GET /api/v1/users/me/interaction-stats`（最近 N 天訊息頻率），前端依強度調整節點距離與連線粗細
+- [ ] **成員節點**：載入首頁時批量取各 Guild 部分成員，作為 Guild cluster 的子節點顯示
+- [ ] **d3-force 物理模擬**：引入 `d3-force` 替換靜態圓形佈局，實現有機力導向布局
+- [ ] **縮放 / 拖曳**：scroll wheel zoom + drag-to-pan 導覽
+- [ ] **未讀衛星**：有未讀訊息的 Guild 節點顯示orbiting 小衛星粒子
+
+---
+
 ## 🔴 Phase 1 — 強化現有 Monolith（高優先）
 
 ### WebSocket 改善
