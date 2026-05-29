@@ -58,16 +58,18 @@ onBeforeUnmount(() => {
     if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null }
 })
 
-// ── Stars – three layers (bright cross-stars + regular) ───────
+// ── Stars – bright cross-stars + color-tinted regular stars ──
+const STAR_COLORS = ['white', 'white', 'white', '#b3d4ff', '#b3d4ff', '#ffe9a0', '#ffd0d0']
 const stars = ref(
-    Array.from({ length: 200 }, (_, i) => ({
+    Array.from({ length: 220 }, (_, i) => ({
         x: (Math.random() * 100).toFixed(2),
         y: (Math.random() * 100).toFixed(2),
-        r: (Math.random() * 1.8 + 0.25).toFixed(2),
-        op: (Math.random() * 0.55 + 0.12).toFixed(2),
+        r: (Math.random() * 1.9 + 0.3).toFixed(2),
+        op: (Math.random() * 0.60 + 0.15).toFixed(2),
         dur: (Math.random() * 3 + 2).toFixed(1),
         del: (Math.random() * 8).toFixed(1),
-        bright: i < 12,
+        bright: i < 14,
+        color: STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)],
     })),
 )
 
@@ -477,6 +479,10 @@ function onGuildLeave() {
     }, 120)
 }
 
+function onTooltipEnter() {
+    if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null }
+}
+
 function updateHoverPos(e) {
     hoverPos.value = {
         x: Math.min(e.clientX + 18, window.innerWidth - 240),
@@ -561,35 +567,69 @@ function goToFriend(friendUserId) {
         @pointerup="onPointerUp"
         @pointerleave="onPointerUp"
     >
-        <!-- ── Starfield (3-layer: cross-stars + regular) ── -->
+        <!-- ── Starfield (Milky Way band + cross-stars + tinted stars) ── -->
         <svg class="sg-stars" aria-hidden="true">
+            <defs>
+                <!-- Milky Way diagonal band -->
+                <linearGradient id="sg-milkyway" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%"   stop-color="transparent" />
+                    <stop offset="30%"  stop-color="#7c6fff" stop-opacity="0.025" />
+                    <stop offset="45%"  stop-color="#9f8fff" stop-opacity="0.055" />
+                    <stop offset="55%"  stop-color="#7c6fff" stop-opacity="0.040" />
+                    <stop offset="70%"  stop-color="#5b4fcf" stop-opacity="0.025" />
+                    <stop offset="100%" stop-color="transparent" />
+                </linearGradient>
+                <!-- Deep nebula glow – top-left -->
+                <radialGradient id="sg-nebula-tl" cx="20%" cy="18%" r="40%">
+                    <stop offset="0%"   stop-color="#4f46e5" stop-opacity="0.14" />
+                    <stop offset="100%" stop-color="#4f46e5" stop-opacity="0" />
+                </radialGradient>
+                <!-- Deep nebula glow – bottom-right -->
+                <radialGradient id="sg-nebula-br" cx="82%" cy="80%" r="38%">
+                    <stop offset="0%"   stop-color="#0e7490" stop-opacity="0.12" />
+                    <stop offset="100%" stop-color="#0e7490" stop-opacity="0" />
+                </radialGradient>
+                <!-- Accent nebula – mid-right -->
+                <radialGradient id="sg-nebula-mr" cx="88%" cy="40%" r="28%">
+                    <stop offset="0%"   stop-color="#be185d" stop-opacity="0.10" />
+                    <stop offset="100%" stop-color="#be185d" stop-opacity="0" />
+                </radialGradient>
+            </defs>
+
+            <!-- Milky Way band -->
+            <rect width="100%" height="100%" fill="url(#sg-milkyway)" />
+            <!-- Nebula glows -->
+            <rect width="100%" height="100%" fill="url(#sg-nebula-tl)" />
+            <rect width="100%" height="100%" fill="url(#sg-nebula-br)" />
+            <rect width="100%" height="100%" fill="url(#sg-nebula-mr)" />
+
             <!-- Bright cross-stars -->
             <g v-for="(s, i) in stars.filter(s => s.bright)" :key="`bs-${i}`">
                 <circle
                     :cx="`${s.x}%`" :cy="`${s.y}%`"
                     :r="Number(s.r) * 2.2"
-                    fill="white"
+                    :fill="s.color"
                     :style="`--op:${s.op}; animation: sg-twinkle ${s.dur}s ease-in-out ${s.del}s infinite alternate`"
                 />
                 <line
-                    :x1="`calc(${s.x}% - 6px)`" :y1="`${s.y}%`"
-                    :x2="`calc(${s.x}% + 6px)`" :y2="`${s.y}%`"
-                    stroke="white" stroke-width="0.5" :opacity="Number(s.op) * 0.5"
+                    :x1="`calc(${s.x}% - 7px)`" :y1="`${s.y}%`"
+                    :x2="`calc(${s.x}% + 7px)`" :y2="`${s.y}%`"
+                    :stroke="s.color" stroke-width="0.5" :opacity="Number(s.op) * 0.55"
                 />
                 <line
-                    :x1="`${s.x}%`" :y1="`calc(${s.y}% - 6px)`"
-                    :x2="`${s.x}%`" :y2="`calc(${s.y}% + 6px)`"
-                    stroke="white" stroke-width="0.5" :opacity="Number(s.op) * 0.5"
+                    :x1="`${s.x}%`" :y1="`calc(${s.y}% - 7px)`"
+                    :x2="`${s.x}%`" :y2="`calc(${s.y}% + 7px)`"
+                    :stroke="s.color" stroke-width="0.5" :opacity="Number(s.op) * 0.55"
                 />
             </g>
-            <!-- Regular stars -->
+            <!-- Regular stars (color-tinted) -->
             <circle
                 v-for="(s, i) in stars.filter(s => !s.bright)"
                 :key="`rs-${i}`"
                 :cx="`${s.x}%`"
                 :cy="`${s.y}%`"
                 :r="s.r"
-                fill="white"
+                :fill="s.color"
                 :style="`--op:${s.op}; animation: sg-twinkle ${s.dur}s ease-in-out ${s.del}s infinite alternate`"
             />
         </svg>
@@ -912,7 +952,7 @@ function goToFriend(friendUserId) {
                 v-if="tooltipGuild"
                 class="sg-tooltip-card"
                 :style="`left:${hoverPos.x}px; top:${hoverPos.y}px; --tip-color:${tooltipGuild.palette.hex}`"
-                @pointerenter="tooltipGuild && (hoverLeaveTimer ? (clearTimeout(hoverLeaveTimer), hoverLeaveTimer = null) : null)"
+                @pointerenter="onTooltipEnter"
                 @pointerleave="onGuildLeave"
             >
                 <div class="sg-tip-header">
@@ -964,7 +1004,11 @@ function goToFriend(friendUserId) {
     position: relative;
     flex: 1;
     overflow: hidden;
-    background: radial-gradient(ellipse at 50% 60%, #0d0a2e 0%, #060918 55%, #020510 100%);
+    background:
+        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(79,70,229,0.18) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(14,116,144,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 90% 35%, rgba(190,24,93,0.10) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 60% at 50% 55%, #0d0a2e 0%, #060918 55%, #020510 100%);
     display: flex;
     align-items: center;
     justify-content: center;
