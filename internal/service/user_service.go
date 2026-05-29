@@ -81,6 +81,7 @@ type UserService interface {
 	RefreshAccessToken(refreshToken string) (*LoginResponse, error)
 	RevokeRefreshToken(refreshToken string) error
 	OAuthLoginOrRegister(req *OAuthUserInfo) (*LoginResponse, error)
+	SearchUsers(query string, excludeID uint) ([]*PublicUser, error)
 }
 
 type userService struct {
@@ -268,6 +269,32 @@ func (s *userService) GetPublicByID(id uint) (*PublicUser, error) {
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
 	}, nil
+}
+
+// SearchUsers 以 username/nickname 模糊搜尋使用者（最多回傳 20 筆，排除自己）
+func (s *userService) SearchUsers(query string, excludeID uint) ([]*PublicUser, error) {
+	if len(query) < 1 {
+		return []*PublicUser{}, nil
+	}
+
+	users, err := s.repo.SearchUsers(query, excludeID, 20)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*PublicUser, 0, len(users))
+	for _, u := range users {
+		result = append(result, &PublicUser{
+			ID:        u.ID,
+			Username:  u.Username,
+			Nickname:  u.Nickname,
+			Avatar:    u.Avatar,
+			Status:    u.Status,
+			CreatedAt: u.CreatedAt,
+		})
+	}
+
+	return result, nil
 }
 
 // RefreshAccessToken 使用 refresh token 換發新的 access token（token rotation）

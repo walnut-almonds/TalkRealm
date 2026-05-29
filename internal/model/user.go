@@ -18,7 +18,19 @@ type User struct {
 	UpdatedAt     time.Time `                            json:"updated_at"`
 }
 
-// UserOAuthProvider 使用者 OAuth 連結（一個帳號可綁多個 OAuth 廠商）
+// Friendship 好友關係模型
+// Status: "pending"（申請中）/ "accepted"（已接受）/ "blocked"（已封鎖）
+type Friendship struct {
+	ID          uint      `gorm:"primarykey"                               json:"id"`
+	RequesterID uint      `gorm:"not null;uniqueIndex:idx_friendship_pair" json:"requester_id"`
+	Requester   User      `gorm:"foreignKey:RequesterID"                   json:"requester,omitempty"`
+	AddresseeID uint      `gorm:"not null;uniqueIndex:idx_friendship_pair" json:"addressee_id"`
+	Addressee   User      `gorm:"foreignKey:AddresseeID"                   json:"addressee,omitempty"`
+	Status      string    `gorm:"not null;default:'pending'"               json:"status"`
+	CreatedAt   time.Time `                                                json:"created_at"`
+	UpdatedAt   time.Time `                                                json:"updated_at"`
+}
+
 type UserOAuthProvider struct {
 	ID         uint      `gorm:"primarykey"        json:"id"`
 	UserID     uint      `gorm:"not null;index"    json:"user_id"`

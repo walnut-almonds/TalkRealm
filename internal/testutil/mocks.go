@@ -88,6 +88,14 @@ func (m *MockUserRepository) UpdateStatus(id uint, status string) error {
 	return nil
 }
 
+func (m *MockUserRepository) SearchUsers(
+	query string,
+	excludeID uint,
+	limit int,
+) ([]*model.User, error) {
+	return nil, nil
+}
+
 // ---------------------------------------------------------------------------
 // MockRefreshTokenRepository
 // ---------------------------------------------------------------------------
@@ -696,6 +704,10 @@ func (m *MockUserService) OAuthLoginOrRegister(
 	}
 
 	return nil, nil //nolint:nilnil
+}
+
+func (m *MockUserService) SearchUsers(query string, excludeID uint) ([]*service.PublicUser, error) {
+	return nil, nil
 }
 
 // MockGuildService is a test double for service.GuildService.

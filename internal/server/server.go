@@ -35,6 +35,7 @@ type Server struct {
 	voiceHandler       *handler.VoiceHandler
 	translationHandler *handler.TranslationHandler
 	dmHandler          *handler.DMHandler
+	friendHandler      *handler.FriendHandler
 	rdb                *goredis.Client
 	guildMemberRepo    repository.GuildMemberRepository
 }
@@ -148,6 +149,12 @@ func New(cfg *config.Config) (*Server, error) {
 	translationHandler := handler.NewTranslationHandler(translationSvc, guessSvc, messageService)
 	dmHandler := handler.NewDMHandler(dmService, messageService, translationSvc)
 
+	// 初始化好友服務
+	friendshipRepo := repository.NewFriendshipRepository(db)
+	friendSvc := service.NewFriendService(friendshipRepo, userRepo)
+	friendSvc.SetNotifier(wsManager)
+	friendHandler := handler.NewFriendHandler(friendSvc)
+
 	s := &Server{
 		config:             cfg,
 		router:             router,
@@ -164,6 +171,7 @@ func New(cfg *config.Config) (*Server, error) {
 		guildMemberRepo:    guildMemberRepo,
 		translationHandler: translationHandler,
 		dmHandler:          dmHandler,
+		friendHandler:      friendHandler,
 	}
 
 	// 設定路由
@@ -231,6 +239,18 @@ func (s *Server) setupRoutes() {
 			{
 				users.GET("/me", s.userHandler.GetCurrentUser)
 				users.PATCH("/me", s.userHandler.UpdateCurrentUser)
+				users.GET("/search", s.userHandler.SearchUsers)
+			}
+
+			// 好友相關
+			friends := protected.Group("/friends")
+			{
+				friends.GET("", s.friendHandler.ListFriends)
+				friends.GET("/requests/incoming", s.friendHandler.ListIncomingRequests)
+				friends.GET("/requests/outgoing", s.friendHandler.ListOutgoingRequests)
+				friends.POST("", s.friendHandler.SendRequest)
+				friends.PUT("/:userId/accept", s.friendHandler.AcceptRequest)
+				friends.DELETE("/:userId", s.friendHandler.RemoveFriend)
 			}
 
 			// 伺服器/社群相關

@@ -45,6 +45,13 @@ export const EP = {
     DM_MESSAGE: (id) => `/api/v1/dm/messages/${id}`,
     DM_MESSAGE_TRANSLATION: (id) => `/api/v1/dm/messages/${id}/translation`,
     DM_MESSAGE_TRANSLATION_ENSURE: (id) => `/api/v1/dm/messages/${id}/translation/ensure`,
+    // Friends
+    SEARCH_USERS: (q) => `/api/v1/users/search?q=${encodeURIComponent(q)}`,
+    FRIENDS: '/api/v1/friends',
+    FRIENDS_REQUESTS_INCOMING: '/api/v1/friends/requests/incoming',
+    FRIENDS_REQUESTS_OUTGOING: '/api/v1/friends/requests/outgoing',
+    FRIEND_ACCEPT: (userId) => `/api/v1/friends/${userId}/accept`,
+    FRIEND_REMOVE: (userId) => `/api/v1/friends/${userId}`,
 }
 
 export const STORAGE_KEYS = {
@@ -260,6 +267,15 @@ class ApiClient {
     getGameStatus(messageId, hiddenLang) {
         return this.get(`${EP.MESSAGE_GAME(messageId)}?hidden_lang=${hiddenLang}`)
     }
+
+    // ── Friends ──
+    searchUsers(q) { return this.get(EP.SEARCH_USERS(q)) }
+    listFriends() { return this.get(EP.FRIENDS) }
+    listIncomingRequests() { return this.get(EP.FRIENDS_REQUESTS_INCOMING) }
+    listOutgoingRequests() { return this.get(EP.FRIENDS_REQUESTS_OUTGOING) }
+    sendFriendRequest(username) { return this.post(EP.FRIENDS, { username }) }
+    acceptFriendRequest(userId) { return this.put(EP.FRIEND_ACCEPT(userId), {}) }
+    removeFriend(userId) { return this.del(EP.FRIEND_REMOVE(userId)) }
 }
 
 export const api = new ApiClient()

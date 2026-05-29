@@ -209,7 +209,7 @@ func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 //	@Tags		auth
 //	@Accept		json
 //	@Produce	json
-//	@Param		request	body		RefreshTokenRequest		true	"refresh token"
+//	@Param		request	body		RefreshTokenRequest	true	"refresh token"
 //	@Success	200		{object}	service.LoginResponse
 //	@Router		/api/v1/auth/refresh [post]
 func (h *UserHandler) RefreshToken(c *gin.Context) {
@@ -288,6 +288,25 @@ func (h *UserHandler) GetPublicUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
+}
+
+// SearchUsers 搜尋使用者（需登入）
+func (h *UserHandler) SearchUsers(c *gin.Context) {
+	q := c.Query("q")
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query parameter 'q' is required"})
+		return
+	}
+
+	selfID, _ := c.Get("user_id")
+
+	users, err := h.userService.SearchUsers(q, selfID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
 // RefreshTokenRequest refresh token 請求

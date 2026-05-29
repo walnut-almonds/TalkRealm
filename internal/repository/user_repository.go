@@ -17,6 +17,8 @@ type UserRepository interface {
 	Delete(id uint) error
 	List(offset, limit int) ([]*model.User, error)
 	UpdateStatus(id uint, status string) error
+	// SearchUsers 以 username 或 nickname 模糊搜尋（排除 excludeID 本人，最多回傳 limit 筆）
+	SearchUsers(query string, excludeID uint, limit int) ([]*model.User, error)
 }
 
 type userRepository struct {
@@ -36,39 +38,48 @@ func (r *userRepository) Create(user *model.User) error {
 // GetByID 透過 ID 取得使用者
 func (r *userRepository) GetByID(id uint) (*model.User, error) {
 	var user model.User
+
 	err := r.db.First(&user, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
+
 		return nil, err
 	}
+
 	return &user, nil
 }
 
 // GetByEmail 透過 Email 取得使用者
 func (r *userRepository) GetByEmail(email string) (*model.User, error) {
 	var user model.User
+
 	err := r.db.Where("email = ?", email).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
+
 		return nil, err
 	}
+
 	return &user, nil
 }
 
 // GetByUsername 透過 Username 取得使用者
 func (r *userRepository) GetByUsername(username string) (*model.User, error) {
 	var user model.User
+
 	err := r.db.Where("username = ?", username).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
+
 		return nil, err
 	}
+
 	return &user, nil
 }
 
@@ -85,11 +96,31 @@ func (r *userRepository) Delete(id uint) error {
 // List 列出使用者（分頁）
 func (r *userRepository) List(offset, limit int) ([]*model.User, error) {
 	var users []*model.User
+
 	err := r.db.Offset(offset).Limit(limit).Find(&users).Error
+
 	return users, err
 }
 
 // UpdateStatus 更新使用者狀態
 func (r *userRepository) UpdateStatus(id uint, status string) error {
 	return r.db.Model(&model.User{}).Where("id = ?", id).Update("status", status).Error
+}
+
+// SearchUsers 以 username 或 nickname 模糊搜尋使用者（排除自己）
+func (r *userRepository) SearchUsers(
+	query string,
+	excludeID uint,
+	limit int,
+) ([]*model.User, error) {
+	var users []*model.User
+
+	like := "%" + query + "%"
+
+	err := r.db.
+		Where("id != ? AND (username ILIKE ? OR nickname ILIKE ?)", excludeID, like, like).
+		Limit(limit).
+		Find(&users).Error
+
+	return users, err
 }

@@ -3,6 +3,7 @@ import { onMounted, watch } from 'vue'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useWebSocket } from '@/composables/useWebSocket.js'
 import { useVoice } from '@/composables/useVoice.js'
+import { useFriendStore } from '@/stores/useFriendStore.js'
 import AuthPage from './components/AuthPage.vue'
 import MainLayout from './components/MainLayout.vue'
 import Notification from './components/Notification.vue'
@@ -12,6 +13,7 @@ import Lightbox from './components/Lightbox.vue'
 const store = useAppStore()
 const ws = useWebSocket()
 const voice = useVoice(store)
+const friendStore = useFriendStore()
 
 // Wire WebSocket events to store and voice composable
 ws.onMessage((type, data) => {
@@ -31,6 +33,10 @@ ws.onMessage((type, data) => {
     case 'member_update':      store.handleMemberUpdate(data); break
     case 'voice_state_update': voice.handleVoiceStateUpdate(data); break
     case 'translation_ready':   store.handleTranslationReady(data); break
+    case 'friend_request':     friendStore.onFriendRequest(data); break
+    case 'friend_accept':      friendStore.onFriendAccept(data); break
+    case 'friend_reject':      friendStore.onFriendReject(data); break
+    case 'friend_remove':      friendStore.onFriendRemove(data); break
     case 'reconnect_failed':   store.showNotification('WebSocket 連線失敗，請重新整理頁面', 'error'); break
   }
 })
