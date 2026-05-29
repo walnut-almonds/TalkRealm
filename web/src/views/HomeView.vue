@@ -279,7 +279,6 @@ let isPanning = false
 let panStart = { x: 0, y: 0 }
 
 function onWheel(e) {
-    e.preventDefault()
     const scaleFactor = e.deltaY < 0 ? 1.1 : 0.91
     const newK = Math.max(0.3, Math.min(3, transform.k * scaleFactor))
     // Zoom toward mouse position
@@ -383,7 +382,7 @@ function goToGuild(guildId) {
     <div
         class="galaxy-view"
         ref="containerRef"
-        @wheel.passive="onWheel"
+        @wheel.prevent="onWheel"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
