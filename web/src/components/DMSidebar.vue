@@ -87,7 +87,8 @@ async function rejectFriend(userId) {
     await friendStore.rejectRequest(userId)
 }
 
-async function removeFriend(userId) {
+async function removeFriend(userId, name) {
+    if (!confirm(`確定要移除好友「${name}」？`)) return
     await friendStore.unfriend(userId)
 }
 
@@ -207,7 +208,7 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
                         <span v-else>{{ friendDisplayName(f).charAt(0).toUpperCase() }}</span>
                     </div>
                     <span class="name flex-1">{{ friendDisplayName(f) }}</span>
-                    <button class="icon-btn danger" title="解除好友" @click="removeFriend(friendUserId(f))">
+                    <button class="icon-btn danger" title="解除好友" @click="removeFriend(friendUserId(f), friendDisplayName(f))">
                         <i class="fas fa-user-minus"></i>
                     </button>
                     <button class="icon-btn" title="發送私訊" @click="selectUserForDM(friendUserId(f)); activeTab = 'messages'">
