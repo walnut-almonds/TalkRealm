@@ -2,10 +2,12 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, reactive } from 'vue'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useDMStore } from '@/stores/useDMStore.js'
+import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import { api } from '@/api/index.js'
 
 const store = useAppStore()
 const dm = useDMStore()
+const voiceStore = useVoiceStore()
 
 // ── Guild color palette (8 distinct colors) ──────────────────
 const GUILD_PALETTE = [
@@ -55,6 +57,7 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', updateSize)
     stopSim()
     stopAnimLoop()
+    if (_focusPanRaf) { cancelAnimationFrame(_focusPanRaf); _focusPanRaf = null }
     if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null }
 })
 
@@ -84,6 +87,116 @@ async function loadInteractionStats() {
     } catch {
         // Non-fatal
     }
+}
+
+// ── Guild channels (for typing / voice presence mapping) ──────
+const guildChannelMap = reactive(new Map()) // guildId → Set<channelId>
+
+async function loadGuildChannels(guildId) {
+    if (guildChannelMap.has(guildId)) return
+    try {
+        const res = await api.getGuildChannels(guildId)
+        const chans = Array.isArray(res) ? res : (res.channels || [])
+        guildChannelMap.set(guildId, new Set(chans.map(c => c.id)))
+    } catch {
+        guildChannelMap.set(guildId, new Set())
+    }
+}
+
+// ── Typing presence (guilds with active typists) ──────────────
+const typingGuildIds = computed(() => {
+    const result = new Set()
+    const typingMap = store.typingUsers
+    for (const [channelIdStr, users] of Object.entries(typingMap)) {
+        if (!users || Object.keys(users).length === 0) continue
+        const channelId = Number(channelIdStr)
+        for (const [guildId, channelIds] of guildChannelMap) {
+            if (channelIds.has(channelId)) result.add(guildId)
+        }
+    }
+    return result
+})
+
+// ── Voice presence (guilds with active voice participants) ────
+const voiceGuildIds = computed(() => {
+    const result = new Set()
+    const vp = voiceStore.voiceParticipants
+    for (const [channelIdStr, participants] of Object.entries(vp)) {
+        if (!participants || participants.length === 0) continue
+        const channelId = Number(channelIdStr)
+        for (const [guildId, channelIds] of guildChannelMap) {
+            if (channelIds.has(channelId)) result.add(guildId)
+        }
+    }
+    return result
+})
+
+// ── Message flash events ──────────────────────────────────────
+const flashGuildIds = reactive(new Set())
+let _prevUnreadSnapshot = new Set()
+watch(
+    () => [...store.unreadGuildIds],
+    (newIds) => {
+        newIds.forEach(gid => {
+            if (!_prevUnreadSnapshot.has(gid)) {
+                flashGuildIds.add(gid)
+                setTimeout(() => flashGuildIds.delete(gid), 1400)
+            }
+        })
+        _prevUnreadSnapshot = new Set(newIds)
+    },
+)
+
+// ── Time-based atmosphere ─────────────────────────────────────
+const timeAtmosphere = ref('day')
+function updateAtmosphere() {
+    const h = new Date().getHours()
+    if (h >= 22 || h < 5)       timeAtmosphere.value = 'night'
+    else if (h >= 5 && h < 9)   timeAtmosphere.value = 'dawn'
+    else if (h >= 18 && h < 22) timeAtmosphere.value = 'dusk'
+    else                         timeAtmosphere.value = 'day'
+}
+
+// ── Focus / camera system ─────────────────────────────────────
+const focusedNodeId = ref(null)
+let _focusPanRaf = null
+
+function smoothPan(tx, ty, tk, duration = 500) {
+    if (_focusPanRaf) cancelAnimationFrame(_focusPanRaf)
+    const sx = transform.x, sy = transform.y, sk = transform.k
+    const dx = tx - sx, dy = ty - sy, dk = tk - sk
+    const start = performance.now()
+    const step = (now) => {
+        const t = Math.min((now - start) / duration, 1)
+        const ease = 1 - Math.pow(1 - t, 3)
+        transform.x = sx + dx * ease
+        transform.y = sy + dy * ease
+        transform.k = sk + dk * ease
+        if (t < 1) { _focusPanRaf = requestAnimationFrame(step) }
+        else { _focusPanRaf = null }
+    }
+    _focusPanRaf = requestAnimationFrame(step)
+}
+
+function focusOnNode(node) {
+    if (!node) return
+    const k = 1.9
+    smoothPan(W.value / 2 - node.x * k, H.value / 2 - node.y * k, k)
+    focusedNodeId.value = node.id
+}
+
+function resetFocus() {
+    smoothPan(0, 0, 1)
+    focusedNodeId.value = null
+}
+
+// ── Noise helper (organic drift) ──────────────────────────────
+function harmonicNoise(seed, t, freq = 0.5) {
+    return (
+        Math.sin(seed * 7.31 + t * freq) * 0.55 +
+        Math.sin(seed * 13.73 + t * freq * 1.618) * 0.30 +
+        Math.sin(seed * 5.07 + t * freq * 0.618) * 0.15
+    )
 }
 
 // ── Guild members cache ───────────────────────────────────────
@@ -370,6 +483,7 @@ function onWheel(e) {
 
 function onPointerDown(e) {
     if (e.target.closest('.sg-guild-node') || e.target.closest('.sg-user-node') || e.target.closest('.sg-friend-node')) return
+    if (focusedNodeId.value) { resetFocus(); return }
     isPanning = true
     panStart = { x: e.clientX - transform.x, y: e.clientY - transform.y }
     containerRef.value.setPointerCapture?.(e.pointerId)
@@ -437,6 +551,20 @@ function startAnimLoop() {
             satelliteAngles.set(gid, (now * 1.8) % (2 * Math.PI))
         })
         updateParticles(now)
+
+        // ── Organic noise drift (post-convergence) ────────────
+        if (alpha < ALPHA_MIN * 5) {
+            simNodes.forEach((n, i) => {
+                if (n.fx !== undefined || n.type === 'user') return
+                const isOnline = store.onlineUserIds.has(n.friendData?.id ?? n.memberId)
+                const speed = isOnline ? 0.38 : 0.18
+                const amp   = n.type === 'guild' ? 0.55 : 0.30
+                n.x += harmonicNoise(i * 3.7 + 0, now, speed) * amp
+                n.y += harmonicNoise(i * 3.7 + 1, now, speed) * amp
+            })
+            syncDisplay()
+        }
+
         animRafId = requestAnimationFrame(tick)
     }
     animRafId = requestAnimationFrame(tick)
@@ -457,7 +585,9 @@ const tooltipGuild = computed(() => {
     const members = guildMembersCache.get(hoverGuildId.value) || []
     const onlineCount = members.filter(m => store.onlineUserIds.has(m.user_id)).length
     const msgCount = interactionMap.get(hoverGuildId.value) || 0
-    return { guild, members, onlineCount, msgCount, palette: guildPalette(hoverGuildId.value) }
+    const isTyping = typingGuildIds.value.has(hoverGuildId.value)
+    const hasVoice = voiceGuildIds.value.has(hoverGuildId.value)
+    return { guild, members, onlineCount, msgCount, palette: guildPalette(hoverGuildId.value), isTyping, hasVoice }
 })
 
 let hoverLeaveTimer = null
@@ -534,26 +664,45 @@ const displayName = computed(() => store.user?.nickname || store.user?.username 
 
 // ── Bootstrap ─────────────────────────────────────────────────
 onMounted(async () => {
+    updateAtmosphere()
     startAnimLoop()
     await Promise.all([
         loadInteractionStats(),
         loadFriends(),
-        ...store.guilds.map(g => loadGuildMembers(g.id)),
+        ...store.guilds.map(g => Promise.all([
+            loadGuildMembers(g.id),
+            loadGuildChannels(g.id),
+        ])),
     ])
     initSim()
 })
 
 watch(
     () => [store.guilds.length, interactionMap.size, guildMembersCache.size],
-    () => { if (store.guilds.length > 0) initSim() },
+    () => {
+        if (store.guilds.length > 0) {
+            store.guilds.forEach(g => loadGuildChannels(g.id))
+            initSim()
+        }
+    },
 )
 
 function goToGuild(guildId) {
-    store.selectGuild(guildId)
+    const node = guildNodeMap.value.get(guildId)
+    if (node) focusOnNode({ id: `guild-${guildId}`, x: node.x, y: node.y })
+    setTimeout(() => {
+        resetFocus()
+        store.selectGuild(guildId)
+    }, 420)
 }
 
 function goToFriend(friendUserId) {
-    dm.openDMWith(friendUserId)
+    const node = friendNodesList.value.find(n => n.friendData?.id === friendUserId)
+    if (node) focusOnNode(node)
+    setTimeout(() => {
+        resetFocus()
+        dm.openDMWith(friendUserId)
+    }, 420)
 }
 </script>
 
@@ -561,6 +710,7 @@ function goToFriend(friendUserId) {
     <div
         class="galaxy-view"
         ref="containerRef"
+        :data-atmosphere="timeAtmosphere"
         @wheel.prevent="onWheel"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
@@ -822,12 +972,21 @@ function goToFriend(friendUserId) {
                     v-for="n in friendNodesList"
                     :key="n.id"
                     class="sg-friend-node"
+                    :opacity="focusedNodeId && focusedNodeId !== n.id ? 0.4 : 1"
                     @click="goToFriend(n.friendData.id)"
                     role="button"
                     :aria-label="n.friendData?.nickname || n.friendData?.username"
                     tabindex="0"
                     @keydown.enter="goToFriend(n.friendData.id)"
                 >
+                    <!-- Online breathing glow -->
+                    <circle
+                        v-if="store.onlineUserIds.has(n.friendData?.id)"
+                        :cx="n.x" :cy="n.y"
+                        r="26"
+                        fill="rgba(34,211,238,0.10)"
+                        class="sg-friend-breathe"
+                    />
                     <circle :cx="n.x" :cy="n.y" r="22" fill="rgba(6,183,210,0.06)" class="sg-friend-pulse" />
                     <circle :cx="n.x" :cy="n.y" r="14" fill="#0d1424" stroke="rgba(34,211,238,0.55)" stroke-width="1.5" />
                     <image
@@ -862,6 +1021,7 @@ function goToFriend(friendUserId) {
                     :key="gid"
                     class="sg-guild-node"
                     :style="`--float-delay:${floatProps.get(gid)?.delay ?? 0}s; --float-dur:${floatProps.get(gid)?.dur ?? 4}s; --guild-hex:${guildPalette(gid).hex}`"
+                    :opacity="focusedNodeId && focusedNodeId !== `guild-${gid}` ? 0.35 : 1"
                     @click="goToGuild(gid)"
                     @pointerenter="onGuildEnter($event, gid)"
                     @pointermove="onGuildMove"
@@ -871,6 +1031,36 @@ function goToFriend(friendUserId) {
                     tabindex="0"
                     @keydown.enter="goToGuild(gid)"
                 >
+                    <!-- Typing ripple -->
+                    <circle
+                        v-if="typingGuildIds.has(gid)"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 20"
+                        fill="none"
+                        stroke="rgba(251,191,36,0.75)"
+                        stroke-width="2"
+                        class="sg-typing-ripple"
+                    />
+                    <!-- Voice activity pulse -->
+                    <circle
+                        v-if="voiceGuildIds.has(gid)"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 24"
+                        fill="none"
+                        stroke="rgba(34,211,238,0.6)"
+                        stroke-width="1.5"
+                        class="sg-voice-pulse"
+                    />
+                    <!-- Message flash ring -->
+                    <circle
+                        v-if="flashGuildIds.has(gid)"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 8"
+                        fill="none"
+                        :stroke="guildPalette(gid).hex"
+                        stroke-width="3"
+                        class="sg-msg-flash"
+                    />
                     <circle
                         :cx="node.x" :cy="node.y"
                         :r="guildNodeRadius(gid) + 14"
@@ -977,6 +1167,10 @@ function goToFriend(friendUserId) {
                         <span class="sg-tip-stat-label">成員數</span>
                         <span class="sg-tip-stat-val">{{ tooltipGuild.members.length }}</span>
                     </div>
+                </div>
+                <div class="sg-tip-badges">
+                    <span v-if="tooltipGuild.isTyping" class="sg-tip-badge sg-tip-badge--typing">✍️ 有人正在輸入</span>
+                    <span v-if="tooltipGuild.hasVoice" class="sg-tip-badge sg-tip-badge--voice">🎙️ 語音頻道活躍</span>
                 </div>
                 <div class="sg-tip-action">點擊進入社群 →</div>
             </div>
@@ -1224,6 +1418,33 @@ function goToFriend(friendUserId) {
     text-align: right;
 }
 
+/* Tooltip badges (typing / voice) */
+.sg-tip-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 8px;
+}
+
+.sg-tip-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.65);
+}
+
+.sg-tip-badge--typing {
+    border-color: rgba(251,191,36,0.4);
+    color: rgba(251,191,36,0.9);
+}
+
+.sg-tip-badge--voice {
+    border-color: rgba(34,211,238,0.4);
+    color: rgba(34,211,238,0.9);
+}
+
 /* Tooltip transitions */
 .sg-tip-enter-active,
 .sg-tip-leave-active {
@@ -1291,5 +1512,90 @@ function goToFriend(friendUserId) {
     background: rgba(99, 102, 241, 0.28);
     border-color: rgba(139, 92, 246, 0.8);
     color: white;
+}
+
+/* ── Typing ripple ─────────────────────────────────────────── */
+.sg-typing-ripple {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-typing-ring 1.4s ease-out infinite;
+}
+
+@keyframes sg-typing-ring {
+    0%   { transform: scale(0.85); opacity: 0.9; }
+    60%  { transform: scale(1.25); opacity: 0.35; }
+    100% { transform: scale(1.5);  opacity: 0; }
+}
+
+/* ── Voice activity pulse ──────────────────────────────────── */
+.sg-voice-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-voice-ring 2s ease-in-out infinite;
+}
+
+@keyframes sg-voice-ring {
+    0%   { transform: scale(1);    opacity: 0.7; stroke-width: 2; }
+    50%  { transform: scale(1.18); opacity: 0.4; stroke-width: 1; }
+    100% { transform: scale(1);    opacity: 0.7; stroke-width: 2; }
+}
+
+/* ── Message flash ring ────────────────────────────────────── */
+.sg-msg-flash {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-flash-ring 1.4s ease-out forwards;
+}
+
+@keyframes sg-flash-ring {
+    0%   { transform: scale(1);    opacity: 1; }
+    60%  { transform: scale(1.55); opacity: 0.5; }
+    100% { transform: scale(2);    opacity: 0; }
+}
+
+/* ── Online friend breathing glow ──────────────────────────── */
+.sg-friend-breathe {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes sg-breathe {
+    0%   { transform: scale(1);    opacity: 0.8; }
+    50%  { transform: scale(1.35); opacity: 0.2; }
+    100% { transform: scale(1);    opacity: 0.8; }
+}
+
+/* ── Atmosphere: night mode ────────────────────────────────── */
+.galaxy-view[data-atmosphere='night'] {
+    background:
+        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(30,20,80,0.30) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(5,40,80,0.22) 0%, transparent 60%),
+        radial-gradient(ellipse 70% 60% at 50% 55%, #060418 0%, #020210 55%, #000108 100%);
+    filter: brightness(0.82) saturate(0.8);
+}
+
+/* ── Atmosphere: dawn ──────────────────────────────────────── */
+.galaxy-view[data-atmosphere='dawn'] {
+    background:
+        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(120,60,180,0.20) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(230,80,40,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 70% 60% at 50% 55%, #0d0a2e 0%, #060918 55%, #020510 100%);
+    filter: brightness(0.95) saturate(1.1);
+}
+
+/* ── Atmosphere: dusk ──────────────────────────────────────── */
+.galaxy-view[data-atmosphere='dusk'] {
+    background:
+        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(180,60,100,0.22) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(80,20,120,0.20) 0%, transparent 60%),
+        radial-gradient(ellipse 70% 60% at 50% 55%, #0d0a2e 0%, #060918 55%, #020510 100%);
+    filter: brightness(1.02) saturate(1.15);
+}
+
+/* ── Guild node opacity transition (focus system) ─────────── */
+.sg-guild-node,
+.sg-friend-node {
+    transition: opacity 0.35s ease, filter 0.2s ease;
 }
 </style>

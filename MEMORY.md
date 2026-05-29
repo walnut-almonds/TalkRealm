@@ -61,6 +61,19 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-29 — Social Galaxy 增強功能實裝（HomeView.vue）：
+- **`web/src/views/HomeView.vue`**：
+  - 新增 `useVoiceStore` import；新增 `loadGuildChannels()`（guildId→Set\<channelId\> map）
+  - `typingGuildIds` computed：透過 `store.typingUsers` + `guildChannelMap` 計算有人打字的 guild
+  - `voiceGuildIds` computed：透過 `voiceStore.voiceParticipants` + `guildChannelMap` 計算有語音的 guild
+  - `flashGuildIds` reactive Set：watcher on `store.unreadGuildIds`，新增 guild 時觸發 1.4 s flash
+  - `harmonicNoise()` + 動畫迴圈 noise drift（收斂後對所有 non-fixed 節點加三諧波有機漂移）
+  - `timeAtmosphere` ref + `updateAtmosphere()`：根據小時設定 night/dawn/dusk/day，`data-atmosphere` 屬性驅動 CSS
+  - `focusedNodeId` + `smoothPan()` + `focusOnNode()` + `resetFocus()`：點擊節點 cubic ease-out 縮放聚焦，背景點擊復原
+  - Template：guild 節點新增 typing ripple / voice pulse / message flash 圓圈；friend 節點新增 online breathing glow；opacity dimming for unfocused nodes
+  - Tooltip：新增 `isTyping` / `hasVoice` badges
+  - CSS：`sg-typing-ripple`、`sg-voice-pulse`、`sg-msg-flash`、`sg-friend-breathe`、atmosphere 大氣層 filters、opacity transition
+
 2026-05-27 — DM/群組訊息整合收斂：補上 DM 翻譯讀取授權檢查、修正 WebSocket `msgSender` 欄位名、前端 DM store 移除重複定義並相容 `channel_id`。
 2026-05-22 — Presence 系統改為 Redis-only 架構（移除 ghost-online bug）：
 - **`web/src/api/index.js`**：新增 `guildLastChannel` helper（`get(guildId)`/`set(guildId, channelId)`），使用 `talkrealm_last_channel_{guildId}` 作為 localStorage key，實現 per-guild 頻道記憶
