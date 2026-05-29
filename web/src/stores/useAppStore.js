@@ -20,6 +20,12 @@ export const useAppStore = defineStore('app', () => {
     // Online user IDs (global, populated by presence_update WS events)
     const onlineUserIds = reactive(new Set())
 
+    // Unread guild IDs: guilds that received messages while we weren't viewing them
+    const unreadGuildIds = reactive(new Set())
+
+    // channelId → guildId map (populated when guild channels are loaded)
+    const channelGuildMap = new Map()
+
     // Translation cache: messageId → { original_lang, translations: {zh, ja, en} }
     const translationCache = reactive(new Map())
     // messageIds whose translation is in-flight (show loading indicator)
@@ -187,6 +193,11 @@ export const useAppStore = defineStore('app', () => {
             channels.value = Array.isArray(chRes) ? chRes : (chRes.channels || [])
             members.value = Array.isArray(membersRes) ? membersRes : (membersRes.members || [])
 
+            // Populate channelId→guildId map for unread tracking
+            channels.value.forEach(c => { if (c.guild_id) channelGuildMap.set(c.id, c.guild_id) })
+            // Clear unread for this guild
+            unreadGuildIds.delete(guildId)
+
             userCache.clear()
             members.value.forEach(m => { if (m.user) cacheUser(m.user) })
             if (user.value) cacheUser(user.value)
@@ -273,7 +284,14 @@ export const useAppStore = defineStore('app', () => {
     }
 
     function handleNewMessage(msg) {
-        if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) return
+        if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) {
+            // Track unread by channel→guild map
+            const gid = channelGuildMap.get(msg.channel_id)
+            if (gid && (!currentGuild.value || currentGuild.value.id !== gid)) {
+                unreadGuildIds.add(gid)
+            }
+            if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) return
+        }
         if (msg.nonce) {
             const idx = messages.value.findIndex(m => m.nonce === msg.nonce && m._pending)
             if (idx !== -1) {
@@ -397,7 +415,7 @@ export const useAppStore = defineStore('app', () => {
         user, guilds, currentGuild, channels, currentChannel,
         members, messages, isLoading, notification, pendingFileIds,
         lightboxUrl, typingUsers, typingList,
-        translationCache, translationLoadingSet, onlineUserIds,
+        translationCache, translationLoadingSet, onlineUserIds, unreadGuildIds,
         // computed
         textChannels, voiceChannels, isAuthenticated, currentUserRole,
         // methods

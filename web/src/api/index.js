@@ -45,6 +45,8 @@ export const EP = {
     DM_MESSAGE: (id) => `/api/v1/dm/messages/${id}`,
     DM_MESSAGE_TRANSLATION: (id) => `/api/v1/dm/messages/${id}/translation`,
     DM_MESSAGE_TRANSLATION_ENSURE: (id) => `/api/v1/dm/messages/${id}/translation/ensure`,
+    // Interaction stats
+    INTERACTION_STATS: (days) => `/api/v1/users/me/interaction-stats?days=${days || 30}`,
     // Friends
     SEARCH_USERS: (q) => `/api/v1/users/search?q=${encodeURIComponent(q)}`,
     FRIENDS: '/api/v1/friends',
@@ -267,6 +269,9 @@ class ApiClient {
     getGameStatus(messageId, hiddenLang) {
         return this.get(`${EP.MESSAGE_GAME(messageId)}?hidden_lang=${hiddenLang}`)
     }
+
+    // ── Interaction stats ──
+    getInteractionStats(days = 30) { return this.get(EP.INTERACTION_STATS(days)) }
 
     // ── Friends ──
     searchUsers(q) { return this.get(EP.SEARCH_USERS(q)) }

@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"time"
+
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"github.com/walnut-almonds/talkrealm/internal/repository"
 	"github.com/walnut-almonds/talkrealm/internal/service"
@@ -386,14 +388,15 @@ func (m *MockGuildMemberRepository) GetUserGuildIDs(userID uint) ([]uint, error)
 
 // MockMessageRepository is a test double for repository.MessageRepository.
 type MockMessageRepository struct {
-	CreateFn               func(message *model.Message) error
-	GetByIDFn              func(id uint) (*model.Message, error)
-	GetByNonceFn           func(userID uint, nonce string) (*model.Message, error)
-	UpdateFn               func(message *model.Message) error
-	DeleteFn               func(id uint) error
-	GetByChannelIDFn       func(channelID uint, offset, limit int) ([]*model.Message, error)
-	GetByChannelIDCursorFn func(channelID, before uint, limit int) ([]*model.Message, error)
-	GetByUserIDFn          func(userID uint, offset, limit int) ([]*model.Message, error)
+	CreateFn                   func(message *model.Message) error
+	GetByIDFn                  func(id uint) (*model.Message, error)
+	GetByNonceFn               func(userID uint, nonce string) (*model.Message, error)
+	UpdateFn                   func(message *model.Message) error
+	DeleteFn                   func(id uint) error
+	GetByChannelIDFn           func(channelID uint, offset, limit int) ([]*model.Message, error)
+	GetByChannelIDCursorFn     func(channelID, before uint, limit int) ([]*model.Message, error)
+	GetByUserIDFn              func(userID uint, offset, limit int) ([]*model.Message, error)
+	CountByUserInGuildsSinceFn func(userID uint, guildIDs []uint, since time.Time) (map[uint]int64, error)
 }
 
 var _ repository.MessageRepository = (*MockMessageRepository)(nil)
@@ -469,6 +472,18 @@ func (m *MockMessageRepository) GetByUserID(
 	}
 
 	return nil, nil
+}
+
+func (m *MockMessageRepository) CountByUserInGuildsSince(
+	userID uint,
+	guildIDs []uint,
+	since time.Time,
+) (map[uint]int64, error) {
+	if m.CountByUserInGuildsSinceFn != nil {
+		return m.CountByUserInGuildsSinceFn(userID, guildIDs, since)
+	}
+
+	return map[uint]int64{}, nil
 }
 
 // ---------------------------------------------------------------------------

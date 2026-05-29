@@ -1862,4 +1862,24 @@ paths:
       summary: 取得使用者公開資料
       tags:
       - users
+  /api/v1/users/me/interaction-stats:
+    get:
+      parameters:
+      - description: 統計天數（預設 30）
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 互動強度統計
+      tags:
+      - users
 swagger: "2.0"

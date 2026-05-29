@@ -16,11 +16,11 @@
 - [x] **ChatView 整合**：`!currentGuild && !isDMMode` 時渲染 `<HomeView />`，取代空白畫面
 
 ### Phase 2（後續）
-- [ ] **互動強度 API**：後端新增 `GET /api/v1/users/me/interaction-stats`（最近 N 天訊息頻率），前端依強度調整節點距離與連線粗細
-- [ ] **成員節點**：載入首頁時批量取各 Guild 部分成員，作為 Guild cluster 的子節點顯示
-- [ ] **d3-force 物理模擬**：引入 `d3-force` 替換靜態圓形佈局，實現有機力導向布局
-- [ ] **縮放 / 拖曳**：scroll wheel zoom + drag-to-pan 導覽
-- [ ] **未讀衛星**：有未讀訊息的 Guild 節點顯示orbiting 小衛星粒子
+- [x] **互動強度 API**：後端新增 `GET /api/v1/users/me/interaction-stats`（最近 N 天訊息頻率），前端依強度調整節點距離與連線粗細
+- [x] **成員節點**：載入首頁時批量取各 Guild 部分成員，作為 Guild cluster 的子節點顯示
+- [x] **d3-force 物理模擬**：引入 `d3-force` 替換靜態圓形佈局，實現有機力導向布局
+- [x] **縮放 / 拖曳**：scroll wheel zoom + drag-to-pan 導覽
+- [x] **未讀衛星**：有未讀訊息的 Guild 節點顯示orbiting 小衛星粒子
 
 ---
 

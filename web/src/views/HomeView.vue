@@ -1,8 +1,816 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, reactive } from 'vue'
 import { useAppStore } from '@/stores/useAppStore.js'
+import { api } from '@/api/index.js'
 
 const store = useAppStore()
+
+// ── Container size (responsive) ──────────────────────────────
+const containerRef = ref(null)
+const W = ref(800)
+const H = ref(600)
+
+function updateSize() {
+    if (!containerRef.value) return
+    const rect = containerRef.value.getBoundingClientRect()
+    W.value = rect.width || 800
+    H.value = rect.height || 600
+    // Re-center the user node when size changes
+    if (simNodes.length > 0) {
+        simNodes[0].x = W.value / 2
+        simNodes[0].y = H.value / 2
+        simNodes[0].vx = 0
+        simNodes[0].vy = 0
+    }
+}
+
+onMounted(() => {
+    updateSize()
+    window.addEventListener('resize', updateSize)
+})
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', updateSize)
+    stopSim()
+})
+
+// ── Stars – generated once ────────────────────────────────────
+const stars = ref(
+    Array.from({ length: 160 }, () => ({
+        x: (Math.random() * 100).toFixed(2),
+        y: (Math.random() * 100).toFixed(2),
+        r: (Math.random() * 1.6 + 0.4).toFixed(2),
+        op: (Math.random() * 0.55 + 0.15).toFixed(2),
+        dur: (Math.random() * 3 + 2).toFixed(1),
+        del: (Math.random() * 6).toFixed(1),
+    })),
+)
+
+// ── Interaction stats ─────────────────────────────────────────
+const interactionMap = reactive(new Map()) // guildId → messageCount
+
+async function loadInteractionStats() {
+    try {
+        const res = await api.getInteractionStats(30)
+        const stats = res.stats || []
+        stats.forEach(s => interactionMap.set(s.guild_id, s.message_count))
+    } catch {
+        // Non-fatal: galaxy works without interaction data
+    }
+}
+
+// ── Guild members cache ───────────────────────────────────────
+// Map: guildId → [{ user_id, username, avatar, nickname }]
+const guildMembersCache = reactive(new Map())
+
+async function loadGuildMembers(guildId) {
+    if (guildMembersCache.has(guildId)) return
+    try {
+        const res = await api.getGuildMembers(guildId)
+        const members = Array.isArray(res) ? res : (res.members || [])
+        // Keep first 5 non-owner members as satellites
+        guildMembersCache.set(guildId, members.slice(0, 5))
+    } catch {
+        guildMembersCache.set(guildId, [])
+    }
+}
+
+// ── Force Simulation ──────────────────────────────────────────
+// Node types: 'user' | 'guild' | 'member'
+const simNodes = []      // { id, type, guildId?, x, y, vx, vy, fx?, fy? }
+const simLinks = []      // { source, target, strength, distance }
+const displayNodes = ref([])  // reactive copy for rendering
+const displayLinks = ref([])  // reactive copy for rendering
+
+let rafId = null
+let alpha = 1
+const ALPHA_DECAY = 0.025
+const ALPHA_MIN = 0.001
+const VELOCITY_DECAY = 0.4
+
+function initSim() {
+    simNodes.length = 0
+    simLinks.length = 0
+
+    const cx = W.value / 2
+    const cy = H.value / 2
+
+    // User node (fixed at center)
+    simNodes.push({
+        id: 'user',
+        type: 'user',
+        x: cx, y: cy, vx: 0, vy: 0,
+        fx: cx, fy: cy, // fixed
+    })
+
+    store.guilds.forEach((guild, i) => {
+        const angle = (i / store.guilds.length) * 2 * Math.PI
+        const r = Math.min(W.value, H.value) * 0.30
+        const gx = cx + r * Math.cos(angle)
+        const gy = cy + r * Math.sin(angle)
+
+        simNodes.push({
+            id: `guild-${guild.id}`,
+            type: 'guild',
+            guildId: guild.id,
+            x: gx + (Math.random() - 0.5) * 20,
+            y: gy + (Math.random() - 0.5) * 20,
+            vx: 0, vy: 0,
+        })
+
+        // Link: user ↔ guild; distance depends on interaction intensity
+        const msgCount = interactionMap.get(guild.id) || 0
+        const intensity = Math.min(msgCount / 50, 1) // 0..1, saturates at 50 msgs
+        const minDist = Math.min(W.value, H.value) * 0.15
+        const maxDist = Math.min(W.value, H.value) * 0.38
+        const linkDist = maxDist - intensity * (maxDist - minDist)
+
+        simLinks.push({
+            source: 'user',
+            target: `guild-${guild.id}`,
+            distance: linkDist,
+            strength: 0.3 + intensity * 0.3,
+        })
+
+        // Member nodes
+        const members = guildMembersCache.get(guild.id) || []
+        members.forEach((m, j) => {
+            const mAngle = (j / (members.length || 1)) * 2 * Math.PI
+            const mR = 55
+            simNodes.push({
+                id: `member-${guild.id}-${m.user_id}`,
+                type: 'member',
+                guildId: guild.id,
+                memberId: m.user_id,
+                memberData: m,
+                x: gx + mR * Math.cos(mAngle),
+                y: gy + mR * Math.sin(mAngle),
+                vx: 0, vy: 0,
+            })
+            simLinks.push({
+                source: `guild-${guild.id}`,
+                target: `member-${guild.id}-${m.user_id}`,
+                distance: 55,
+                strength: 0.5,
+            })
+        })
+    })
+
+    alpha = 1
+    syncDisplay()
+    startSim()
+}
+
+function stopSim() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null }
+}
+
+function startSim() {
+    stopSim()
+    function tick() {
+        if (alpha < ALPHA_MIN) { syncDisplay(); return }
+        simulateStep()
+        alpha *= (1 - ALPHA_DECAY)
+        syncDisplay()
+        rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+}
+
+function simulateStep() {
+    const cx = W.value / 2
+    const cy = H.value / 2
+    const nodeMap = new Map(simNodes.map(n => [n.id, n]))
+
+    // Build force accumulators
+    const forces = new Map(simNodes.map(n => [n.id, { x: 0, y: 0 }]))
+
+    // 1. Link forces
+    simLinks.forEach(link => {
+        const a = nodeMap.get(link.source)
+        const b = nodeMap.get(link.target)
+        if (!a || !b) return
+        const dx = b.x - a.x
+        const dy = b.y - a.y
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1
+        const delta = (dist - link.distance) / dist * link.strength
+        const fx = dx * delta
+        const fy = dy * delta
+        if (!a.fx) forces.get(a.id).x += fx
+        if (!a.fy) forces.get(a.id).y += fy
+        if (!b.fx) forces.get(b.id).x -= fx
+        if (!b.fy) forces.get(b.id).y -= fy
+    })
+
+    // 2. Repulsion between guild nodes
+    const guildNodes = simNodes.filter(n => n.type === 'guild')
+    for (let i = 0; i < guildNodes.length; i++) {
+        for (let j = i + 1; j < guildNodes.length; j++) {
+            const a = guildNodes[i], b = guildNodes[j]
+            const dx = b.x - a.x
+            const dy = b.y - a.y
+            const dist2 = dx * dx + dy * dy
+            if (dist2 < 1) continue
+            const strength = -3000 / dist2
+            const d = Math.sqrt(dist2)
+            const fx = dx / d * strength
+            const fy = dy / d * strength
+            forces.get(a.id).x += fx
+            forces.get(a.id).y += fy
+            forces.get(b.id).x -= fx
+            forces.get(b.id).y -= fy
+        }
+    }
+
+    // 3. Member repulsion from other members in same guild
+    const byGuild = new Map()
+    simNodes.filter(n => n.type === 'member').forEach(n => {
+        if (!byGuild.has(n.guildId)) byGuild.set(n.guildId, [])
+        byGuild.get(n.guildId).push(n)
+    })
+    byGuild.forEach(members => {
+        for (let i = 0; i < members.length; i++) {
+            for (let j = i + 1; j < members.length; j++) {
+                const a = members[i], b = members[j]
+                const dx = b.x - a.x
+                const dy = b.y - a.y
+                const dist2 = dx * dx + dy * dy
+                if (dist2 < 1) continue
+                const strength = -500 / dist2
+                const d = Math.sqrt(dist2)
+                forces.get(a.id).x += dx / d * strength
+                forces.get(a.id).y += dy / d * strength
+                forces.get(b.id).x -= dx / d * strength
+                forces.get(b.id).y -= dy / d * strength
+            }
+        }
+    })
+
+    // 4. Gravity toward center for guild nodes (keeps layout from flying off)
+    guildNodes.forEach(n => {
+        forces.get(n.id).x += (cx - n.x) * 0.02 * alpha
+        forces.get(n.id).y += (cy - n.y) * 0.02 * alpha
+    })
+
+    // 5. Integrate positions
+    simNodes.forEach(n => {
+        if (n.fx !== undefined) { n.x = n.fx; n.vy = 0; n.vx = 0; return }
+        if (n.fy !== undefined) { n.y = n.fy }
+        const f = forces.get(n.id)
+        n.vx = (n.vx + f.x * alpha) * (1 - VELOCITY_DECAY)
+        n.vy = (n.vy + f.y * alpha) * (1 - VELOCITY_DECAY)
+        n.x += n.vx
+        n.y += n.vy
+    })
+}
+
+function syncDisplay() {
+    // Sync shallow copy for reactivity
+    displayNodes.value = simNodes.map(n => ({ ...n }))
+    displayLinks.value = simLinks.map(l => {
+        const nm = new Map(simNodes.map(n => [n.id, n]))
+        const a = nm.get(l.source), b = nm.get(l.target)
+        return a && b ? { ...l, x1: a.x, y1: a.y, x2: b.x, y2: b.y } : null
+    }).filter(Boolean)
+}
+
+// ── Zoom / Pan ────────────────────────────────────────────────
+const transform = reactive({ x: 0, y: 0, k: 1 })
+let isPanning = false
+let panStart = { x: 0, y: 0 }
+
+function onWheel(e) {
+    e.preventDefault()
+    const scaleFactor = e.deltaY < 0 ? 1.1 : 0.91
+    const newK = Math.max(0.3, Math.min(3, transform.k * scaleFactor))
+    // Zoom toward mouse position
+    const rect = containerRef.value.getBoundingClientRect()
+    const mx = e.clientX - rect.left
+    const my = e.clientY - rect.top
+    transform.x = mx - (mx - transform.x) * (newK / transform.k)
+    transform.y = my - (my - transform.y) * (newK / transform.k)
+    transform.k = newK
+}
+
+function onPointerDown(e) {
+    if (e.target.closest('.sg-guild-node') || e.target.closest('.sg-user-node')) return
+    isPanning = true
+    panStart = { x: e.clientX - transform.x, y: e.clientY - transform.y }
+    containerRef.value.setPointerCapture?.(e.pointerId)
+}
+
+function onPointerMove(e) {
+    if (!isPanning) return
+    transform.x = e.clientX - panStart.x
+    transform.y = e.clientY - panStart.y
+}
+
+function onPointerUp() { isPanning = false }
+
+// ── Per-guild float params ────────────────────────────────────
+const floatProps = new Map()
+watch(
+    () => store.guilds,
+    (guilds) => {
+        guilds.forEach(g => {
+            if (!floatProps.has(g.id)) {
+                floatProps.set(g.id, {
+                    delay: (Math.random() * 5).toFixed(1),
+                    dur: (3.5 + Math.random() * 2.5).toFixed(1),
+                })
+            }
+        })
+    },
+    { immediate: true },
+)
+
+// ── Unread satellite animation offset ────────────────────────
+const satelliteAngles = reactive(new Map())
+let satRafId = null
+function startSatelliteAnim() {
+    if (satRafId) return
+    const tick = () => {
+        const now = Date.now() / 1000
+        store.unreadGuildIds.forEach(gid => {
+            satelliteAngles.set(gid, now * 1.8 % (2 * Math.PI))
+        })
+        satRafId = requestAnimationFrame(tick)
+    }
+    satRafId = requestAnimationFrame(tick)
+}
+onBeforeUnmount(() => { if (satRafId) cancelAnimationFrame(satRafId) })
+
+// ── Derived data from displayNodes ───────────────────────────
+const userNode = computed(() => displayNodes.value.find(n => n.type === 'user'))
+const guildNodeMap = computed(() => {
+    const m = new Map()
+    displayNodes.value.filter(n => n.type === 'guild').forEach(n => m.set(n.guildId, n))
+    return m
+})
+const memberNodes = computed(() => displayNodes.value.filter(n => n.type === 'member'))
+const guildLinks = computed(() => displayLinks.value.filter(l => l.source === 'user'))
+
+function guildById(id) { return store.guilds.find(g => g.id === id) }
+
+function interactionWidth(guildId) {
+    const count = interactionMap.get(guildId) || 0
+    const t = Math.min(count / 50, 1)
+    return (1.0 + t * 3.5).toFixed(2)
+}
+
+const displayName = computed(() => store.user?.nickname || store.user?.username || '')
+
+// ── Bootstrap ─────────────────────────────────────────────────
+onMounted(async () => {
+    startSatelliteAnim()
+    await Promise.all([
+        loadInteractionStats(),
+        ...store.guilds.map(g => loadGuildMembers(g.id)),
+    ])
+    initSim()
+})
+
+watch(
+    () => [store.guilds.length, interactionMap.size, guildMembersCache.size],
+    () => { if (store.guilds.length > 0) initSim() },
+)
+
+function goToGuild(guildId) {
+    store.selectGuild(guildId)
+}
+</script>
+
+<template>
+    <div
+        class="galaxy-view"
+        ref="containerRef"
+        @wheel.passive="onWheel"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @pointerleave="onPointerUp"
+    >
+        <!-- ── Starfield ───────────────────────────────────── -->
+        <svg class="sg-stars" aria-hidden="true">
+            <circle
+                v-for="(s, i) in stars"
+                :key="i"
+                :cx="`${s.x}%`"
+                :cy="`${s.y}%`"
+                :r="s.r"
+                fill="white"
+                :style="`--op:${s.op}; animation: sg-twinkle ${s.dur}s ease-in-out ${s.del}s infinite alternate`"
+            />
+        </svg>
+
+        <!-- ── Main galaxy SVG ─────────────────────────────── -->
+        <svg
+            class="sg-canvas"
+            :viewBox="`0 0 ${W} ${H}`"
+            :width="W"
+            :height="H"
+            aria-label="Social Galaxy"
+        >
+            <!-- Transform group for zoom/pan -->
+            <g :transform="`translate(${transform.x},${transform.y}) scale(${transform.k})`">
+                <defs>
+                    <!-- User avatar clip -->
+                    <clipPath id="sg-user-clip">
+                        <circle
+                            v-if="userNode"
+                            :cx="userNode.x"
+                            :cy="userNode.y"
+                            r="26"
+                        />
+                    </clipPath>
+
+                    <!-- Guild avatar clips -->
+                    <clipPath
+                        v-for="[gid, node] in guildNodeMap"
+                        :key="`clip-${gid}`"
+                        :id="`sg-guild-clip-${gid}`"
+                    >
+                        <circle :cx="node.x" :cy="node.y" r="18" />
+                    </clipPath>
+
+                    <!-- Member avatar clips -->
+                    <clipPath
+                        v-for="n in memberNodes"
+                        :key="`clip-${n.id}`"
+                        :id="`sg-member-clip-${n.id}`"
+                    >
+                        <circle :cx="n.x" :cy="n.y" r="9" />
+                    </clipPath>
+
+                    <!-- User glow -->
+                    <radialGradient
+                        v-if="userNode"
+                        id="sg-user-glow"
+                        cx="50%" cy="50%" r="50%"
+                    >
+                        <stop offset="0%" stop-color="#818cf8" stop-opacity="0.4" />
+                        <stop offset="100%" stop-color="#818cf8" stop-opacity="0" />
+                    </radialGradient>
+
+                    <!-- Per-guild connection line gradients -->
+                    <linearGradient
+                        v-for="link in guildLinks"
+                        :key="`grad-${link.target}`"
+                        :id="`sg-line-grad-${link.target}`"
+                        :x1="link.x1" :y1="link.y1"
+                        :x2="link.x2" :y2="link.y2"
+                        gradientUnits="userSpaceOnUse"
+                    >
+                        <stop offset="0%" stop-color="#818cf8" stop-opacity="0.55" />
+                        <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.08" />
+                    </linearGradient>
+                </defs>
+
+                <!-- Connection lines: user → guild (varying width by interaction) -->
+                <line
+                    v-for="link in guildLinks"
+                    :key="`line-${link.target}`"
+                    :x1="link.x1" :y1="link.y1"
+                    :x2="link.x2" :y2="link.y2"
+                    :stroke="`url(#sg-line-grad-${link.target})`"
+                    :stroke-width="interactionWidth(link.target.replace('guild-', '') * 1)"
+                />
+
+                <!-- Member connection lines (thin) -->
+                <line
+                    v-for="link in displayLinks.filter(l => l.source.startsWith('guild-') && l.target.startsWith('member-'))"
+                    :key="`mline-${link.target}`"
+                    :x1="link.x1" :y1="link.y1"
+                    :x2="link.x2" :y2="link.y2"
+                    stroke="rgba(139,92,246,0.18)"
+                    stroke-width="1"
+                    stroke-dasharray="3 5"
+                />
+
+                <!-- Member nodes (small satellite avatars) -->
+                <g
+                    v-for="n in memberNodes"
+                    :key="n.id"
+                    class="sg-member-node"
+                >
+                    <circle
+                        :cx="n.x"
+                        :cy="n.y"
+                        r="11"
+                        fill="#12102a"
+                        stroke="rgba(139,92,246,0.35)"
+                        stroke-width="1"
+                    />
+                    <image
+                        v-if="n.memberData?.user?.avatar"
+                        :href="n.memberData.user.avatar"
+                        :x="n.x - 9"
+                        :y="n.y - 9"
+                        width="18"
+                        height="18"
+                        :clip-path="`url(#sg-member-clip-${n.id})`"
+                        preserveAspectRatio="xMidYMid slice"
+                    />
+                    <text
+                        v-else
+                        :x="n.x"
+                        :y="n.y"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        fill="rgba(255,255,255,0.5)"
+                        font-size="8"
+                        font-family="'Segoe UI', sans-serif"
+                    >{{ (n.memberData?.user?.nickname || n.memberData?.user?.username || '?').charAt(0).toUpperCase() }}</text>
+                    <!-- Online halo -->
+                    <circle
+                        v-if="store.onlineUserIds.has(n.memberId)"
+                        :cx="n.x + 7"
+                        :cy="n.y + 7"
+                        r="3.5"
+                        fill="#22c55e"
+                        stroke="#060918"
+                        stroke-width="1.5"
+                    />
+                </g>
+
+                <!-- Guild nodes -->
+                <g
+                    v-for="[gid, node] in guildNodeMap"
+                    :key="gid"
+                    class="sg-guild-node"
+                    :style="`--float-delay:${floatProps.get(gid)?.delay ?? 0}s; --float-dur:${floatProps.get(gid)?.dur ?? 4}s`"
+                    @click="goToGuild(gid)"
+                    role="button"
+                    :aria-label="guildById(gid)?.name"
+                    tabindex="0"
+                    @keydown.enter="goToGuild(gid)"
+                >
+                    <!-- Halo glow -->
+                    <circle :cx="node.x" :cy="node.y" r="32" fill="rgba(139,92,246,0.10)" class="sg-guild-halo" />
+                    <!-- Node circle -->
+                    <circle
+                        :cx="node.x"
+                        :cy="node.y"
+                        r="22"
+                        fill="#1a1740"
+                        stroke="rgba(139,92,246,0.6)"
+                        stroke-width="1.5"
+                        class="sg-guild-bg"
+                    />
+                    <!-- Avatar image -->
+                    <image
+                        v-if="guildById(gid)?.icon"
+                        :href="guildById(gid).icon"
+                        :x="node.x - 18"
+                        :y="node.y - 18"
+                        width="36"
+                        height="36"
+                        :clip-path="`url(#sg-guild-clip-${gid})`"
+                        preserveAspectRatio="xMidYMid slice"
+                    />
+                    <!-- Initial fallback -->
+                    <text
+                        v-else
+                        :x="node.x"
+                        :y="node.y"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        fill="white"
+                        font-size="14"
+                        font-weight="600"
+                        font-family="'Segoe UI', sans-serif"
+                    >{{ guildById(gid)?.name?.charAt(0)?.toUpperCase() }}</text>
+                    <!-- Guild name label -->
+                    <text
+                        :x="node.x"
+                        :y="node.y + 37"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        fill="rgba(255,255,255,0.6)"
+                        font-size="11"
+                        font-family="'Segoe UI', sans-serif"
+                    >{{ (guildById(gid)?.name?.length > 12 ? guildById(gid).name.slice(0, 11) + '…' : guildById(gid)?.name) }}</text>
+
+                    <!-- Unread satellite: orbiting dot when guild has unread messages -->
+                    <g v-if="store.unreadGuildIds.has(gid)" class="sg-unread-satellite">
+                        <circle
+                            :cx="node.x + 28 * Math.cos(satelliteAngles.get(gid) || 0)"
+                            :cy="node.y + 28 * Math.sin(satelliteAngles.get(gid) || 0)"
+                            r="5"
+                            fill="#f59e0b"
+                            stroke="#060918"
+                            stroke-width="1.5"
+                            class="sg-satellite-dot"
+                        />
+                        <circle
+                            :cx="node.x + 28 * Math.cos((satelliteAngles.get(gid) || 0) + Math.PI)"
+                            :cy="node.y + 28 * Math.sin((satelliteAngles.get(gid) || 0) + Math.PI)"
+                            r="3"
+                            fill="#f59e0b"
+                            opacity="0.5"
+                        />
+                    </g>
+                </g>
+
+                <!-- Center: current user node -->
+                <g class="sg-user-node" v-if="userNode">
+                    <circle :cx="userNode.x" :cy="userNode.y" r="52" fill="url(#sg-user-glow)" class="sg-pulse-outer" />
+                    <circle :cx="userNode.x" :cy="userNode.y" r="38" fill="rgba(99,102,241,0.18)" class="sg-pulse-inner" />
+                    <circle :cx="userNode.x" :cy="userNode.y" r="28" fill="#1a1740" stroke="#818cf8" stroke-width="2" />
+                    <image
+                        v-if="store.user?.avatar"
+                        :href="store.user.avatar"
+                        :x="userNode.x - 26"
+                        :y="userNode.y - 26"
+                        width="52"
+                        height="52"
+                        clip-path="url(#sg-user-clip)"
+                        preserveAspectRatio="xMidYMid slice"
+                    />
+                    <text
+                        v-else
+                        :x="userNode.x"
+                        :y="userNode.y"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        fill="white"
+                        font-size="20"
+                        font-weight="700"
+                        font-family="'Segoe UI', sans-serif"
+                    >{{ displayName?.charAt(0)?.toUpperCase() }}</text>
+                </g>
+            </g>
+        </svg>
+
+        <!-- ── Welcome overlay ────────────────────────────── -->
+        <div class="sg-welcome">
+            <p class="sg-username">{{ displayName }}</p>
+            <p v-if="store.guilds.length > 0" class="sg-hint">點擊節點進入社群 &nbsp;·&nbsp; 滾輪縮放 &nbsp;·&nbsp; 拖曳平移</p>
+            <p v-else class="sg-hint">在左側建立或加入一個社群</p>
+        </div>
+
+        <!-- Zoom controls -->
+        <div class="sg-zoom-controls">
+            <button class="sg-zoom-btn" @click="transform.k = Math.min(3, transform.k * 1.2)" aria-label="放大">+</button>
+            <button class="sg-zoom-btn" @click="transform.k = Math.max(0.3, transform.k * 0.83)" aria-label="縮小">−</button>
+            <button class="sg-zoom-btn" @click="transform.x=0; transform.y=0; transform.k=1" aria-label="重置">⌂</button>
+        </div>
+    </div>
+</template>
+
+<style scoped>
+/* ── Container ─────────────────────────────────────────────── */
+.galaxy-view {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    background: #060918;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    cursor: grab;
+    touch-action: none;
+}
+.galaxy-view:active { cursor: grabbing; }
+
+/* ── Starfield ─────────────────────────────────────────────── */
+.sg-stars {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+@keyframes sg-twinkle {
+    from { opacity: var(--op, 0.3); }
+    to   { opacity: calc(var(--op, 0.3) * 0.15); }
+}
+
+/* ── Main canvas ───────────────────────────────────────────── */
+.sg-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: visible;
+}
+
+/* ── Guild nodes ───────────────────────────────────────────── */
+.sg-guild-node {
+    cursor: pointer;
+    pointer-events: all;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-float var(--float-dur, 4s) ease-in-out var(--float-delay, 0s) infinite alternate;
+    transition: filter 0.2s ease;
+    outline: none;
+}
+
+.sg-guild-node:hover,
+.sg-guild-node:focus-visible {
+    filter: brightness(1.35) drop-shadow(0 0 14px rgba(139, 92, 246, 0.65));
+}
+
+.sg-guild-node:hover .sg-guild-bg {
+    stroke: rgba(167, 139, 250, 0.95);
+}
+
+@keyframes sg-float {
+    from { transform: translateY(0px); }
+    to   { transform: translateY(-9px); }
+}
+
+/* ── Member nodes ──────────────────────────────────────────── */
+.sg-member-node {
+    pointer-events: none;
+    opacity: 0.85;
+}
+
+/* ── Unread satellite ──────────────────────────────────────── */
+.sg-satellite-dot {
+    filter: drop-shadow(0 0 4px #f59e0b);
+}
+
+/* ── User center node ──────────────────────────────────────── */
+.sg-user-node {
+    pointer-events: none;
+}
+
+.sg-pulse-outer {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-pulse-out 3s ease-out infinite;
+}
+
+.sg-pulse-inner {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-pulse-out 3s ease-out 0.7s infinite;
+}
+
+@keyframes sg-pulse-out {
+    0%   { transform: scale(1);   opacity: 0.35; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ── Welcome overlay ───────────────────────────────────────── */
+.sg-welcome {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    user-select: none;
+}
+
+.sg-username {
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.03em;
+    margin-bottom: 4px;
+}
+
+.sg-hint {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.02em;
+}
+
+/* ── Zoom controls ─────────────────────────────────────────── */
+.sg-zoom-controls {
+    position: absolute;
+    bottom: 80px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sg-zoom-btn {
+    width: 32px;
+    height: 32px;
+    background: rgba(26, 23, 64, 0.85);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+    line-height: 1;
+}
+
+.sg-zoom-btn:hover {
+    background: rgba(99, 102, 241, 0.3);
+    border-color: rgba(139, 92, 246, 0.8);
+    color: white;
+}
+</style>
 
 // ── Container size (responsive) ──────────────────────────────
 const containerRef = ref(null)

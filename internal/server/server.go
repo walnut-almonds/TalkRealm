@@ -36,6 +36,7 @@ type Server struct {
 	translationHandler *handler.TranslationHandler
 	dmHandler          *handler.DMHandler
 	friendHandler      *handler.FriendHandler
+	interactionHandler *handler.InteractionHandler
 	rdb                *goredis.Client
 	guildMemberRepo    repository.GuildMemberRepository
 }
@@ -155,6 +156,9 @@ func New(cfg *config.Config) (*Server, error) {
 	friendSvc.SetNotifier(wsManager)
 	friendHandler := handler.NewFriendHandler(friendSvc)
 
+	// 互動統計 Handler
+	interactionHandler := handler.NewInteractionHandler(messageRepo, guildMemberRepo)
+
 	s := &Server{
 		config:             cfg,
 		router:             router,
@@ -172,6 +176,7 @@ func New(cfg *config.Config) (*Server, error) {
 		translationHandler: translationHandler,
 		dmHandler:          dmHandler,
 		friendHandler:      friendHandler,
+		interactionHandler: interactionHandler,
 	}
 
 	// 設定路由
@@ -240,6 +245,7 @@ func (s *Server) setupRoutes() {
 				users.GET("/me", s.userHandler.GetCurrentUser)
 				users.PATCH("/me", s.userHandler.UpdateCurrentUser)
 				users.GET("/search", s.userHandler.SearchUsers)
+				users.GET("/me/interaction-stats", s.interactionHandler.GetInteractionStats)
 			}
 
 			// 好友相關

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"time"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"gorm.io/gorm"
@@ -17,6 +18,8 @@ type MessageRepository interface {
 	GetByChannelID(channelID uint, offset, limit int) ([]*model.Message, error)
 	GetByChannelIDCursor(channelID, before uint, limit int) ([]*model.Message, error)
 	GetByUserID(userID uint, offset, limit int) ([]*model.Message, error)
+	// CountByUserInGuildsSince 回傳 userID 在指定 guildIDs 內各 guild 的訊息數量（since 之後）
+	CountByUserInGuildsSince(userID uint, guildIDs []uint, since time.Time) (map[uint]int64, error)
 }
 
 type messageRepository struct {
@@ -138,4 +141,41 @@ func (r *messageRepository) GetByUserID(userID uint, offset, limit int) ([]*mode
 		Find(&messages).Error
 
 	return messages, err
+}
+
+// CountByUserInGuildsSince 計算 userID 在各 guild 頻道內 since 之後的訊息數量
+func (r *messageRepository) CountByUserInGuildsSince(
+	userID uint,
+	guildIDs []uint,
+	since time.Time,
+) (map[uint]int64, error) {
+	if len(guildIDs) == 0 {
+		return map[uint]int64{}, nil
+	}
+
+	type row struct {
+		GuildID uint
+		Count   int64
+	}
+
+	var rows []row
+
+	err := r.db.
+		Model(&model.Message{}).
+		Select("channels.guild_id AS guild_id, COUNT(*) AS count").
+		Joins("JOIN channels ON channels.id = messages.channel_id").
+		Where("messages.user_id = ? AND channels.guild_id IN ? AND messages.created_at >= ?",
+			userID, guildIDs, since).
+		Group("channels.guild_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint]int64, len(guildIDs))
+	for _, row := range rows {
+		result[row.GuildID] = row.Count
+	}
+
+	return result, nil
 }
