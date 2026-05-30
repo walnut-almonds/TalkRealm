@@ -94,7 +94,7 @@
 ### 前端
 - [x] **多行輸入 (Shift+Enter 換行)**：input 改為 textarea，自動伸縮高度，Enter 送出 / Shift+Enter 換行
 - [x] **基礎 Markdown 渲染**：訊息顯示支援 ` ``` ` 程式碼區塊、`` ` `` 行內程式碼、`-` 列舉，以及換行顯示
-- [ ] **完整 Markdown 支援**：`**bold**`、`*italic*`、`>` blockquote、`### heading`、連結、圖片等
+- [x] **完整 Markdown 支援**：`**bold**`、`*italic*`、`>` blockquote、`### heading`、連結（可點擊 + OGP 預覽卡片）
 - [x] **使用者語言偏好 UI**：Profile 設定頁加 `preferred_lang` 選擇器（zh/ja/en），呼叫 `PATCH /api/v1/users/me`
 - [x] **「翻譯載入中」UI 狀態**：收到訊息後顯示 loading，等待 `translation_ready` WS 事件
 - [x] **依偏好語言顯示譯文**：`translation_ready` 後依 user `preferred_lang` 自動顯示對應譯文

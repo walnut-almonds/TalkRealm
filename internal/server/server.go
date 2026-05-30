@@ -378,6 +378,9 @@ func (s *Server) setupRoutes() {
 
 		// WebSocket 連線（不需要 JWT 中間件，認證由 identify op 處理）
 		v1.GET("/ws", websocket.HandleWebSocket(s.wsManager))
+
+		// Open Graph 預覽（需要認證，防止未授權爬取）
+		protected.GET("/og", handler.GetOGPreview)
 	}
 } // Router 返回 gin 路由器
 func (s *Server) Router() *gin.Engine {

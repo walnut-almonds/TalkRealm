@@ -281,6 +281,9 @@ class ApiClient {
     sendFriendRequest(username) { return this.post(EP.FRIENDS, { username }) }
     acceptFriendRequest(userId) { return this.put(EP.FRIEND_ACCEPT(userId), {}) }
     removeFriend(userId) { return this.del(EP.FRIEND_REMOVE(userId)) }
+
+    // ── OG Preview ──
+    getOGPreview(url) { return this.get(`/api/v1/og?url=${encodeURIComponent(url)}`) }
 }
 
 export const api = new ApiClient()

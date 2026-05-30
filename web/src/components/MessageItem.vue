@@ -6,6 +6,7 @@ import { useDMStore } from '@/stores/useDMStore.js'
 import { renderMarkdown } from '@/utils/markdown.js'
 import { formatTimestamp, formatFullTimestamp, formatFileSize, IMAGE_TYPES } from '@/utils/format.js'
 import { api } from '@/api/index.js'
+import LinkPreview from '@/components/LinkPreview.vue'
 
 const props = defineProps({
   message: Object,
@@ -23,7 +24,9 @@ const nickname = computed(() => user.value?.nickname || user.value?.username || 
 const avatar = computed(() => user.value?.avatar || null)
 const timestamp = computed(() => formatTimestamp(props.message.created_at))
 const fullTimestamp = computed(() => formatFullTimestamp(props.message.created_at))
-const bodyHtml = computed(() => renderMarkdown(props.message.content))
+const _rendered = computed(() => renderMarkdown(props.message.content))
+const bodyHtml = computed(() => _rendered.value.html)
+const bodyUrls = computed(() => _rendered.value.urls)
 const isCurrentUser = computed(() => store.user?.id === props.message.user_id)
 
 // ── Inline edit ───────────────────────────────────────────────
@@ -206,7 +209,10 @@ async function submitGuess() {
       </div>
 
       <!-- Normal / Edit mode -->
-      <div v-if="!isEditing" class="message-text" v-html="bodyHtml"></div>
+      <template v-if="!isEditing">
+        <div class="message-text" v-html="bodyHtml"></div>
+        <LinkPreview v-if="bodyUrls.length" :urls="bodyUrls" />
+      </template>
       <div v-else class="message-edit-box">
         <textarea
           :id="`edit-${message.id}`"
