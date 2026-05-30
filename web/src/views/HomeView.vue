@@ -577,6 +577,8 @@ function onPointerDown(e) {
         const nodeId = `guild-${gid}`
         const sn = simNodes.find(n => n.id === nodeId)
         if (sn) {
+            // Cancel any ongoing snap-back so drag starts from current visual position
+            sn.returning = false
             dragNodeId = nodeId
             dragPointerStart = { x: e.clientX, y: e.clientY }
             dragNodeStartPos = { x: sn.x, y: sn.y }
@@ -641,6 +643,13 @@ function onPointerUp() {
             const friendMatch = dragNodeId.match(/^friend-(\d+)$/)
             if (guildMatch) onGuildClick(Number(guildMatch[1]))
             else if (friendMatch) onFriendClick(Number(friendMatch[1]))
+        } else {
+            // Trigger snap-back for guild nodes
+            const guildMatch = dragNodeId.match(/^guild-(\d+)$/)
+            if (guildMatch) {
+                const sn = simNodes.find(n => n.id === dragNodeId)
+                if (sn && sn.homeX !== undefined) sn.returning = true
+            }
         }
         dragNodeId = null; dragPointerStart = null; dragNodeStartPos = null; dragNodeMoved = false
         return
@@ -728,6 +737,8 @@ function startAnimLoop() {
                 // Set base positions once when sim first converges
                 if (n.baseX === undefined) {
                     n.baseX = n.x; n.baseY = n.y
+                    // Record initial equilibrium as home for drag-return
+                    if (n.type === 'guild') { n.homeX = n.baseX; n.homeY = n.baseY }
                     if (n.type === 'member') {
                         const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
                         // Use gn.baseX (not gn.x) so offset is clean, without guild noise baked in
@@ -744,7 +755,16 @@ function startAnimLoop() {
                         n.y = gn.y + (n.baseOffsetY ?? 0) + harmonicNoise(i * 3.7 + 1, now, speed) * 3
                     }
                 } else {
-                    // Guild/friend: gentle bob around fixed base position (no drift)
+                    // Guild: smoothly lerp base back toward home after drag release
+                    if (n.type === 'guild' && n.returning && n.homeX !== undefined) {
+                        n.baseX += (n.homeX - n.baseX) * 0.025
+                        n.baseY += (n.homeY - n.baseY) * 0.025
+                        if (Math.hypot(n.homeX - n.baseX, n.homeY - n.baseY) < 0.5) {
+                            n.baseX = n.homeX; n.baseY = n.homeY
+                            n.returning = false
+                        }
+                    }
+                    // Guild/friend: gentle bob around base position
                     const amp = n.type === 'guild' ? 9 : 5
                     n.x = n.baseX + harmonicNoise(i * 3.7 + 0, now, speed) * amp
                     n.y = n.baseY + harmonicNoise(i * 3.7 + 1, now, speed) * amp
@@ -1113,6 +1133,29 @@ watch(
                     :opacity="p.opacity"
                 />
 
+                <!-- Focus halos (below members so they don't block small nodes) -->
+                <g v-for="[gid, node] in guildNodeMap" :key="`fh-${gid}`" style="pointer-events:none">
+                    <circle
+                        v-if="focusedNodeId === `guild-${gid}`"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 55"
+                        :fill="guildPalette(gid).hex"
+                        opacity="0.035"
+                        style="filter: blur(18px)"
+                        class="sg-focus-halo"
+                    />
+                    <circle
+                        v-if="focusedNodeId === `guild-${gid}`"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 28"
+                        fill="none"
+                        :stroke="guildPalette(gid).hex"
+                        stroke-opacity="0.10"
+                        stroke-width="1"
+                        class="sg-focus-halo-ring"
+                    />
+                </g>
+
                 <!-- Member nodes -->
                 <g v-for="n in memberNodes" :key="n.id" class="sg-member-node">
                     <circle :cx="n.x" :cy="n.y" r="11" fill="#12102a" stroke="rgba(139,92,246,0.35)" stroke-width="1" />
@@ -1250,26 +1293,6 @@ watch(
                         :stroke="guildPalette(gid).hex"
                         stroke-width="3"
                         class="sg-msg-flash"
-                    />
-                    <!-- Focus halo (soft glow when this guild is focused) -->
-                    <circle
-                        v-if="focusedNodeId === `guild-${gid}`"
-                        :cx="node.x" :cy="node.y"
-                        :r="guildNodeRadius(gid) + 55"
-                        :fill="guildPalette(gid).hex"
-                        opacity="0.07"
-                        style="filter: blur(14px)"
-                        class="sg-focus-halo"
-                    />
-                    <circle
-                        v-if="focusedNodeId === `guild-${gid}`"
-                        :cx="node.x" :cy="node.y"
-                        :r="guildNodeRadius(gid) + 28"
-                        fill="none"
-                        :stroke="guildPalette(gid).hex"
-                        stroke-opacity="0.25"
-                        stroke-width="1"
-                        class="sg-focus-halo-ring"
                     />
                     <circle
                         :cx="node.x" :cy="node.y"
