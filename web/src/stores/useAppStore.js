@@ -200,7 +200,11 @@ export const useAppStore = defineStore('app', () => {
     function handleMentionCreate(data) {
         if (!data?.channel_id) return
         const cur = channelUnreadMap.get(data.channel_id) || { unread: 0, mention: 0 }
-        channelUnreadMap.set(data.channel_id, { ...cur, mention: cur.mention + 1 })
+        // 提及的訊息也算未讀，確保 unread >= mention
+        channelUnreadMap.set(data.channel_id, {
+            unread: Math.max(cur.unread, cur.mention + 1),
+            mention: cur.mention + 1,
+        })
         const gid = channelGuildMap.get(data.channel_id) || data.guild_id
         if (gid) unreadGuildIds.add(gid)
         // 顯示桌面通知
@@ -228,11 +232,8 @@ export const useAppStore = defineStore('app', () => {
 
             // Populate channelId→guildId map for unread tracking
             channels.value.forEach(c => { if (c.guild_id) channelGuildMap.set(c.id, c.guild_id) })
-            // Clear unread for this guild (channel level too)
+            // 進入 guild 時只移除 guild 層級的未讀點（sidebar badge 保留，進入頻道時才各別清除）
             unreadGuildIds.delete(guildId)
-            channels.value.forEach(c => {
-                if (c.guild_id === guildId) channelUnreadMap.delete(c.id)
-            })
 
             userCache.clear()
             members.value.forEach(m => { if (m.user) cacheUser(m.user) })
@@ -293,10 +294,10 @@ export const useAppStore = defineStore('app', () => {
             if (currentGuild.value) {
                 guildLastChannel.set(currentGuild.value.id, channelId)
             }
-            // ACK: 標記已讀
+            // ACK: 標記已讀（無論是否有訊息都清除前端 badge）
+            channelUnreadMap.delete(channelId)
             const lastMsg = messages.value[messages.value.length - 1]
             if (lastMsg?.id) {
-                channelUnreadMap.delete(channelId)
                 api.ackChannel(channelId, lastMsg.id).catch(() => { })
             }
         } catch (e) {

@@ -61,6 +61,12 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-30 — 修復未讀 & Mention 系統「完全不顯示」的根本原因：
+- **根本原因**：`useAppStore.js` 的 `selectGuild()` 在 `loadUnreadState()` 之後執行，其中包含 `channels.value.forEach(c => channelUnreadMap.delete(c.id))` 迴圈，導致所有載入的未讀計數被立即清除。
+- **修正**：移除 `selectGuild` 中對 `channelUnreadMap` 的清除迴圈；只保留 `unreadGuildIds.delete(guildId)`（移除 guild 層級的點）。頻道層級的 badge 只有在使用者點入該頻道時（`selectChannel`）才清除。
+- **`selectChannel` ACK 改善**：`channelUnreadMap.delete(channelId)` 移到 `if (lastMsg?.id)` 判斷外（進入頻道就立即清除 badge，不論是否有訊息）；ACK API 呼叫仍需 `lastMsg?.id`。
+- **`handleMentionCreate` 修正**：mention 到達時同時確保 `unread >= mention`（`Math.max(cur.unread, cur.mention + 1)`），避免 mention 有數字但 unread 為 0 的矛盾狀態。
+- **陷阱**：`selectGuild` 中的清除迴圈是「假修復」——看起來像清理，實際上破壞了 startup 載入的未讀狀態。未來若要「進入 guild 即標記全部已讀」，應先呼叫後端批量 ACK API，再清除前端 map。
 2026-05-30 — 未讀 & Mention 系統完整實裝（make check 通過）：
 - **後端**：`model.ChannelReadState`/`model.MessageMention` + AutoMigrate；`ChannelReadStateRepository`/`MessageMentionRepository` 完整 CRUD；`UnreadService`（AckChannel/GetChannelUnread/GetAllUnread）；`UnreadHandler`（GET /me/unread、GET /channels/:id/unread、POST /channels/:id/ack）
 - **`@here` 線上過濾**：`WebSocketManager` interface 新增 `IsUserOnline(userID uint) bool`；`parseMentions` 在 `hasHere` 時跳過離線成員
