@@ -496,6 +496,83 @@ select {
     opacity: 0;
 }
 
+/* ── @ Mention dropdown ──────────────────────────────────── */
+.mention-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color, #3f4148);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    margin-bottom: 4px;
+}
+
+.mention-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.mention-item:hover,
+.mention-item-selected {
+    background: var(--hover-bg);
+}
+
+.mention-item-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.mention-item-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ── Unread / Mention badges ─────────────────────────────── */
+/* Red number badge for @mentions */
+.badge-mention {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    background: var(--danger, #ed4245);
+    color: #fff;
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* Grey dot for unread (no mention) */
+.badge-unread {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-secondary, #96989d);
+    flex-shrink: 0;
+}
+
+/* White dot on guild icon for unread guilds */
+.guild-unread-dot {
+    position: absolute;
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 8px;
+    background: #fff;
+    border-radius: 0 3px 3px 0;
+}
+
 /* ── Channels Sidebar ────────────────────────────────────── */
 .channels-sidebar {
     width: 240px;
@@ -1428,6 +1505,31 @@ select {
     opacity: 0.6;
 }
 
+/* Highlight row when current user is mentioned */
+.message--mentioned {
+    background: rgba(250, 168, 26, 0.08);
+    border-left: 3px solid #faa81a;
+    padding-left: 5px;
+    margin-left: -8px;
+}
+
+/* @mention chip inside message text */
+.mention-chip {
+    display: inline-block;
+    padding: 0 4px;
+    background: rgba(88, 101, 242, 0.25);
+    color: #7289da;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.95em;
+    cursor: default;
+}
+
+.mention-chip.mention-broadcast {
+    background: rgba(237, 66, 69, 0.2);
+    color: #ed4245;
+}
+
 .message+.message {
     margin-top: 0;
 }
@@ -1904,6 +2006,7 @@ select {
 .message-input-container {
     padding: 0 16px 16px;
     flex-shrink: 0;
+    position: relative;
 }
 
 .file-preview-area {

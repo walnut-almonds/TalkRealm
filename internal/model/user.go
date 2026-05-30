@@ -158,6 +158,28 @@ type RefreshToken struct {
 	CreatedAt time.Time `                            json:"created_at"`
 }
 
+// ChannelReadState 記錄每個使用者在每個頻道的已讀位置
+type ChannelReadState struct {
+	ID                uint      `gorm:"primarykey"                                       json:"id"`
+	UserID            uint      `gorm:"not null;uniqueIndex:idx_read_state_user_channel" json:"user_id"`
+	User              User      `gorm:"foreignKey:UserID"                                json:"-"`
+	ChannelID         uint      `gorm:"not null;uniqueIndex:idx_read_state_user_channel" json:"channel_id"`
+	Channel           Channel   `gorm:"foreignKey:ChannelID"                             json:"-"`
+	LastReadMessageID uint      `gorm:"default:0"                                        json:"last_read_message_id"`
+	UpdatedAt         time.Time `                                                        json:"updated_at"`
+}
+
+// MessageMention 記錄訊息中的 @提及
+type MessageMention struct {
+	ID          uint      `gorm:"primarykey"                         json:"id"`
+	MessageID   uint      `gorm:"not null;index:idx_mention_message" json:"message_id"`
+	Message     Message   `gorm:"foreignKey:MessageID"               json:"-"`
+	UserID      uint      `gorm:"not null;index:idx_mention_user"    json:"user_id"`
+	User        User      `gorm:"foreignKey:UserID"                  json:"user,omitempty"`
+	MentionType string    `gorm:"not null;default:'user'"            json:"mention_type"` // user, here, everyone
+	CreatedAt   time.Time `                                          json:"created_at"`
+}
+
 // MessageTranslation 訊息翻譯結果（多語全存，migration-friendly：每筆訊息一列，未來可直接遷至 Cassandra）
 // 新增語言步驟：加欄位 → 更新 service.targetLangs → 執行 DB migration
 type MessageTranslation struct {

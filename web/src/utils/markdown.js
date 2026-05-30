@@ -4,6 +4,24 @@ const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g
 // Extensions that are direct media/document files — skip OGP for these.
 const MEDIA_EXT_RE = /\.(jpe?g|png|gif|webp|svg|avif|bmp|ico|mp4|webm|mov|avi|mp3|wav|ogg|pdf|zip|tar|gz|dmg|exe|apk|docx?|xlsx?|pptx?)\b/i
 
+// Mention regex: <@123>
+const USER_MENTION_RE = /&lt;@(\d+)&gt;/g
+// @here / @everyone
+const BROADCAST_MENTION_RE = /@(here|everyone)\b/g
+
+// User resolver — set by caller (e.g. store.resolveMessageUser or a simple cache)
+let _resolveUsername = null
+export function setMentionResolver(fn) { _resolveUsername = fn }
+
+/** resolveUsername: given a userId (number), return display name or fallback */
+function resolveName(userId) {
+    if (_resolveUsername) {
+        const u = _resolveUsername({ user_id: userId })
+        if (u) return u.nickname || u.username
+    }
+    return `<@${userId}>`
+}
+
 /**
  * renderMarkdown converts a subset of Markdown to safe HTML.
  * Returns { html: string, urls: string[] } where urls is the
@@ -89,6 +107,15 @@ function applyInline(escaped, urlSet) {
     escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     escaped = escaped.replace(/\*(.+?)\*/g, '<em>$1</em>')
     escaped = escaped.replace(/`([^`\n]+)`/g, '<code class="md-inline-code">$1</code>')
+
+    // @mention chips — render after escapeHtml so &lt; is the token marker
+    escaped = escaped.replace(USER_MENTION_RE, (_, uid) => {
+        const name = resolveName(Number(uid))
+        return `<span class="mention-chip">@${escapeHtml(name)}</span>`
+    })
+    escaped = escaped.replace(BROADCAST_MENTION_RE, (_, kw) => {
+        return `<span class="mention-chip mention-broadcast">@${kw}</span>`
+    })
 
     // URLs — convert to <a> links and record for OGP preview.
     // We need to work on the original (pre-escape) URL text, but since

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useWebSocket } from '@/composables/useWebSocket.js'
 import { useFileUpload } from '@/composables/useFileUpload.js'
@@ -17,12 +17,81 @@ let dragCounter = 0
 
 // typing throttle
 let typingTimeout = null
+
+// ── @ mention autocomplete ────────────────────────────────
+const mentionQuery = ref('')   // text after @
+const mentionActive = ref(false)
+let mentionStartIndex = -1     // caret position when @ was typed
+const mentionSelectedIdx = ref(0)
+
+const SPECIAL_MENTIONS = [
+  { id: '@here',     label: '@here',     desc: '通知此頻道線上的成員' },
+  { id: '@everyone', label: '@everyone', desc: '通知此社群所有成員' },
+]
+
+const mentionCandidates = computed(() => {
+  const q = mentionQuery.value.toLowerCase()
+  const special = SPECIAL_MENTIONS.filter(s => s.label.toLowerCase().includes(q))
+  const memberList = store.members
+    .filter(m => {
+      if (m.user_id === store.user?.id) return false
+      const name = (m.user?.nickname || m.user?.username || '').toLowerCase()
+      return name.includes(q)
+    })
+    .slice(0, 8)
+    .map(m => ({
+      id: m.user_id,
+      label: `@${m.user?.nickname || m.user?.username}`,
+      desc: m.user?.username || '',
+    }))
+  return [...special, ...memberList].slice(0, 10)
+})
+
 function onInput() {
   autoResize()
+  detectMention()
   if (!typingTimeout && store.currentChannel) {
     ws.sendTyping(store.currentChannel.id)
     typingTimeout = setTimeout(() => { typingTimeout = null }, 3000)
   }
+}
+
+function detectMention() {
+  const el = input.value
+  if (!el) return
+  const text = content.value
+  const caret = el.selectionStart
+  // find last @ before caret
+  const before = text.slice(0, caret)
+  const atIdx = before.lastIndexOf('@')
+  if (atIdx === -1) { mentionActive.value = false; return }
+  // make sure no space between @ and caret
+  const query = before.slice(atIdx + 1)
+  if (/\s/.test(query)) { mentionActive.value = false; return }
+  mentionStartIndex = atIdx
+  mentionQuery.value = query
+  mentionActive.value = true
+  mentionSelectedIdx.value = 0
+}
+
+function pickMention(candidate) {
+  const text = content.value
+  const before = text.slice(0, mentionStartIndex)
+  const after = text.slice(mentionStartIndex + 1 + mentionQuery.value.length)
+  let insertion
+  if (typeof candidate.id === 'number') {
+    insertion = `<@${candidate.id}> `
+  } else {
+    // @here / @everyone
+    insertion = `${candidate.id} `
+  }
+  content.value = before + insertion + after
+  mentionActive.value = false
+  nextTick(() => {
+    const pos = before.length + insertion.length
+    input.value?.setSelectionRange(pos, pos)
+    input.value?.focus()
+  })
 }
 
 function autoResize() {
@@ -78,6 +147,12 @@ async function send() {
 }
 
 function onKeydown(e) {
+  if (mentionActive.value && mentionCandidates.value.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); mentionSelectedIdx.value = (mentionSelectedIdx.value + 1) % mentionCandidates.value.length; return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); mentionSelectedIdx.value = (mentionSelectedIdx.value - 1 + mentionCandidates.value.length) % mentionCandidates.value.length; return }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(mentionCandidates.value[mentionSelectedIdx.value]); return }
+    if (e.key === 'Escape') { mentionActive.value = false; return }
+  }
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     send()
@@ -147,6 +222,19 @@ async function onDrop(e) {
         <button v-if="chip.done" class="chip-remove" @click="removeChip(chip.id, chip.fileId)">
           <i class="fas fa-times"></i>
         </button>
+      </div>
+    </div>
+
+    <!-- @ Mention dropdown -->
+    <div v-if="mentionActive && mentionCandidates.length" class="mention-dropdown">
+      <div
+        v-for="(c, i) in mentionCandidates"
+        :key="c.id"
+        :class="['mention-item', { 'mention-item-selected': i === mentionSelectedIdx }]"
+        @mousedown.prevent="pickMention(c)"
+      >
+        <span class="mention-item-label">{{ c.label }}</span>
+        <span class="mention-item-desc">{{ c.desc }}</span>
       </div>
     </div>
 

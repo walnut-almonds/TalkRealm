@@ -51,6 +51,17 @@ async function selectChannel(channel) {
           >
             <i class="fas fa-hashtag"></i>
             <span>{{ ch.name }}</span>
+            <!-- Unread badge: mention (red number) or unread dot (grey) -->
+            <template v-if="store.currentChannel?.id !== ch.id">
+              <span
+                v-if="(store.channelUnreadMap.get(ch.id)?.mention ?? 0) > 0"
+                class="badge-mention"
+              >{{ store.channelUnreadMap.get(ch.id).mention }}</span>
+              <span
+                v-else-if="(store.channelUnreadMap.get(ch.id)?.unread ?? 0) > 0"
+                class="badge-unread"
+              ></span>
+            </template>
           </div>
         </div>
       </div>

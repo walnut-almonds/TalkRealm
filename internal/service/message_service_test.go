@@ -28,7 +28,7 @@ func TestMessageService_CreateMessage_Success(t *testing.T) {
 		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) { return member, nil },
 	}
 
-	svc := service.NewMessageService(mockMsg, mockCh, mockMember)
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
 
 	result, err := svc.CreateMessage(
 		5,
@@ -43,6 +43,7 @@ func TestMessageService_CreateMessage_EmptyContent(t *testing.T) {
 		&testutil.MockMessageRepository{},
 		&testutil.MockChannelRepository{},
 		&testutil.MockGuildMemberRepository{},
+		nil,
 	)
 
 	_, err := svc.CreateMessage(1, &service.CreateMessageRequest{ChannelID: 1, Content: ""})
@@ -54,6 +55,7 @@ func TestMessageService_CreateMessage_InvalidType(t *testing.T) {
 		&testutil.MockMessageRepository{},
 		&testutil.MockChannelRepository{},
 		&testutil.MockGuildMemberRepository{},
+		nil,
 	)
 
 	_, err := svc.CreateMessage(
@@ -71,6 +73,7 @@ func TestMessageService_CreateMessage_ChannelNotFound(t *testing.T) {
 		&testutil.MockMessageRepository{},
 		mockCh,
 		&testutil.MockGuildMemberRepository{},
+		nil,
 	)
 
 	_, err := svc.CreateMessage(1, &service.CreateMessageRequest{ChannelID: 99, Content: "hi"})
@@ -85,7 +88,7 @@ func TestMessageService_CreateMessage_NotMember(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberRepository{
 		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) { return nil, errors.New("not found") },
 	}
-	svc := service.NewMessageService(&testutil.MockMessageRepository{}, mockCh, mockMember)
+	svc := service.NewMessageService(&testutil.MockMessageRepository{}, mockCh, mockMember, nil)
 
 	_, err := svc.CreateMessage(99, &service.CreateMessageRequest{ChannelID: 1, Content: "hi"})
 	assert.ErrorIs(t, err, service.ErrNotChannelMemberMsg)
@@ -108,7 +111,7 @@ func TestMessageService_CreateMessage_WithWSManager(t *testing.T) {
 		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) { return member, nil },
 	}
 
-	svc := service.NewMessageService(mockMsg, mockCh, mockMember)
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
 	svc.SetWebSocketManager(&mockWSManager{
 		broadcastFn: func(channelID uint, msgType string, data any) { broadcastCalled = true },
 	})
@@ -132,7 +135,7 @@ func TestMessageService_GetMessage_Success(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberRepository{
 		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) { return member, nil },
 	}
-	svc := service.NewMessageService(mockMsg, mockCh, mockMember)
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
 
 	got, err := svc.GetMessage(1, 5)
 	require.NoError(t, err)
@@ -147,6 +150,7 @@ func TestMessageService_GetMessage_NotFound(t *testing.T) {
 		mockMsg,
 		&testutil.MockChannelRepository{},
 		&testutil.MockGuildMemberRepository{},
+		nil,
 	)
 
 	_, err := svc.GetMessage(999, 1)
@@ -169,7 +173,7 @@ func TestMessageService_ListChannelMessages_Success(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberRepository{
 		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) { return member, nil },
 	}
-	svc := service.NewMessageService(mockMsg, mockCh, mockMember)
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
 
 	resp, err := svc.ListChannelMessages(1, 1, 50, 0)
 	require.NoError(t, err)
@@ -188,6 +192,7 @@ func TestMessageService_UpdateMessage_Success(t *testing.T) {
 		mockMsg,
 		&testutil.MockChannelRepository{},
 		&testutil.MockGuildMemberRepository{},
+		nil,
 	)
 
 	got, err := svc.UpdateMessage(1, 5, &service.UpdateMessageRequest{Content: "new content"})
@@ -205,6 +210,7 @@ func TestMessageService_UpdateMessage_NotOwner(t *testing.T) {
 		mockMsg,
 		&testutil.MockChannelRepository{},
 		&testutil.MockGuildMemberRepository{},
+		nil,
 	)
 
 	_, err := svc.UpdateMessage(1, 5, &service.UpdateMessageRequest{Content: "new"})
@@ -227,7 +233,7 @@ func TestMessageService_DeleteMessage_Success(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberRepository{
 		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) { return member, nil },
 	}
-	svc := service.NewMessageService(mockMsg, mockCh, mockMember)
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
 
 	err := svc.DeleteMessage(1, 5)
 	require.NoError(t, err)
@@ -248,7 +254,7 @@ func TestMessageService_DeleteMessage_NotOwnerAndNotAdmin(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberRepository{
 		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) { return member, nil },
 	}
-	svc := service.NewMessageService(mockMsg, mockCh, mockMember)
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
 
 	err := svc.DeleteMessage(1, 5)
 	assert.ErrorIs(t, err, service.ErrNotMessageOwner)
@@ -259,11 +265,18 @@ func TestMessageService_DeleteMessage_NotOwnerAndNotAdmin(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 type mockWSManager struct {
-	broadcastFn func(channelID uint, msgType string, data any)
+	broadcastFn     func(channelID uint, msgType string, data any)
+	broadcastUserFn func(userID uint, msgType string, data any)
 }
 
 func (m *mockWSManager) BroadcastToChannel(channelID uint, msgType string, data any) {
 	if m.broadcastFn != nil {
 		m.broadcastFn(channelID, msgType, data)
+	}
+}
+
+func (m *mockWSManager) BroadcastToUser(userID uint, msgType string, data any) {
+	if m.broadcastUserFn != nil {
+		m.broadcastUserFn(userID, msgType, data)
 	}
 }

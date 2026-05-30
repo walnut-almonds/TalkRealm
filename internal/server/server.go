@@ -39,6 +39,7 @@ type Server struct {
 	interactionHandler *handler.InteractionHandler
 	rdb                *goredis.Client
 	guildMemberRepo    repository.GuildMemberRepository
+	unreadHandler      *handler.UnreadHandler
 }
 
 // New 創建新的伺服器實例
@@ -79,6 +80,8 @@ func New(cfg *config.Config) (*Server, error) {
 	messageRepo := repository.NewMessageRepository(db)
 	guildInviteRepo := repository.NewGuildInviteRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
+	channelReadStateRepo := repository.NewChannelReadStateRepository(db)
+	messageMentionRepo := repository.NewMessageMentionRepository(db)
 	oauthProviderRepo := repository.NewOAuthProviderRepository(db)
 
 	// 初始化 WebSocket 管理器（傳入 jwtManager，用於 identify op 驗證）
@@ -98,7 +101,12 @@ func New(cfg *config.Config) (*Server, error) {
 	guildMemberService := service.NewGuildMemberService(guildRepo, guildMemberRepo)
 	guildInviteService := service.NewGuildInviteService(guildInviteRepo, guildRepo, guildMemberRepo)
 	channelService := service.NewChannelService(channelRepo, guildRepo, guildMemberRepo)
-	messageService := service.NewMessageService(messageRepo, channelRepo, guildMemberRepo)
+	messageService := service.NewMessageService(
+		messageRepo,
+		channelRepo,
+		guildMemberRepo,
+		messageMentionRepo,
+	)
 
 	// DM 服務
 	dmService := service.NewDMService(channelRepo, userRepo)
@@ -156,6 +164,10 @@ func New(cfg *config.Config) (*Server, error) {
 	friendSvc.SetNotifier(wsManager)
 	friendHandler := handler.NewFriendHandler(friendSvc)
 
+	// 未讀服務
+	unreadService := service.NewUnreadService(channelReadStateRepo)
+	unreadHandler := handler.NewUnreadHandler(unreadService)
+
 	// 互動統計 Handler
 	interactionHandler := handler.NewInteractionHandler(messageRepo, guildMemberRepo)
 
@@ -177,6 +189,7 @@ func New(cfg *config.Config) (*Server, error) {
 		dmHandler:          dmHandler,
 		friendHandler:      friendHandler,
 		interactionHandler: interactionHandler,
+		unreadHandler:      unreadHandler,
 	}
 
 	// 設定路由
@@ -246,6 +259,7 @@ func (s *Server) setupRoutes() {
 				users.PATCH("/me", s.userHandler.UpdateCurrentUser)
 				users.GET("/search", s.userHandler.SearchUsers)
 				users.GET("/me/interaction-stats", s.interactionHandler.GetInteractionStats)
+				users.GET("/me/unread", s.unreadHandler.GetAllUnread)
 			}
 
 			// 好友相關
@@ -320,6 +334,8 @@ func (s *Server) setupRoutes() {
 				// 語音 Token（LiveKit）
 				channels.GET("/:id/voice/token", s.voiceHandler.GetVoiceToken)
 				channels.GET("/:id/voice/participants", s.voiceHandler.GetVoiceParticipants)
+				channels.GET("/:id/unread", s.unreadHandler.GetChannelUnread)
+				channels.POST("/:id/ack", s.unreadHandler.AckChannel)
 			}
 
 			// 訊息相關

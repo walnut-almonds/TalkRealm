@@ -76,6 +76,11 @@ function openDM() {
           <span v-else class="guild-initial">{{ guild.name.charAt(0).toUpperCase() }}</span>
           <!-- Active indicator pip -->
           <span v-if="store.currentGuild?.id === guild.id" class="guild-pip"></span>
+          <!-- Unread badge (dot when unread; not shown when guild is active) -->
+          <span
+            v-else-if="store.unreadGuildIds.has(guild.id)"
+            class="guild-unread-dot"
+          ></span>
         </button>
         <button class="nav-guild-btn add" title="建立社群" @click="emit('create-guild')">
           <i class="fas fa-plus"></i>

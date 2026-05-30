@@ -26,6 +26,9 @@ export const useAppStore = defineStore('app', () => {
     // channelId → guildId map (populated when guild channels are loaded)
     const channelGuildMap = new Map()
 
+    // channelId → { unread: Number, mention: Number }
+    const channelUnreadMap = reactive(new Map())
+
     // Translation cache: messageId → { original_lang, translations: {zh, ja, en} }
     const translationCache = reactive(new Map())
     // messageIds whose translation is in-flight (show loading indicator)
@@ -147,6 +150,9 @@ export const useAppStore = defineStore('app', () => {
             cacheUser(res.user)
             await loadGuilds()
 
+            // 啟動時載入未讀狀態（含 channelGuildMap 補全）
+            await loadUnreadState()
+
             const lastGuildId = localStorage.getItem(STORAGE_KEYS.LAST_GUILD)
             if (lastGuildId) {
                 const g = guilds.value.find(g => g.id === parseInt(lastGuildId))
@@ -174,6 +180,33 @@ export const useAppStore = defineStore('app', () => {
         messages.value = []
     }
 
+    // ── Unread ───────────────────────────────────────────────────
+    async function loadUnreadState() {
+        try {
+            const counts = await api.getAllUnread()
+            if (!Array.isArray(counts)) return
+            counts.forEach(item => {
+                const { channel_id, guild_id, unread_count, mention_count } = item
+                channelUnreadMap.set(channel_id, { unread: unread_count, mention: mention_count })
+                // 補全 channelGuildMap（解決 unvisited guild 的 channelId 找不到問題）
+                if (guild_id) channelGuildMap.set(channel_id, guild_id)
+                if (unread_count > 0 && guild_id) unreadGuildIds.add(guild_id)
+            })
+        } catch (e) {
+            console.warn('loadUnreadState failed', e)
+        }
+    }
+
+    function handleMentionCreate(data) {
+        if (!data?.channel_id) return
+        const cur = channelUnreadMap.get(data.channel_id) || { unread: 0, mention: 0 }
+        channelUnreadMap.set(data.channel_id, { ...cur, mention: cur.mention + 1 })
+        const gid = channelGuildMap.get(data.channel_id) || data.guild_id
+        if (gid) unreadGuildIds.add(gid)
+        // 顯示桌面通知
+        showNotification(`${data.author || '有人'} 提及了你`, 'info')
+    }
+
     // ── Guild ────────────────────────────────────────────────────
     async function loadGuilds() {
         const res = await api.getMyGuilds()
@@ -195,8 +228,11 @@ export const useAppStore = defineStore('app', () => {
 
             // Populate channelId→guildId map for unread tracking
             channels.value.forEach(c => { if (c.guild_id) channelGuildMap.set(c.id, c.guild_id) })
-            // Clear unread for this guild
+            // Clear unread for this guild (channel level too)
             unreadGuildIds.delete(guildId)
+            channels.value.forEach(c => {
+                if (c.guild_id === guildId) channelUnreadMap.delete(c.id)
+            })
 
             userCache.clear()
             members.value.forEach(m => { if (m.user) cacheUser(m.user) })
@@ -257,6 +293,12 @@ export const useAppStore = defineStore('app', () => {
             if (currentGuild.value) {
                 guildLastChannel.set(currentGuild.value.id, channelId)
             }
+            // ACK: 標記已讀
+            const lastMsg = messages.value[messages.value.length - 1]
+            if (lastMsg?.id) {
+                channelUnreadMap.delete(channelId)
+                api.ackChannel(channelId, lastMsg.id).catch(() => { })
+            }
         } catch (e) {
             console.error('selectChannel failed', e)
             showNotification('載入頻道失敗', 'error')
@@ -290,7 +332,12 @@ export const useAppStore = defineStore('app', () => {
             if (gid && (!currentGuild.value || currentGuild.value.id !== gid)) {
                 unreadGuildIds.add(gid)
             }
-            if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) return
+            // Increment channel-level unread counter
+            if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) {
+                const cur = channelUnreadMap.get(msg.channel_id) || { unread: 0, mention: 0 }
+                channelUnreadMap.set(msg.channel_id, { ...cur, unread: cur.unread + 1 })
+                return
+            }
         }
         if (msg.nonce) {
             const idx = messages.value.findIndex(m => m.nonce === msg.nonce && m._pending)
@@ -415,7 +462,7 @@ export const useAppStore = defineStore('app', () => {
         user, guilds, currentGuild, channels, currentChannel,
         members, messages, isLoading, notification, pendingFileIds,
         lightboxUrl, typingUsers, typingList,
-        translationCache, translationLoadingSet, onlineUserIds, unreadGuildIds,
+        translationCache, translationLoadingSet, onlineUserIds, unreadGuildIds, channelUnreadMap,
         // computed
         textChannels, voiceChannels, isAuthenticated, currentUserRole,
         // methods
@@ -424,7 +471,7 @@ export const useAppStore = defineStore('app', () => {
         selectChannel, loadMessages,
         handleNewMessage, handleMessageUpdate, handleMessageDelete,
         handleTyping, handleUserStatus,
-        handleTranslationReady,
+        handleTranslationReady, handleMentionCreate,
         handleGuildUpdate, handleGuildDelete,
         handleChannelCreate, handleChannelUpdate, handleChannelDelete,
         handleMemberAdd, handleMemberRemove, handleMemberUpdate,

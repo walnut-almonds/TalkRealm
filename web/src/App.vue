@@ -33,6 +33,7 @@ ws.onMessage((type, data) => {
     case 'member_update':      store.handleMemberUpdate(data); break
     case 'voice_state_update': voice.handleVoiceStateUpdate(data); break
     case 'translation_ready':   store.handleTranslationReady(data); break
+    case 'mention_create':      store.handleMentionCreate(data); break
     case 'friend_request':     friendStore.onFriendRequest(data); break
     case 'friend_accept':      friendStore.onFriendAccept(data); break
     case 'friend_reject':      friendStore.onFriendReject(data); break

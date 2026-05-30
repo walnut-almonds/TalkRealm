@@ -133,6 +133,7 @@ function createWebSocketManager() {
             case 'guild_member_update': notify('member_update', msg.d); break
             case 'voice_state_update': notify('voice_state_update', msg.d); break
             case 'translation_ready': notify('translation_ready', msg.d); break
+            case 'mention_create': notify('mention_create', msg.d); break
             case 'friend_request': notify('friend_request', msg.d); break
             case 'friend_accept': notify('friend_accept', msg.d); break
             case 'friend_reject': notify('friend_reject', msg.d); break

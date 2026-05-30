@@ -2,6 +2,9 @@ package service
 
 import (
 	"errors"
+	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
@@ -27,7 +30,21 @@ var (
 // WebSocketManager 定義 WebSocket 管理器的介面（避免循環依賴）
 type WebSocketManager interface {
 	BroadcastToChannel(channelID uint, msgType string, data any)
+	BroadcastToUser(userID uint, msgType string, data any)
 }
+
+// MentionNotifier 通知被 @ 提及的使用者（WS push）
+type MentionCreatePayload struct {
+	MessageID uint   `json:"message_id"`
+	ChannelID uint   `json:"channel_id"`
+	GuildID   *uint  `json:"guild_id"`
+	AuthorID  uint   `json:"author_id"`
+	Author    string `json:"author"`
+	Content   string `json:"content"`
+}
+
+// mentionRe 解析 <@123> 格式的 user mention
+var mentionRe = regexp.MustCompile(`<@(\d+)>`)
 
 // MessageService 訊息服務介面
 type MessageService interface {
@@ -55,6 +72,7 @@ type messageService struct {
 	messageRepo        repository.MessageRepository
 	channelRepo        repository.ChannelRepository
 	guildMemberRepo    repository.GuildMemberRepository
+	mentionRepo        repository.MessageMentionRepository
 	wsManager          WebSocketManager
 	fileService        FileService        // 可選，用於建立附件關聯
 	translationService TranslationService // 可選，用於非同步翻譯
@@ -65,11 +83,13 @@ func NewMessageService(
 	messageRepo repository.MessageRepository,
 	channelRepo repository.ChannelRepository,
 	guildMemberRepo repository.GuildMemberRepository,
+	mentionRepo repository.MessageMentionRepository,
 ) MessageService {
 	return &messageService{
 		messageRepo:     messageRepo,
 		channelRepo:     channelRepo,
 		guildMemberRepo: guildMemberRepo,
+		mentionRepo:     mentionRepo,
 		wsManager:       nil,
 		fileService:     nil, // 稍後透過 SetFileService 設定
 	}
@@ -181,6 +201,11 @@ func (s *messageService) CreateMessage(
 	// 如果有 WebSocket 管理器，即時推送新訊息
 	if s.wsManager != nil {
 		s.wsManager.BroadcastToChannel(req.ChannelID, "message_create", fullMessage)
+	}
+
+	// 非同步解析 mention 並推送通知（不阻塞訊息回傳）
+	if s.mentionRepo != nil {
+		go s.processMentions(fullMessage, channel)
 	}
 
 	// 非同步翻譯（僅 text 類型）
@@ -441,4 +466,115 @@ func (s *messageService) DeleteMessage(messageID, userID uint) error {
 	}
 
 	return nil
+}
+
+// processMentions 解析訊息內容中的 @提及，儲存到 DB 並透過 WS 推送 mention_create 事件
+// 此函數在 goroutine 中執行，錯誤僅記錄 log，不影響訊息主流程
+func (s *messageService) processMentions(msg *model.Message, channel *model.Channel) {
+	mentions := s.parseMentions(msg, channel)
+	if len(mentions) == 0 {
+		return
+	}
+
+	if err := s.mentionRepo.BulkCreate(mentions); err != nil {
+		return
+	}
+
+	if s.wsManager == nil {
+		return
+	}
+
+	// 對每個被提及的使用者推送 mention_create 事件（去重）
+	seen := make(map[uint]bool)
+
+	authorName := msg.User.Nickname
+	if authorName == "" {
+		authorName = msg.User.Username
+	}
+
+	payload := MentionCreatePayload{
+		MessageID: msg.ID,
+		ChannelID: msg.ChannelID,
+		GuildID:   channel.GuildID,
+		AuthorID:  msg.UserID,
+		Author:    authorName,
+		Content:   msg.Content,
+	}
+
+	for _, m := range mentions {
+		if m.UserID == msg.UserID || seen[m.UserID] {
+			continue // 不通知自己，也不重複推送
+		}
+
+		seen[m.UserID] = true
+		s.wsManager.BroadcastToUser(m.UserID, "mention_create", payload)
+	}
+}
+
+// parseMentions 從訊息內容中解析出所有被提及的使用者（含 @here / @everyone 展開）
+func (s *messageService) parseMentions(
+	msg *model.Message,
+	channel *model.Channel,
+) []*model.MessageMention {
+	content := msg.Content
+
+	var mentions []*model.MessageMention
+
+	// 解析 <@123> 格式
+	matches := mentionRe.FindAllStringSubmatch(content, -1)
+	for _, m := range matches {
+		uid, err := strconv.ParseUint(m[1], 10, 64)
+		if err != nil {
+			continue
+		}
+
+		mentions = append(mentions, &model.MessageMention{
+			MessageID:   msg.ID,
+			UserID:      uint(uid),
+			MentionType: "user",
+		})
+	}
+
+	// 解析 @here 和 @everyone（僅 guild 頻道）
+	if channel.GuildID == nil {
+		return mentions
+	}
+
+	hasHere := containsMentionKeyword(content, "here")
+	hasEveryone := containsMentionKeyword(content, "everyone")
+
+	if !hasHere && !hasEveryone {
+		return mentions
+	}
+
+	// 取得 guild 所有成員
+	members, err := s.guildMemberRepo.GetByGuildID(*channel.GuildID)
+	if err != nil {
+		return mentions
+	}
+
+	mentionType := "everyone"
+	if hasHere {
+		mentionType = "here"
+	}
+
+	for _, member := range members {
+		if member.UserID == msg.UserID {
+			continue // 跳過發送者自己
+		}
+
+		mentions = append(mentions, &model.MessageMention{
+			MessageID:   msg.ID,
+			UserID:      member.UserID,
+			MentionType: mentionType,
+		})
+	}
+
+	return mentions
+}
+
+// containsMentionKeyword 檢查內容中是否包含 @keyword（不區分大小寫，詞邊界匹配）
+func containsMentionKeyword(content, keyword string) bool {
+	re := regexp.MustCompile(fmt.Sprintf(`(?i)@%s\b`, keyword))
+	return re.MatchString(content)
 }

@@ -20,7 +20,7 @@
 - [x] **成員節點**：載入首頁時批量取各 Guild 部分成員，作為 Guild cluster 的子節點顯示
 - [x] **d3-force 物理模擬**：引入 `d3-force` 替換靜態圓形佈局，實現有機力導向布局
 - [x] **縮放 / 拖曳**：scroll wheel zoom + drag-to-pan 導覽
-- [x] **未讀衛星**：有未讀訊息的 Guild 節點顯示orbiting 小衛星粒子
+- [x] **未讀衛星**：有未讀訊息的 Guild 節點顯示 orbiting 小衛星粒子（讀取 `appStore.unreadGuildIds`；目前為 **session-only**，頁面重整後清零 — 待「未讀 & Mention 系統」後端實作後，啟動時從 API 初始化即可自動補上跨 session 的未讀狀態）
 
 ---
 
@@ -61,6 +61,33 @@
 - [x] **頻道操作權限**：create / update / delete channel 需 `admin` 以上
 - [x] **成員管理權限**：kick / update role 需 `admin` 以上
 - [x] **訊息刪除權限**：允許 channel admin 刪除他人訊息
+
+### 未讀 & Mention 系統
+
+> **與 Social Galaxy 的關係**：`appStore` 已有 `unreadGuildIds`（`reactive Set<guildId>`）與 `channelGuildMap`（`Map<channelId,guildId>`），`handleNewMessage()` 靠這兩個結構在 session 中動態更新 guild 級別的未讀，`selectGuild()` 已呼叫 `unreadGuildIds.delete(guildId)` 清除。  
+> 以下後端任務完成後，前端只需「啟動時從 API 初始化這兩個 store 結構」，Social Galaxy 衛星動畫即自動獲得跨 session 的持久化未讀狀態，無需改動 HomeView.vue。  
+> 新增 `channelUnreadMap`（`Map<channelId, {unread, mention}>`）供 sidebar 顯示 per-channel 計數。
+
+#### DB / 後端
+- [ ] **`channel_read_states` 表**：`user_id`、`channel_id`、`last_read_message_id`，記錄每個用戶在每個頻道的已讀位置（獨立表，比在 `guild_members` 加欄更彈性）
+- [ ] **`message_mentions` 表**：`message_id`、`user_id`、`mention_type`（`user` / `here` / `everyone`），記錄每條訊息的被提及者
+- [ ] **Message 解析 Mention**：`MessageService.CreateMessage()` 解析訊息內容，提取 `<@{userID}>` / `@here` / `@everyone`，批次寫入 `message_mentions`；`@here` 展開為頻道內 online 成員（呼叫 `IsUserOnline`），`@everyone` 展開為 guild 全員
+- [ ] **`GET /api/v1/channels/{id}/unread`**：回傳 `{ unread_count, mention_count }`（依 `channel_read_states` 與 `message_mentions` 計算）
+- [ ] **`POST /api/v1/channels/{id}/ack`**：body `{ last_message_id }`，更新 `channel_read_states.last_read_message_id`，清零前端未讀計數
+- [ ] **`GET /api/v1/users/me/unread`**：批次回傳所有頻道的 `{ channel_id, guild_id, unread_count, mention_count }`（前端啟動時一次呼叫；回應需帶 `guild_id` 以供前端填充 `channelGuildMap`）
+- [ ] **WS `mention_create` op**：訊息含有提及當前用戶時，server 推送獨立事件 `{ message_id, channel_id, guild_id, author }`，觸發前端高優先 badge 更新與通知
+
+#### 前端
+- [ ] **`channelUnreadMap` store state**：`appStore` 新增 `reactive Map<channelId, { unread: number, mention: number }>`，供 sidebar per-channel badge 使用
+- [ ] **啟動時載入未讀狀態**：登入後呼叫 `GET /api/v1/users/me/unread`，同時初始化 `channelUnreadMap`、`unreadGuildIds`（guild 有任一 channel unread > 0）、及補齊 `channelGuildMap`（解決未訪問 guild 的頻道訊息被漏追蹤的問題）
+- [ ] **切換頻道時 ACK**：`selectChannel()` 結尾呼叫 `POST /api/v1/channels/{id}/ack`，清零該頻道的 `channelUnreadMap` 計數；`selectGuild()` 已清 `unreadGuildIds`，需確認 guild 下所有頻道都 ACK（或清 map）
+- [ ] **`handleNewMessage()` 補 channel-level 計數**：收到非當前頻道的訊息時，額外更新 `channelUnreadMap[channel_id].unread++`（mention 由 `mention_create` WS 事件更新）
+- [ ] **頻道側欄未讀 badge**：頻道名旁顯示 `channelUnreadMap` 的未讀數字 badge；mention > 0 時改為紅底標示，普通未讀用灰色圓點
+- [ ] **Guild 未讀提示**：Guild 頭像旁顯示小圓點（有普通未讀）或紅色數字（有 mention）；Social Galaxy 衛星動畫已自動反映（`unreadGuildIds` 共用）
+- [ ] **WS `mention_create` 處理**：接收後更新 `channelUnreadMap[channel_id].mention++` 與 `unreadGuildIds`，可選觸發 browser notification（`Notification API`）或提示音
+- [ ] **`@` 輸入提示 UI**：輸入框鍵入 `@` 後彈出成員選擇 dropdown（模糊搜尋成員名稱）；`@h` 顯示 `@here`、`@e` 顯示 `@everyone` 特殊選項；選擇後插入 `<@{userID}>` / `@here` / `@everyone`
+- [ ] **訊息 Mention 渲染**：訊息中的 `<@{userID}>` 轉換為 `@username` 高亮 chip 樣式；`@here` / `@everyone` 顯示特殊配色 badge；提及到當前登入用戶時整行訊息加背景色標示
+- [ ] **`@mention` 收件匣（延後）**：個人 Inbox 頁面列出所有含自己 mention 的歷史訊息（依時間排序）
 
 ---
 
@@ -117,7 +144,7 @@
 - [ ] **Message Persistence Consumer**：獨立 goroutine（或獨立 binary），consume `topic:record` → 批次寫入 DB，同時非同步派發翻譯任務給 Translation Service
 - [ ] **跨 Server 訊息路由**：Chat Server subscribe 自身 topic，收到後透過 WS Manager 推給 client
 - [ ] **Notification Service 骨架**：consume `topic:notification` → 呼叫 Push Gateway（FCM/APNs）→ 寫通知記錄至 DB
-- [ ] **`last_read_message_id` schema**：`guild_members` 或獨立表記錄每個 user 在每個 channel 的最後已讀位置（badge count 必要）
+- [ ] **`last_read_message_id` schema**：已由 Phase 1「未讀 & Mention 系統」的 `channel_read_states` 表涵蓋，MQ 完成後直接沿用同一表
 
 ### 服務拆分（Binary 層）
 - [ ] **ws-gateway binary**：僅處理 WebSocket 連線管理，與 api-server 分開

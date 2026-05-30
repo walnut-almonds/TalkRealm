@@ -42,6 +42,13 @@ definitions:
     required:
     - role
     type: object
+  handler.ackChannelReq:
+    properties:
+      last_message_id:
+        type: integer
+    required:
+    - last_message_id
+    type: object
   model.Channel:
     properties:
       created_at:
@@ -268,6 +275,17 @@ definitions:
         type: string
       username:
         type: string
+    type: object
+  service.ChannelUnreadCount:
+    properties:
+      channel_id:
+        type: integer
+      guild_id:
+        type: integer
+      mention_count:
+        type: integer
+      unread_count:
+        type: integer
     type: object
   service.CreateChannelRequest:
     properties:
@@ -787,6 +805,38 @@ paths:
       summary: 更新頻道
       tags:
       - Channel
+  /api/v1/channels/{id}/ack:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 頻道 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 最後讀取的訊息 ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ackChannelReq'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 標記頻道已讀
+      tags:
+      - Unread
   /api/v1/channels/{id}/messages:
     get:
       description: 列出指定頻道的訊息（cursor-based 分頁）
@@ -914,6 +964,32 @@ paths:
       summary: 更新頻道位置
       tags:
       - Channel
+  /api/v1/channels/{id}/unread:
+    get:
+      parameters:
+      - description: 頻道 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ChannelUnreadCount'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 取得頻道未讀計數
+      tags:
+      - Unread
   /api/v1/channels/{id}/voice/token:
     get:
       description: 回傳可用於連接 LiveKit 語音房間的 JWT token 及伺服器 URL
@@ -1882,4 +1958,22 @@ paths:
       summary: 互動強度統計
       tags:
       - users
+  /api/v1/users/me/unread:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.ChannelUnreadCount'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 取得所有頻道未讀計數
+      tags:
+      - Unread
 swagger: "2.0"

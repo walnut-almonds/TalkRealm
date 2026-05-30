@@ -400,6 +400,55 @@
                 }
             }
         },
+        "/api/v1/channels/{id}/ack": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Unread"
+                ],
+                "summary": "標記頻道已讀",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "頻道 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "最後讀取的訊息 ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ackChannelReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/channels/{id}/messages": {
             "get": {
                 "description": "列出指定頻道的訊息（cursor-based 分頁）",
@@ -584,6 +633,46 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/channels/{id}/unread": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Unread"
+                ],
+                "summary": "取得頻道未讀計數",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "頻道 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ChannelUnreadCount"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/handler.ErrorResponse"
                         }
@@ -2021,6 +2110,34 @@
                 }
             }
         },
+        "/api/v1/users/me/unread": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Unread"
+                ],
+                "summary": "取得所有頻道未讀計數",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.ChannelUnreadCount"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/users/{id}": {
             "get": {
                 "produces": [
@@ -2123,6 +2240,17 @@
                         "moderator",
                         "member"
                     ]
+                }
+            }
+        },
+        "handler.ackChannelReq": {
+            "type": "object",
+            "required": [
+                "last_message_id"
+            ],
+            "properties": {
+                "last_message_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -2458,6 +2586,23 @@
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "service.ChannelUnreadCount": {
+            "type": "object",
+            "properties": {
+                "channel_id": {
+                    "type": "integer"
+                },
+                "guild_id": {
+                    "type": "integer"
+                },
+                "mention_count": {
+                    "type": "integer"
+                },
+                "unread_count": {
+                    "type": "integer"
                 }
             }
         },

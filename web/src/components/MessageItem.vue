@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import { useDMStore } from '@/stores/useDMStore.js'
-import { renderMarkdown } from '@/utils/markdown.js'
+import { renderMarkdown, setMentionResolver } from '@/utils/markdown.js'
 import { formatTimestamp, formatFullTimestamp, formatFileSize, IMAGE_TYPES } from '@/utils/format.js'
 import { api } from '@/api/index.js'
 import LinkPreview from '@/components/LinkPreview.vue'
@@ -19,6 +19,9 @@ const store = useAppStore()
 const voiceStore = useVoiceStore()
 const dm = useDMStore()
 
+// Set mention resolver once (idempotent — same fn reference is fine)
+setMentionResolver(store.resolveMessageUser)
+
 const user = computed(() => store.resolveMessageUser(props.message))
 const nickname = computed(() => user.value?.nickname || user.value?.username || 'Unknown')
 const avatar = computed(() => user.value?.avatar || null)
@@ -28,6 +31,14 @@ const _rendered = computed(() => renderMarkdown(props.message.content))
 const bodyHtml = computed(() => _rendered.value.html)
 const bodyUrls = computed(() => _rendered.value.urls)
 const isCurrentUser = computed(() => store.user?.id === props.message.user_id)
+
+// Detect if current user is mentioned in this message
+const isMentioned = computed(() => {
+  const uid = store.user?.id
+  if (!uid || !props.message.content) return false
+  return props.message.content.includes(`<@${uid}>`) ||
+    /\B@(here|everyone)\b/.test(props.message.content)
+})
 
 // ── Inline edit ───────────────────────────────────────────────
 const isEditing = ref(false)
@@ -192,7 +203,7 @@ async function submitGuess() {
 </script>
 
 <template>
-  <div :class="['message', { 'message--pending': message._pending, 'message-group-start': !grouped }]">
+  <div :class="['message', { 'message--pending': message._pending, 'message-group-start': !grouped, 'message--mentioned': isMentioned }]">
     <!-- Avatar -->
     <div v-if="!grouped" class="message-avatar" :class="{ 'avatar-speaking': isSpeaking }">
       <img v-if="avatar" :src="avatar" :alt="nickname" />

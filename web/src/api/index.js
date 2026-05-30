@@ -284,6 +284,11 @@ class ApiClient {
 
     // ── OG Preview ──
     getOGPreview(url) { return this.get(`/api/v1/og?url=${encodeURIComponent(url)}`) }
+
+    // ── Unread ──
+    getAllUnread() { return this.get('/api/v1/users/me/unread') }
+    getChannelUnread(channelId) { return this.get(`/api/v1/channels/${channelId}/unread`) }
+    ackChannel(channelId, lastMessageId) { return this.post(`/api/v1/channels/${channelId}/ack`, { last_message_id: lastMessageId }) }
 }
 
 export const api = new ApiClient()
