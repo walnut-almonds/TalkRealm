@@ -22,6 +22,8 @@ export const useAppStore = defineStore('app', () => {
 
     // Unread guild IDs: guilds that received messages while we weren't viewing them
     const unreadGuildIds = reactive(new Set())
+    // Mention guild IDs: guilds where we were @mentioned (more prominent indicator)
+    const mentionGuildIds = reactive(new Set())
 
     // channelId → guildId map (populated when guild channels are loaded)
     const channelGuildMap = new Map()
@@ -191,6 +193,7 @@ export const useAppStore = defineStore('app', () => {
                 // 補全 channelGuildMap（解決 unvisited guild 的 channelId 找不到問題）
                 if (guild_id) channelGuildMap.set(channel_id, guild_id)
                 if (unread_count > 0 && guild_id) unreadGuildIds.add(guild_id)
+                if (mention_count > 0 && guild_id) mentionGuildIds.add(guild_id)
             })
         } catch (e) {
             console.warn('loadUnreadState failed', e)
@@ -206,7 +209,11 @@ export const useAppStore = defineStore('app', () => {
             mention: cur.mention + 1,
         })
         const gid = channelGuildMap.get(data.channel_id) || data.guild_id
-        if (gid) unreadGuildIds.add(gid)
+        // 只在非當前 guild 時才加 guild 層級指示（已在裡面的 guild 不需要再跳出提醒）
+        if (gid && (!currentGuild.value || currentGuild.value.id !== gid)) {
+            unreadGuildIds.add(gid)
+            mentionGuildIds.add(gid)
+        }
         // 顯示桌面通知
         showNotification(`${data.author || '有人'} 提及了你`, 'info')
     }
@@ -232,8 +239,9 @@ export const useAppStore = defineStore('app', () => {
 
             // Populate channelId→guildId map for unread tracking
             channels.value.forEach(c => { if (c.guild_id) channelGuildMap.set(c.id, c.guild_id) })
-            // 進入 guild 時只移除 guild 層級的未讀點（sidebar badge 保留，進入頻道時才各別清除）
+            // 進入 guild 時移除 guild 層級指示（sidebar channel badges 保留，進入頻道時才各別清除）
             unreadGuildIds.delete(guildId)
+            mentionGuildIds.delete(guildId)
 
             userCache.clear()
             members.value.forEach(m => { if (m.user) cacheUser(m.user) })
@@ -461,7 +469,7 @@ export const useAppStore = defineStore('app', () => {
         user, guilds, currentGuild, channels, currentChannel,
         members, messages, isLoading, notification, pendingFileIds,
         lightboxUrl, typingUsers, typingList,
-        translationCache, translationLoadingSet, onlineUserIds, unreadGuildIds, channelUnreadMap,
+        translationCache, translationLoadingSet, onlineUserIds, unreadGuildIds, mentionGuildIds, channelUnreadMap,
         // computed
         textChannels, voiceChannels, isAuthenticated, currentUserRole,
         // methods

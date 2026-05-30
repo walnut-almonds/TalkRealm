@@ -76,7 +76,12 @@ function openDM() {
           <span v-else class="guild-initial">{{ guild.name.charAt(0).toUpperCase() }}</span>
           <!-- Active indicator pip -->
           <span v-if="store.currentGuild?.id === guild.id" class="guild-pip"></span>
-          <!-- Unread badge (dot when unread; not shown when guild is active) -->
+          <!-- Mention badge (red @, highest priority) -->
+          <span
+            v-else-if="store.mentionGuildIds.has(guild.id)"
+            class="guild-mention-badge"
+          >@</span>
+          <!-- Unread dot (white bar, lower priority) -->
           <span
             v-else-if="store.unreadGuildIds.has(guild.id)"
             class="guild-unread-dot"
