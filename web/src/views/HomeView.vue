@@ -554,6 +554,16 @@ function onWheel(e) {
     transform.k = newK
 }
 
+// Zoom toward canvas center (for +/- buttons)
+function zoomAtCenter(factor) {
+    const newK = Math.max(0.3, Math.min(3, transform.k * factor))
+    const cx = W.value / 2
+    const cy = H.value / 2
+    transform.x = cx - (cx - transform.x) * (newK / transform.k)
+    transform.y = cy - (cy - transform.y) * (newK / transform.k)
+    transform.k = newK
+}
+
 function onPointerDown(e) {
     // Don't interfere with zoom control buttons
     if (e.target.closest('.sg-zoom-controls')) return
@@ -610,13 +620,8 @@ function onPointerMove(e) {
                 sn.y = dragNodeStartPos.y + dy / transform.k
                 sn.vx = 0; sn.vy = 0
                 // Update base positions so organic drift starts from dragged location
+                // Update guild base position; members follow via animation loop (gn.x + baseOffset)
                 sn.baseX = sn.x; sn.baseY = sn.y
-                if (sn.type === 'guild') {
-                    simNodes.filter(n => n.type === 'member' && n.guildId === sn.guildId).forEach(m => {
-                        m.baseOffsetX = m.x - sn.x
-                        m.baseOffsetY = m.y - sn.y
-                    })
-                }
                 syncDisplay()
             }
         }
@@ -670,16 +675,32 @@ function updateParticles(now) {
     const pts = []
     guildLinks.value.forEach(link => {
         const gid = linkGuildId(link.target)
+        const isFocused = focusedNodeId.value === `guild-${gid}`
+        const hasNotify = store.unreadGuildIds.has(gid) || store.mentionGuildIds.has(gid)
+        // Only show particles when focused (user→guild) or when there's unread/mention (guild→user)
+        if (!isFocused && !hasNotify) return
         const col = guildPalette(gid)
+        const isMention = store.mentionGuildIds.has(gid)
+        const speed = isFocused ? 0.22 : (isMention ? 0.38 : 0.28)
         for (let i = 0; i < 3; i++) {
             const phase = i / 3
-            const t = (now * 0.22 + phase) % 1
+            const t = (now * speed + phase) % 1
+            let px, py
+            if (isFocused) {
+                // User → Guild
+                px = link.x1 + (link.x2 - link.x1) * t
+                py = link.y1 + (link.y2 - link.y1) * t
+            } else {
+                // Guild → User (reverse)
+                px = link.x2 + (link.x1 - link.x2) * t
+                py = link.y2 + (link.y1 - link.y2) * t
+            }
             pts.push({
-                x: link.x1 + (link.x2 - link.x1) * t,
-                y: link.y1 + (link.y2 - link.y1) * t,
+                x: px,
+                y: py,
                 opacity: Math.sin(t * Math.PI) * 0.90,
                 r: 2.2 + (gid % 2) * 0.4,
-                color: col.hex,
+                color: !isFocused && isMention ? '#ef4444' : col.hex,
             })
         }
     })
@@ -693,7 +714,9 @@ function startAnimLoop() {
     if (animRafId) return
     const tick = () => {
         const now = Date.now() / 1000
-        store.unreadGuildIds.forEach(gid => {
+        // Include both unread and mention guild ids for satellite animation
+        const _notifyGids = new Set([...store.unreadGuildIds, ...store.mentionGuildIds])
+        _notifyGids.forEach(gid => {
             satelliteAngles.set(gid, (now * 1.8) % (2 * Math.PI))
         })
         updateParticles(now)
@@ -707,7 +730,8 @@ function startAnimLoop() {
                     n.baseX = n.x; n.baseY = n.y
                     if (n.type === 'member') {
                         const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
-                        if (gn) { n.baseOffsetX = n.x - gn.x; n.baseOffsetY = n.y - gn.y }
+                        // Use gn.baseX (not gn.x) so offset is clean, without guild noise baked in
+                        if (gn) { n.baseOffsetX = n.x - gn.baseX; n.baseOffsetY = n.y - gn.baseY }
                     }
                 }
                 const isOnline = store.onlineUserIds.has(n.friendData?.id ?? n.memberId)
@@ -1227,6 +1251,26 @@ watch(
                         stroke-width="3"
                         class="sg-msg-flash"
                     />
+                    <!-- Focus halo (soft glow when this guild is focused) -->
+                    <circle
+                        v-if="focusedNodeId === `guild-${gid}`"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 55"
+                        :fill="guildPalette(gid).hex"
+                        opacity="0.07"
+                        style="filter: blur(14px)"
+                        class="sg-focus-halo"
+                    />
+                    <circle
+                        v-if="focusedNodeId === `guild-${gid}`"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 28"
+                        fill="none"
+                        :stroke="guildPalette(gid).hex"
+                        stroke-opacity="0.25"
+                        stroke-width="1"
+                        class="sg-focus-halo-ring"
+                    />
                     <circle
                         :cx="node.x" :cy="node.y"
                         :r="guildNodeRadius(gid) + 14"
@@ -1367,8 +1411,8 @@ watch(
 
         <!-- Zoom controls -->
         <div class="sg-zoom-controls">
-            <button class="sg-zoom-btn" @click="transform.k = Math.min(3, transform.k * 1.2)" aria-label="放大">+</button>
-            <button class="sg-zoom-btn" @click="transform.k = Math.max(0.3, transform.k * 0.83)" aria-label="縮小">−</button>
+            <button class="sg-zoom-btn" @click="zoomAtCenter(1.2)" aria-label="放大">+</button>
+            <button class="sg-zoom-btn" @click="zoomAtCenter(0.83)" aria-label="縮小">−</button>
             <button class="sg-zoom-btn" @click="transform.x=0; transform.y=0; transform.k=1" aria-label="重置">⌂</button>
         </div>
     </div>
@@ -1754,6 +1798,31 @@ watch(
     0%   { transform: scale(1);    opacity: 0.8; }
     50%  { transform: scale(1.35); opacity: 0.2; }
     100% { transform: scale(1);    opacity: 0.8; }
+}
+
+/* ── Focus halo (soft glow on focused guild node) ──────────── */
+.sg-focus-halo {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-focus-halo-breathe 2.8s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes sg-focus-halo-breathe {
+    0%, 100% { opacity: 1;   transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(1.25); }
+}
+
+.sg-focus-halo-ring {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-focus-ring-breathe 2.8s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes sg-focus-ring-breathe {
+    0%, 100% { stroke-opacity: 0.25; transform: scale(1); }
+    50%       { stroke-opacity: 0.08; transform: scale(1.18); }
 }
 
 /* ── Mention persistent ring ───────────────────────────────── */

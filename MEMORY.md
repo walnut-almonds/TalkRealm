@@ -61,6 +61,16 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-30 — Social Galaxy (HomeView.vue) 第二輪修正：
+- **+/- 按鈕縮放以畫面中心為基準**：新增 `zoomAtCenter(factor)` 函數，以 `(W/2, H/2)` 為縮放原點計算 `transform.x/y`；按鈕改為 `@click="zoomAtCenter(1.2/0.83)"`。
+- **成員牽引 bug 修正**：
+  1. `baseOffsetX` 初始化改用 `n.x - gn.baseX`（非 `gn.x`），避免第一幀時 guild 已加入噪聲偏移導致 offset 計算錯誤。
+  2. 拖曳 guild 時移除 `m.baseOffsetX = m.x - sn.x` 的更新；成員位置公式 `gn.x + baseOffsetX + noise` 已能自動跟隨 `gn.baseX`（拖曳更新），不需手動同步 offset。
+- **粒子方向邏輯改變**：
+  - 預設無粒子；有未讀/標記時（非 focused）：粒子從 guild → user（反向），mention 時為紅色、速度更快。
+  - focused 時：粒子從 user → guild（原本行為）。
+  - 衛星旋轉角度更新改為同時包含 `unreadGuildIds` 與 `mentionGuildIds`。
+- **Focus 光暈**：聚焦時在 guild 球後方顯示兩層 — 模糊漫射光（`filter:blur(14px)`，opacity 0.07，呼吸動畫）+ 細邊框圓（stroke-opacity 0.25，呼吸動畫）；guild 色調。
 2026-05-30 — Social Galaxy (HomeView.vue) 七項修正：
 - **+/- 按鈕桌面無反應**：`onPointerDown` 加 `if (e.target.closest('.sg-zoom-controls')) return`，防止 `setPointerCapture` 攔截 button click。
 - **滾輪縮放太快**：`onWheel` 改用 `Math.pow(0.999, delta)` 指數平滑縮放；加 `deltaMode` 正規化（line×30, page×300）。小 delta（trackpad）幾乎無感，大 delta（滑鼠滾輪）仍有明顯縮放。
