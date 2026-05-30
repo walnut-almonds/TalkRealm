@@ -61,6 +61,14 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-30 — Social Galaxy (HomeView.vue) 七項修正：
+- **+/- 按鈕桌面無反應**：`onPointerDown` 加 `if (e.target.closest('.sg-zoom-controls')) return`，防止 `setPointerCapture` 攔截 button click。
+- **滾輪縮放太快**：`onWheel` 改用 `Math.pow(0.999, delta)` 指數平滑縮放；加 `deltaMode` 正規化（line×30, page×300）。小 delta（trackpad）幾乎無感，大 delta（滑鼠滾輪）仍有明顯縮放。
+- **手機圈圈亂飄**：從「每幀累加噪聲」改為「基準位置＋有界偏移」：`n.x = n.baseX + harmonicNoise(...) * amp`（amp=9px guild, 5px friend）；不再無限漂移。
+- **成員牽引效果**：收斂後 member node 改以 guild 節點為錨點：`n.x = guildNode.x + baseOffsetX + noise*3`，拖曳 guild 時所有成員跟隨移動；member→guild link strength 0.5→0.85。
+- **拖曳球體移動**：`onPointerDown` 偵測 `[data-guild-id]` / `[data-friend-id]`，`onPointerMove` 直接更新 simNode 座標；`onPointerUp` 以「是否移動 >5px」區分 click 與 drag，拖後更新 `baseX/baseY`。guild/friend node template 加 `data-guild-id` / `data-friend-id` 屬性。
+- **未讀 vs 標記特效分離**：`store.mentionGuildIds`（已有）驅動紅色 `sg-mention-ring`（持續脈動）+ `sg-mention-flash` 放大環；衛星點 mention=紅色+@標記/大r，unread=amber；一般未讀保留原有 palette flash ring。
+- **單/雙擊導航**：`_scheduleOrDblClick(nodeId, singleFn, doubleFn, 230ms)`；單擊=聚焦（或已聚焦則進入），雙擊=直接進入；tooltip 卡片「點擊進入社群」按鈕直接呼叫 `enterGuild()`；背景點擊 resetFocus。
 2026-05-30 — 修復未讀 & Mention 系統「完全不顯示」的根本原因：
 - **根本原因**：`useAppStore.js` 的 `selectGuild()` 在 `loadUnreadState()` 之後執行，其中包含 `channels.value.forEach(c => channelUnreadMap.delete(c.id))` 迴圈，導致所有載入的未讀計數被立即清除。
 - **修正**：移除 `selectGuild` 中對 `channelUnreadMap` 的清除迴圈；只保留 `unreadGuildIds.delete(guildId)`（移除 guild 層級的點）。頻道層級的 badge 只有在使用者點入該頻道時（`selectChannel`）才清除。

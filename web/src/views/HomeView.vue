@@ -131,9 +131,11 @@ const voiceGuildIds = computed(() => {
     return result
 })
 
-// ── Message flash events ──────────────────────────────────────
+// ── Message flash + mention flash events ─────────────────────
 const flashGuildIds = reactive(new Set())
+const mentionFlashGuildIds = reactive(new Set())
 let _prevUnreadSnapshot = new Set()
+let _prevMentionSnapshot = new Set()
 watch(
     () => [...store.unreadGuildIds],
     (newIds) => {
@@ -144,6 +146,18 @@ watch(
             }
         })
         _prevUnreadSnapshot = new Set(newIds)
+    },
+)
+watch(
+    () => [...store.mentionGuildIds],
+    (newIds) => {
+        newIds.forEach(gid => {
+            if (!_prevMentionSnapshot.has(gid)) {
+                mentionFlashGuildIds.add(gid)
+                setTimeout(() => mentionFlashGuildIds.delete(gid), 2400)
+            }
+        })
+        _prevMentionSnapshot = new Set(newIds)
     },
 )
 
@@ -328,7 +342,7 @@ function initSim() {
                 source: `guild-${guild.id}`,
                 target: `member-${guild.id}-${m.user_id}`,
                 distance: 55,
-                strength: 0.5,
+                strength: 0.85,
             })
         })
     })
@@ -465,14 +479,73 @@ function syncDisplay() {
     }).filter(Boolean)
 }
 
-// ── Zoom / Pan ────────────────────────────────────────────────
+// ── Zoom / Pan + Node Drag ────────────────────────────────────
 const transform = reactive({ x: 0, y: 0, k: 1 })
 let isPanning = false
 let panStart = { x: 0, y: 0 }
 
+// Node drag state
+let dragNodeId = null
+let dragPointerStart = null
+let dragNodeStartPos = null
+let dragNodeMoved = false
+
+// Single-vs-double click timer per node
+const _clickTimers = new Map()
+function _scheduleOrDblClick(nodeId, singleFn, doubleFn) {
+    if (_clickTimers.has(nodeId)) {
+        clearTimeout(_clickTimers.get(nodeId))
+        _clickTimers.delete(nodeId)
+        doubleFn()
+    } else {
+        _clickTimers.set(nodeId, setTimeout(() => {
+            _clickTimers.delete(nodeId)
+            singleFn()
+        }, 230))
+    }
+}
+
+function focusGuild(guildId) {
+    const node = guildNodeMap.value.get(guildId)
+    if (!node) return
+    focusOnNode({ id: `guild-${guildId}`, x: node.x, y: node.y })
+}
+
+function enterGuild(guildId) {
+    resetFocus()
+    store.selectGuild(guildId)
+}
+
+function onGuildClick(guildId) {
+    const nodeId = `guild-${guildId}`
+    _scheduleOrDblClick(
+        nodeId,
+        () => { if (focusedNodeId.value === nodeId) enterGuild(guildId); else focusGuild(guildId) },
+        () => enterGuild(guildId),
+    )
+}
+
+function focusFriend(node) { if (node) focusOnNode(node) }
+function enterFriend(friendUserId) { resetFocus(); dm.openDMWith(friendUserId) }
+
+function onFriendClick(friendUserId) {
+    const node = friendNodesList.value.find(n => n.friendData?.id === friendUserId)
+    if (!node) return
+    _scheduleOrDblClick(
+        node.id,
+        () => { if (focusedNodeId.value === node.id) enterFriend(friendUserId); else focusFriend(node) },
+        () => enterFriend(friendUserId),
+    )
+}
+
 function onWheel(e) {
-    const scaleFactor = e.deltaY < 0 ? 1.1 : 0.91
-    const newK = Math.max(0.3, Math.min(3, transform.k * scaleFactor))
+    // Normalize deltaMode so trackpads and mice behave consistently
+    let delta = e.deltaY
+    if (e.deltaMode === 1) delta *= 30   // line → pixels
+    if (e.deltaMode === 2) delta *= 300  // page → pixels
+    // Use exponential so small deltas (trackpad) are gentle, large ones are capped
+    const factor = Math.pow(0.999, delta)
+    const newK = Math.max(0.3, Math.min(3, transform.k * factor))
     const rect = containerRef.value.getBoundingClientRect()
     const mx = e.clientX - rect.left
     const my = e.clientY - rect.top
@@ -482,20 +555,93 @@ function onWheel(e) {
 }
 
 function onPointerDown(e) {
-    if (e.target.closest('.sg-guild-node') || e.target.closest('.sg-user-node') || e.target.closest('.sg-friend-node')) return
+    // Don't interfere with zoom control buttons
+    if (e.target.closest('.sg-zoom-controls')) return
+
+    // Node drag / click detection
+    const guildEl = e.target.closest('[data-guild-id]')
+    const friendEl = e.target.closest('[data-friend-id]')
+
+    if (guildEl) {
+        const gid = Number(guildEl.dataset.guildId)
+        const nodeId = `guild-${gid}`
+        const sn = simNodes.find(n => n.id === nodeId)
+        if (sn) {
+            dragNodeId = nodeId
+            dragPointerStart = { x: e.clientX, y: e.clientY }
+            dragNodeStartPos = { x: sn.x, y: sn.y }
+            dragNodeMoved = false
+            containerRef.value?.setPointerCapture?.(e.pointerId)
+        }
+        return
+    }
+
+    if (friendEl) {
+        const fid = Number(friendEl.dataset.friendId)
+        const nodeId = `friend-${fid}`
+        const sn = simNodes.find(n => n.id === nodeId)
+        if (sn) {
+            dragNodeId = nodeId
+            dragPointerStart = { x: e.clientX, y: e.clientY }
+            dragNodeStartPos = { x: sn.x, y: sn.y }
+            dragNodeMoved = false
+            containerRef.value?.setPointerCapture?.(e.pointerId)
+        }
+        return
+    }
+
+    // Background: reset focus or start pan
+    if (e.target.closest('.sg-user-node')) return
     if (focusedNodeId.value) { resetFocus(); return }
     isPanning = true
     panStart = { x: e.clientX - transform.x, y: e.clientY - transform.y }
-    containerRef.value.setPointerCapture?.(e.pointerId)
+    containerRef.value?.setPointerCapture?.(e.pointerId)
 }
 
 function onPointerMove(e) {
-    if (!isPanning) return
-    transform.x = e.clientX - panStart.x
-    transform.y = e.clientY - panStart.y
+    if (dragNodeId) {
+        const dx = e.clientX - dragPointerStart.x
+        const dy = e.clientY - dragPointerStart.y
+        if (!dragNodeMoved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) dragNodeMoved = true
+        if (dragNodeMoved) {
+            const sn = simNodes.find(n => n.id === dragNodeId)
+            if (sn) {
+                sn.x = dragNodeStartPos.x + dx / transform.k
+                sn.y = dragNodeStartPos.y + dy / transform.k
+                sn.vx = 0; sn.vy = 0
+                // Update base positions so organic drift starts from dragged location
+                sn.baseX = sn.x; sn.baseY = sn.y
+                if (sn.type === 'guild') {
+                    simNodes.filter(n => n.type === 'member' && n.guildId === sn.guildId).forEach(m => {
+                        m.baseOffsetX = m.x - sn.x
+                        m.baseOffsetY = m.y - sn.y
+                    })
+                }
+                syncDisplay()
+            }
+        }
+        return
+    }
+    if (isPanning) {
+        transform.x = e.clientX - panStart.x
+        transform.y = e.clientY - panStart.y
+    }
 }
 
-function onPointerUp() { isPanning = false }
+function onPointerUp() {
+    if (dragNodeId) {
+        if (!dragNodeMoved) {
+            // Treat as a click
+            const guildMatch = dragNodeId.match(/^guild-(\d+)$/)
+            const friendMatch = dragNodeId.match(/^friend-(\d+)$/)
+            if (guildMatch) onGuildClick(Number(guildMatch[1]))
+            else if (friendMatch) onFriendClick(Number(friendMatch[1]))
+        }
+        dragNodeId = null; dragPointerStart = null; dragNodeStartPos = null; dragNodeMoved = false
+        return
+    }
+    isPanning = false
+}
 
 // ── Per-guild float params ────────────────────────────────────
 const floatProps = new Map()
@@ -552,15 +698,33 @@ function startAnimLoop() {
         })
         updateParticles(now)
 
-        // ── Organic noise drift (post-convergence) ────────────
+        // ── Organic drift (post-convergence) ─────────────────
         if (alpha < ALPHA_MIN * 5) {
             simNodes.forEach((n, i) => {
                 if (n.fx !== undefined || n.type === 'user') return
+                // Set base positions once when sim first converges
+                if (n.baseX === undefined) {
+                    n.baseX = n.x; n.baseY = n.y
+                    if (n.type === 'member') {
+                        const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
+                        if (gn) { n.baseOffsetX = n.x - gn.x; n.baseOffsetY = n.y - gn.y }
+                    }
+                }
                 const isOnline = store.onlineUserIds.has(n.friendData?.id ?? n.memberId)
                 const speed = isOnline ? 0.38 : 0.18
-                const amp   = n.type === 'guild' ? 0.55 : 0.30
-                n.x += harmonicNoise(i * 3.7 + 0, now, speed) * amp
-                n.y += harmonicNoise(i * 3.7 + 1, now, speed) * amp
+                if (n.type === 'member') {
+                    // Members follow guild node + small independent wobble
+                    const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
+                    if (gn) {
+                        n.x = gn.x + (n.baseOffsetX ?? 0) + harmonicNoise(i * 3.7 + 0, now, speed) * 3
+                        n.y = gn.y + (n.baseOffsetY ?? 0) + harmonicNoise(i * 3.7 + 1, now, speed) * 3
+                    }
+                } else {
+                    // Guild/friend: gentle bob around fixed base position (no drift)
+                    const amp = n.type === 'guild' ? 9 : 5
+                    n.x = n.baseX + harmonicNoise(i * 3.7 + 0, now, speed) * amp
+                    n.y = n.baseY + harmonicNoise(i * 3.7 + 1, now, speed) * amp
+                }
             })
             syncDisplay()
         }
@@ -686,24 +850,6 @@ watch(
         }
     },
 )
-
-function goToGuild(guildId) {
-    const node = guildNodeMap.value.get(guildId)
-    if (node) focusOnNode({ id: `guild-${guildId}`, x: node.x, y: node.y })
-    setTimeout(() => {
-        resetFocus()
-        store.selectGuild(guildId)
-    }, 420)
-}
-
-function goToFriend(friendUserId) {
-    const node = friendNodesList.value.find(n => n.friendData?.id === friendUserId)
-    if (node) focusOnNode(node)
-    setTimeout(() => {
-        resetFocus()
-        dm.openDMWith(friendUserId)
-    }, 420)
-}
 </script>
 
 <template>
@@ -972,12 +1118,12 @@ function goToFriend(friendUserId) {
                     v-for="n in friendNodesList"
                     :key="n.id"
                     class="sg-friend-node"
+                    :data-friend-id="n.friendData.id"
                     :opacity="focusedNodeId && focusedNodeId !== n.id ? 0.4 : 1"
-                    @click="goToFriend(n.friendData.id)"
                     role="button"
                     :aria-label="n.friendData?.nickname || n.friendData?.username"
                     tabindex="0"
-                    @keydown.enter="goToFriend(n.friendData.id)"
+                    @keydown.enter="onFriendClick(n.friendData.id)"
                 >
                     <!-- Online breathing glow -->
                     <circle
@@ -1020,16 +1166,16 @@ function goToFriend(friendUserId) {
                     v-for="[gid, node] in guildNodeMap"
                     :key="gid"
                     class="sg-guild-node"
+                    :data-guild-id="gid"
                     :style="`--float-delay:${floatProps.get(gid)?.delay ?? 0}s; --float-dur:${floatProps.get(gid)?.dur ?? 4}s; --guild-hex:${guildPalette(gid).hex}`"
                     :opacity="focusedNodeId && focusedNodeId !== `guild-${gid}` ? 0.35 : 1"
-                    @click="goToGuild(gid)"
                     @pointerenter="onGuildEnter($event, gid)"
                     @pointermove="onGuildMove"
                     @pointerleave="onGuildLeave"
                     role="button"
                     :aria-label="guildById(gid)?.name"
                     tabindex="0"
-                    @keydown.enter="goToGuild(gid)"
+                    @keydown.enter="onGuildClick(gid)"
                 >
                     <!-- Typing ripple -->
                     <circle
@@ -1051,9 +1197,29 @@ function goToFriend(friendUserId) {
                         stroke-width="1.5"
                         class="sg-voice-pulse"
                     />
-                    <!-- Message flash ring -->
+                    <!-- Mention persistent ring (higher priority, red) -->
                     <circle
-                        v-if="flashGuildIds.has(gid)"
+                        v-if="store.mentionGuildIds.has(gid)"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 13"
+                        fill="none"
+                        stroke="rgba(239,68,68,0.85)"
+                        stroke-width="2.5"
+                        class="sg-mention-ring"
+                    />
+                    <!-- Message mention flash ring -->
+                    <circle
+                        v-if="mentionFlashGuildIds.has(gid)"
+                        :cx="node.x" :cy="node.y"
+                        :r="guildNodeRadius(gid) + 10"
+                        fill="none"
+                        stroke="rgba(239,68,68,0.9)"
+                        stroke-width="3.5"
+                        class="sg-mention-flash"
+                    />
+                    <!-- Regular unread flash ring (palette color, no mention) -->
+                    <circle
+                        v-if="flashGuildIds.has(gid) && !store.mentionGuildIds.has(gid)"
                         :cx="node.x" :cy="node.y"
                         :r="guildNodeRadius(gid) + 8"
                         fill="none"
@@ -1099,16 +1265,32 @@ function goToFriend(friendUserId) {
                         fill="rgba(255,255,255,0.6)" font-size="11"
                         font-family="'Segoe UI', sans-serif"
                     >{{ guildById(gid)?.name?.length > 12 ? guildById(gid).name.slice(0, 11) + '…' : guildById(gid)?.name }}</text>
-                    <g v-if="store.unreadGuildIds.has(gid)" class="sg-unread-satellite">
+                    <g v-if="store.unreadGuildIds.has(gid) || store.mentionGuildIds.has(gid)" class="sg-unread-satellite">
+                        <!-- Main satellite dot: red+@ for mention, amber for unread -->
                         <circle
-                            :cx="node.x + (guildNodeRadius(gid) + 8) * Math.cos(satelliteAngles.get(gid) || 0)"
-                            :cy="node.y + (guildNodeRadius(gid) + 8) * Math.sin(satelliteAngles.get(gid) || 0)"
-                            r="5" fill="#f59e0b" stroke="#060918" stroke-width="1.5" class="sg-satellite-dot"
+                            :cx="node.x + (guildNodeRadius(gid) + 9) * Math.cos(satelliteAngles.get(gid) || 0)"
+                            :cy="node.y + (guildNodeRadius(gid) + 9) * Math.sin(satelliteAngles.get(gid) || 0)"
+                            :r="store.mentionGuildIds.has(gid) ? 7 : 5"
+                            :fill="store.mentionGuildIds.has(gid) ? '#ef4444' : '#f59e0b'"
+                            :stroke="store.mentionGuildIds.has(gid) ? '#fca5a5' : '#060918'"
+                            stroke-width="1.5"
+                            :class="store.mentionGuildIds.has(gid) ? 'sg-mention-satellite-dot' : 'sg-satellite-dot'"
                         />
+                        <!-- @ label on mention satellite -->
+                        <text
+                            v-if="store.mentionGuildIds.has(gid)"
+                            :x="node.x + (guildNodeRadius(gid) + 9) * Math.cos(satelliteAngles.get(gid) || 0)"
+                            :y="node.y + (guildNodeRadius(gid) + 9) * Math.sin(satelliteAngles.get(gid) || 0)"
+                            text-anchor="middle" dominant-baseline="middle"
+                            fill="white" font-size="6.5" font-weight="700" font-family="'Segoe UI', sans-serif"
+                        >@</text>
+                        <!-- Trailing dot -->
                         <circle
-                            :cx="node.x + (guildNodeRadius(gid) + 8) * Math.cos((satelliteAngles.get(gid) || 0) + Math.PI)"
-                            :cy="node.y + (guildNodeRadius(gid) + 8) * Math.sin((satelliteAngles.get(gid) || 0) + Math.PI)"
-                            r="3" fill="#f59e0b" opacity="0.5"
+                            :cx="node.x + (guildNodeRadius(gid) + 9) * Math.cos((satelliteAngles.get(gid) || 0) + Math.PI)"
+                            :cy="node.y + (guildNodeRadius(gid) + 9) * Math.sin((satelliteAngles.get(gid) || 0) + Math.PI)"
+                            :r="store.mentionGuildIds.has(gid) ? 3.5 : 3"
+                            :fill="store.mentionGuildIds.has(gid) ? '#ef4444' : '#f59e0b'"
+                            opacity="0.5"
                         />
                     </g>
                 </g>
@@ -1172,14 +1354,14 @@ function goToFriend(friendUserId) {
                     <span v-if="tooltipGuild.isTyping" class="sg-tip-badge sg-tip-badge--typing">✍️ 有人正在輸入</span>
                     <span v-if="tooltipGuild.hasVoice" class="sg-tip-badge sg-tip-badge--voice">🎙️ 語音頻道活躍</span>
                 </div>
-                <div class="sg-tip-action">點擊進入社群 →</div>
+                <div class="sg-tip-action" @click="enterGuild(tooltipGuild.guild.id)">點擊進入社群 →</div>
             </div>
         </Transition>
 
         <!-- ── Welcome overlay ────────────────────────────── -->
         <div class="sg-welcome">
             <p class="sg-username">{{ displayName }}</p>
-            <p v-if="store.guilds.length > 0" class="sg-hint">點擊節點進入社群 &nbsp;·&nbsp; 滾輪縮放 &nbsp;·&nbsp; 拖曳平移</p>
+            <p v-if="store.guilds.length > 0" class="sg-hint">點一下聚焦 · 點兩下或聚焦後再點進入 · 滾輪縮放 · 拖曳球體移動</p>
             <p v-else class="sg-hint">在左側建立或加入一個社群</p>
         </div>
 
@@ -1209,6 +1391,8 @@ function goToFriend(friendUserId) {
     min-width: 0;
     cursor: grab;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 .galaxy-view:active { cursor: grabbing; }
 
@@ -1414,8 +1598,14 @@ function goToFriend(friendUserId) {
 
 .sg-tip-action {
     font-size: 11px;
-    color: rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.55);
     text-align: right;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.sg-tip-action:hover {
+    color: var(--tip-color, #818cf8);
 }
 
 /* Tooltip badges (typing / voice) */
@@ -1564,6 +1754,38 @@ function goToFriend(friendUserId) {
     0%   { transform: scale(1);    opacity: 0.8; }
     50%  { transform: scale(1.35); opacity: 0.2; }
     100% { transform: scale(1);    opacity: 0.8; }
+}
+
+/* ── Mention persistent ring ───────────────────────────────── */
+.sg-mention-ring {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-mention-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes sg-mention-pulse {
+    0%   { transform: scale(1);    opacity: 0.9; stroke-width: 3; }
+    50%  { transform: scale(1.13); opacity: 0.45; stroke-width: 2; }
+    100% { transform: scale(1);    opacity: 0.9; stroke-width: 3; }
+}
+
+/* ── Mention flash ring (new mention event) ────────────────── */
+.sg-mention-flash {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sg-mention-flash-ring 2.4s ease-out forwards;
+}
+
+@keyframes sg-mention-flash-ring {
+    0%   { transform: scale(1);    opacity: 1; }
+    35%  { transform: scale(1.45); opacity: 0.75; }
+    70%  { transform: scale(1.9);  opacity: 0.3; }
+    100% { transform: scale(2.5);  opacity: 0; }
+}
+
+/* ── Mention satellite dot ─────────────────────────────────── */
+.sg-mention-satellite-dot {
+    filter: drop-shadow(0 0 6px #ef4444) drop-shadow(0 0 2px #fff);
 }
 
 /* ── Atmosphere: night mode ────────────────────────────────── */
