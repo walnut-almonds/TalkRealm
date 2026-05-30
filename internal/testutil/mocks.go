@@ -1084,3 +1084,119 @@ func (m *MockChannelService) SetWebSocketManager(mgr service.GuildEventBroadcast
 
 // PtrUint returns a pointer to the given uint value.
 func PtrUint(v uint) *uint { return &v }
+
+// ── MockMessageMentionRepository ─────────────────────────────────────────────
+
+// MockMessageMentionRepository 是 repository.MessageMentionRepository 的 mock。
+type MockMessageMentionRepository struct {
+	BulkCreateFn          func(mentions []*model.MessageMention) error
+	GetByMessageIDFn      func(messageID uint) ([]*model.MessageMention, error)
+	GetMentionedUserIDsFn func(messageID uint) ([]uint, error)
+}
+
+func (m *MockMessageMentionRepository) BulkCreate(mentions []*model.MessageMention) error {
+	if m.BulkCreateFn != nil {
+		return m.BulkCreateFn(mentions)
+	}
+
+	return nil
+}
+
+func (m *MockMessageMentionRepository) GetByMessageID(
+	messageID uint,
+) ([]*model.MessageMention, error) {
+	if m.GetByMessageIDFn != nil {
+		return m.GetByMessageIDFn(messageID)
+	}
+
+	return []*model.MessageMention{}, nil
+}
+
+func (m *MockMessageMentionRepository) GetMentionedUserIDs(messageID uint) ([]uint, error) {
+	if m.GetMentionedUserIDsFn != nil {
+		return m.GetMentionedUserIDsFn(messageID)
+	}
+
+	return []uint{}, nil
+}
+
+// ── MockChannelReadStateRepository ───────────────────────────────────────────
+
+// MockChannelReadStateRepository 是 repository.ChannelReadStateRepository 的 mock。
+type MockChannelReadStateRepository struct {
+	UpsertFn           func(userID, channelID, lastMessageID uint) error
+	GetLastReadFn      func(userID, channelID uint) (uint, error)
+	GetAllUnreadFn     func(userID uint) ([]*repository.ChannelUnreadCount, error)
+	GetChannelUnreadFn func(userID, channelID uint) (*repository.ChannelUnreadCount, error)
+}
+
+func (m *MockChannelReadStateRepository) Upsert(userID, channelID, lastMessageID uint) error {
+	if m.UpsertFn != nil {
+		return m.UpsertFn(userID, channelID, lastMessageID)
+	}
+
+	return nil
+}
+
+func (m *MockChannelReadStateRepository) GetLastRead(userID, channelID uint) (uint, error) {
+	if m.GetLastReadFn != nil {
+		return m.GetLastReadFn(userID, channelID)
+	}
+
+	return 0, nil
+}
+
+func (m *MockChannelReadStateRepository) GetAllUnread(
+	userID uint,
+) ([]*repository.ChannelUnreadCount, error) {
+	if m.GetAllUnreadFn != nil {
+		return m.GetAllUnreadFn(userID)
+	}
+
+	return []*repository.ChannelUnreadCount{}, nil
+}
+
+func (m *MockChannelReadStateRepository) GetChannelUnread(
+	userID, channelID uint,
+) (*repository.ChannelUnreadCount, error) {
+	if m.GetChannelUnreadFn != nil {
+		return m.GetChannelUnreadFn(userID, channelID)
+	}
+
+	return &repository.ChannelUnreadCount{}, nil
+}
+
+// ── MockUnreadService ─────────────────────────────────────────────────────────
+
+// MockUnreadService 是 service.UnreadService 的 mock。
+type MockUnreadService struct {
+	AckChannelFn       func(userID, channelID, lastMessageID uint) error
+	GetChannelUnreadFn func(userID, channelID uint) (*repository.ChannelUnreadCount, error)
+	GetAllUnreadFn     func(userID uint) ([]*repository.ChannelUnreadCount, error)
+}
+
+func (m *MockUnreadService) AckChannel(userID, channelID, lastMessageID uint) error {
+	if m.AckChannelFn != nil {
+		return m.AckChannelFn(userID, channelID, lastMessageID)
+	}
+
+	return nil
+}
+
+func (m *MockUnreadService) GetChannelUnread(
+	userID, channelID uint,
+) (*repository.ChannelUnreadCount, error) {
+	if m.GetChannelUnreadFn != nil {
+		return m.GetChannelUnreadFn(userID, channelID)
+	}
+
+	return &repository.ChannelUnreadCount{}, nil
+}
+
+func (m *MockUnreadService) GetAllUnread(userID uint) ([]*repository.ChannelUnreadCount, error) {
+	if m.GetAllUnreadFn != nil {
+		return m.GetAllUnreadFn(userID)
+	}
+
+	return []*repository.ChannelUnreadCount{}, nil
+}

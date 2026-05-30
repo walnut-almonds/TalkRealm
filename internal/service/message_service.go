@@ -31,6 +31,8 @@ var (
 type WebSocketManager interface {
 	BroadcastToChannel(channelID uint, msgType string, data any)
 	BroadcastToUser(userID uint, msgType string, data any)
+	// IsUserOnline 檢查使用者是否在線（用於 @here 展開過濾）
+	IsUserOnline(userID uint) bool
 }
 
 // MentionNotifier 通知被 @ 提及的使用者（WS push）
@@ -561,6 +563,11 @@ func (s *messageService) parseMentions(
 	for _, member := range members {
 		if member.UserID == msg.UserID {
 			continue // 跳過發送者自己
+		}
+
+		//	@here	只通知在線成員；@everyone 通知所有成員
+		if hasHere && s.wsManager != nil && !s.wsManager.IsUserOnline(member.UserID) {
+			continue
 		}
 
 		mentions = append(mentions, &model.MessageMention{

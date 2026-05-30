@@ -171,6 +171,14 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
                         <span v-else>{{ (getPartner(ch).username || '?').charAt(0).toUpperCase() }}</span>
                     </div>
                     <span class="name">{{ getPartner(ch).nickname || getPartner(ch).username }}</span>
+                    <span
+                        v-if="store.channelUnreadMap.get(ch.id)?.mention > 0"
+                        class="badge-mention"
+                    >{{ store.channelUnreadMap.get(ch.id).mention }}</span>
+                    <span
+                        v-else-if="store.channelUnreadMap.get(ch.id)?.unread > 0"
+                        class="badge-unread"
+                    ></span>
                 </div>
                 <div v-if="dm.dmChannels.length === 0" class="empty-hint">沒有私人訊息</div>
             </div>

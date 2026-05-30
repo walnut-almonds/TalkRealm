@@ -333,11 +333,9 @@ export const useAppStore = defineStore('app', () => {
                 unreadGuildIds.add(gid)
             }
             // Increment channel-level unread counter
-            if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) {
-                const cur = channelUnreadMap.get(msg.channel_id) || { unread: 0, mention: 0 }
-                channelUnreadMap.set(msg.channel_id, { ...cur, unread: cur.unread + 1 })
-                return
-            }
+            const cur = channelUnreadMap.get(msg.channel_id) || { unread: 0, mention: 0 }
+            channelUnreadMap.set(msg.channel_id, { ...cur, unread: cur.unread + 1 })
+            return
         }
         if (msg.nonce) {
             const idx = messages.value.findIndex(m => m.nonce === msg.nonce && m._pending)

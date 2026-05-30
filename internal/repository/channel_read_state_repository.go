@@ -79,7 +79,7 @@ func (r *channelReadStateRepository) GetAllUnread(userID uint) ([]*ChannelUnread
 		GuildID   *uint
 	}
 
-	var rows []channelRow
+	rows := make([]channelRow, 0, 64)
 
 	// Guild text channels the user is a member of
 	if err := r.db.Raw(`
@@ -90,6 +90,19 @@ func (r *channelReadStateRepository) GetAllUnread(userID uint) ([]*ChannelUnread
 	`, userID).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
+
+	// DM channels the user participates in
+	var dmRows []channelRow
+	if err := r.db.Raw(`
+		SELECT c.id AS channel_id, NULL AS guild_id
+		FROM channels c
+		JOIN channel_participants cp ON cp.channel_id = c.id
+		WHERE cp.user_id = ? AND c.type = 'dm'
+	`, userID).Scan(&dmRows).Error; err != nil {
+		return nil, err
+	}
+
+	rows = append(rows, dmRows...)
 
 	if len(rows) == 0 {
 		return []*ChannelUnreadCount{}, nil

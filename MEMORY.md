@@ -61,6 +61,14 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-30 — 未讀 & Mention 系統完整實裝（make check 通過）：
+- **後端**：`model.ChannelReadState`/`model.MessageMention` + AutoMigrate；`ChannelReadStateRepository`/`MessageMentionRepository` 完整 CRUD；`UnreadService`（AckChannel/GetChannelUnread/GetAllUnread）；`UnreadHandler`（GET /me/unread、GET /channels/:id/unread、POST /channels/:id/ack）
+- **`@here` 線上過濾**：`WebSocketManager` interface 新增 `IsUserOnline(userID uint) bool`；`parseMentions` 在 `hasHere` 時跳過離線成員
+- **DM 未讀支援**：`GetAllUnread` 除 guild text channel 外，也 JOIN `channel_participants` 取得 DM channel；`DMSidebar.vue` 顯示 `badge-mention`/`badge-unread`；`openDMChannel` 載入完訊息後呼叫 `ackChannel` API
+- **前端 DM store**：`pushIncomingDM` 當非當前頻道時增加 `channelUnreadMap` 計數
+- **Bug fixes**：`handleNewMessage` 移除多餘的雙層 `if` 判斷；`MockMessageMentionRepository`、`MockChannelReadStateRepository`、`MockUnreadService` 加入 `internal/testutil/mocks.go`
+- **陷阱**：mock 中返回 `nil, nil` 對於返回 slice/pointer 的函數會觸發 `nilnil` linter；改用 `[]T{}` 或 `&T{}` 即可；`prealloc` 建議為 slice 宣告時給 capacity
+
 2026-05-29 — Social Galaxy 增強功能實裝（HomeView.vue）：
 - **`web/src/views/HomeView.vue`**：
   - 新增 `useVoiceStore` import；新增 `loadGuildChannels()`（guildId→Set\<channelId\> map）

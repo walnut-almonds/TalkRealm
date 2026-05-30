@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 import { api as apiClient } from '@/api/index.js'
+import { useAppStore } from '@/stores/useAppStore.js'
 
 export const useDMStore = defineStore('dm', () => {
     const dmChannels = ref([])
@@ -32,6 +33,13 @@ export const useDMStore = defineStore('dm', () => {
         dmMessages.value = []
         hasMoreMessages.value = false
         await loadDMMessages(channel.id)
+        // ACK: 標記 DM 頻道已讀
+        const appStore = useAppStore()
+        const lastMsg = dmMessages.value[dmMessages.value.length - 1]
+        if (lastMsg?.id) {
+            appStore.channelUnreadMap.delete(channel.id)
+            apiClient.ackChannel(channel.id, lastMsg.id).catch(() => { })
+        }
     }
 
     async function loadDMMessages(channelId, before = null) {
@@ -63,11 +71,17 @@ export const useDMStore = defineStore('dm', () => {
 
     function pushIncomingDM(message) {
         const messageChannelID = getMessageChannelId(message)
-        if (currentDMChannel.value && messageChannelID === currentDMChannel.value.id) {
+        const isCurrentChannel = currentDMChannel.value && messageChannelID === currentDMChannel.value.id
+        if (isCurrentChannel) {
             // Avoid duplicates from optimistic/REST + WS echoes.
             if (message.id && dmMessages.value.some(m => m.id === message.id)) return
             if (message.nonce && dmMessages.value.some(m => m.nonce === message.nonce)) return
             dmMessages.value.push(message)
+        } else {
+            // Track DM unread in shared channelUnreadMap
+            const appStore = useAppStore()
+            const cur = appStore.channelUnreadMap.get(messageChannelID) || { unread: 0, mention: 0 }
+            appStore.channelUnreadMap.set(messageChannelID, { ...cur, unread: cur.unread + 1 })
         }
         // Move channel to top of list
         const idx = dmChannels.value.findIndex(c => c.id === messageChannelID)

@@ -267,6 +267,7 @@ func TestMessageService_DeleteMessage_NotOwnerAndNotAdmin(t *testing.T) {
 type mockWSManager struct {
 	broadcastFn     func(channelID uint, msgType string, data any)
 	broadcastUserFn func(userID uint, msgType string, data any)
+	isOnlineFn      func(userID uint) bool
 }
 
 func (m *mockWSManager) BroadcastToChannel(channelID uint, msgType string, data any) {
@@ -279,4 +280,12 @@ func (m *mockWSManager) BroadcastToUser(userID uint, msgType string, data any) {
 	if m.broadcastUserFn != nil {
 		m.broadcastUserFn(userID, msgType, data)
 	}
+}
+
+func (m *mockWSManager) IsUserOnline(userID uint) bool {
+	if m.isOnlineFn != nil {
+		return m.isOnlineFn(userID)
+	}
+
+	return false
 }
