@@ -1,6 +1,9 @@
 // URL regex — matches http(s) URLs, stopped at whitespace or common trailing punctuation.
 const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g
 
+// Extensions that are direct media/document files — skip OGP for these.
+const MEDIA_EXT_RE = /\.(jpe?g|png|gif|webp|svg|avif|bmp|ico|mp4|webm|mov|avi|mp3|wav|ogg|pdf|zip|tar|gz|dmg|exe|apk|docx?|xlsx?|pptx?)\b/i
+
 /**
  * renderMarkdown converts a subset of Markdown to safe HTML.
  * Returns { html: string, urls: string[] } where urls is the
@@ -94,7 +97,10 @@ function applyInline(escaped, urlSet) {
     escaped = escaped.replace(URL_RE, (match) => {
         // Un-escape &amp; back to & in the href only.
         const href = match.replace(/&amp;/g, '&')
-        urlSet.add(href)
+        // Only queue for OGP if this looks like a web page, not a media file.
+        if (!MEDIA_EXT_RE.test(href)) {
+            urlSet.add(href)
+        }
         return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" class="md-link">${match}</a>`
     })
 
