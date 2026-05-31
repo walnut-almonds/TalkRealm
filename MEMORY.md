@@ -61,6 +61,9 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-31 — Social Galaxy 長時間停留後凍結修正（HomeView.vue）：
+- **現象**：進入 Social Galaxy 一段時間後（alpha 冷卻完成），畫面會跳一下後節點像被固定，後續只剩拖曳時的相對平移感。
+- **修正**：`startSim()` 不再在 `alpha < ALPHA_MIN` 時停止；改為維持 `alpha` 最小值（`Math.max(ALPHA_MIN, ...)`）讓力導模擬持續低強度運行。另在 `startSim`/`startAnimLoop` tick 外層加 `try/catch`，避免單幀 runtime error 讓 RAF 迴圈永久中斷。
 2026-05-31 — Social Galaxy 拖曳回彈修正（HomeView.vue）：
 - **根因**：guild `homeX/homeY` 只在收斂後 (`alpha < ALPHA_MIN*5`) 才初始化；若使用者在此之前先拖曳，`baseX/baseY` 會先被寫入，導致 `homeX/homeY` 可能永遠未設定，放開後無法觸發回原點，節點看起來會固定在當前位置。
 - **修正**：`initSim` 建立 guild node 時直接初始化 `baseX/baseY/homeX/homeY`；`pointerdown/pointerup` 再加 fallback（home 未定義時補值）並在拖曳時清除 `fx/fy`；link force 判斷從 `!a.fx` 改為 `a.fx === undefined`，避免 0 值誤判。

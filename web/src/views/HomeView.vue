@@ -378,10 +378,15 @@ function stopSim() {
 function startSim() {
     stopSim()
     function tick() {
-        if (alpha < ALPHA_MIN) { syncDisplay(); return }
-        simulateStep()
-        alpha *= (1 - ALPHA_DECAY)
-        syncDisplay()
+        try {
+            simulateStep()
+            // Keep a tiny baseline alpha so force links never fully freeze.
+            alpha = Math.max(ALPHA_MIN, alpha * (1 - ALPHA_DECAY))
+            syncDisplay()
+        } catch (err) {
+            // Prevent a transient runtime error from permanently stopping motion.
+            console.error('[SocialGalaxy] simulation tick error:', err)
+        }
         rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
@@ -753,55 +758,60 @@ let animRafId = null
 function startAnimLoop() {
     if (animRafId) return
     const tick = () => {
-        const now = Date.now() / 1000
-        // Include both unread and mention guild ids for satellite animation
-        const _notifyGids = new Set([...store.unreadGuildIds, ...store.mentionGuildIds])
-        _notifyGids.forEach(gid => {
-            satelliteAngles.set(gid, (now * 1.8) % (2 * Math.PI))
-        })
-        updateParticles(now)
+        try {
+            const now = Date.now() / 1000
+            // Include both unread and mention guild ids for satellite animation
+            const _notifyGids = new Set([...store.unreadGuildIds, ...store.mentionGuildIds])
+            _notifyGids.forEach(gid => {
+                satelliteAngles.set(gid, (now * 1.8) % (2 * Math.PI))
+            })
+            updateParticles(now)
 
-        // ── Organic drift (post-convergence) ─────────────────
-        if (alpha < ALPHA_MIN * 5) {
-            simNodes.forEach((n, i) => {
-                if (n.fx !== undefined || n.type === 'user') return
-                // Set base positions once when sim first converges
-                if (n.baseX === undefined) {
-                    n.baseX = n.x; n.baseY = n.y
-                    // Record initial equilibrium as home for drag-return
-                    if (n.type === 'guild') { n.homeX = n.baseX; n.homeY = n.baseY }
-                    if (n.type === 'member') {
-                        const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
-                        // Use gn.baseX (not gn.x) so offset is clean, without guild noise baked in
-                        if (gn) { n.baseOffsetX = n.x - gn.baseX; n.baseOffsetY = n.y - gn.baseY }
-                    }
-                }
-                const isOnline = store.onlineUserIds.has(n.friendData?.id ?? n.memberId)
-                const speed = isOnline ? 0.38 : 0.18
-                if (n.type === 'member') {
-                    // Members follow guild node + small independent wobble
-                    const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
-                    if (gn) {
-                        n.x = gn.x + (n.baseOffsetX ?? 0) + harmonicNoise(i * 3.7 + 0, now, speed) * 3
-                        n.y = gn.y + (n.baseOffsetY ?? 0) + harmonicNoise(i * 3.7 + 1, now, speed) * 3
-                    }
-                } else {
-                    // Guild: smoothly lerp base back toward home after drag release
-                    if (n.type === 'guild' && n.returning && n.homeX !== undefined) {
-                        n.baseX += (n.homeX - n.baseX) * 0.025
-                        n.baseY += (n.homeY - n.baseY) * 0.025
-                        if (Math.hypot(n.homeX - n.baseX, n.homeY - n.baseY) < 0.5) {
-                            n.baseX = n.homeX; n.baseY = n.homeY
-                            n.returning = false
+            // ── Organic drift (post-convergence) ─────────────────
+            if (alpha < ALPHA_MIN * 5) {
+                simNodes.forEach((n, i) => {
+                    if (n.fx !== undefined || n.type === 'user') return
+                    // Set base positions once when sim first converges
+                    if (n.baseX === undefined) {
+                        n.baseX = n.x; n.baseY = n.y
+                        // Record initial equilibrium as home for drag-return
+                        if (n.type === 'guild') { n.homeX = n.baseX; n.homeY = n.baseY }
+                        if (n.type === 'member') {
+                            const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
+                            // Use gn.baseX (not gn.x) so offset is clean, without guild noise baked in
+                            if (gn) { n.baseOffsetX = n.x - gn.baseX; n.baseOffsetY = n.y - gn.baseY }
                         }
                     }
-                    // Guild/friend: gentle bob around base position
-                    const amp = n.type === 'guild' ? 9 : 5
-                    n.x = n.baseX + harmonicNoise(i * 3.7 + 0, now, speed) * amp
-                    n.y = n.baseY + harmonicNoise(i * 3.7 + 1, now, speed) * amp
-                }
-            })
-            syncDisplay()
+                    const isOnline = store.onlineUserIds.has(n.friendData?.id ?? n.memberId)
+                    const speed = isOnline ? 0.38 : 0.18
+                    if (n.type === 'member') {
+                        // Members follow guild node + small independent wobble
+                        const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
+                        if (gn) {
+                            n.x = gn.x + (n.baseOffsetX ?? 0) + harmonicNoise(i * 3.7 + 0, now, speed) * 3
+                            n.y = gn.y + (n.baseOffsetY ?? 0) + harmonicNoise(i * 3.7 + 1, now, speed) * 3
+                        }
+                    } else {
+                        // Guild: smoothly lerp base back toward home after drag release
+                        if (n.type === 'guild' && n.returning && n.homeX !== undefined) {
+                            n.baseX += (n.homeX - n.baseX) * 0.025
+                            n.baseY += (n.homeY - n.baseY) * 0.025
+                            if (Math.hypot(n.homeX - n.baseX, n.homeY - n.baseY) < 0.5) {
+                                n.baseX = n.homeX; n.baseY = n.homeY
+                                n.returning = false
+                            }
+                        }
+                        // Guild/friend: gentle bob around base position
+                        const amp = n.type === 'guild' ? 9 : 5
+                        n.x = n.baseX + harmonicNoise(i * 3.7 + 0, now, speed) * amp
+                        n.y = n.baseY + harmonicNoise(i * 3.7 + 1, now, speed) * amp
+                    }
+                })
+                syncDisplay()
+            }
+        } catch (err) {
+            // Keep the loop alive even if one frame throws.
+            console.error('[SocialGalaxy] animation tick error:', err)
         }
 
         animRafId = requestAnimationFrame(tick)
