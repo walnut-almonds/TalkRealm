@@ -278,12 +278,16 @@ function initSim() {
     const friendRingR = Math.min(W.value, H.value) * 0.20
     friendsList.value.forEach((f, i) => {
         const angle = (i / (friendsList.value.length || 1)) * 2 * Math.PI
+        const fx0 = cx + friendRingR * Math.cos(angle) + (Math.random() - 0.5) * 15
+        const fy0 = cy + friendRingR * Math.sin(angle) + (Math.random() - 0.5) * 15
         simNodes.push({
             id: `friend-${f.friendUser.id}`,
             type: 'friend',
             friendData: f.friendUser,
-            x: cx + friendRingR * Math.cos(angle) + (Math.random() - 0.5) * 15,
-            y: cy + friendRingR * Math.sin(angle) + (Math.random() - 0.5) * 15,
+            x: fx0,
+            y: fy0,
+            baseX: fx0,
+            baseY: fy0,
             vx: 0, vy: 0,
         })
         simLinks.push({
@@ -299,13 +303,22 @@ function initSim() {
         const r = Math.min(W.value, H.value) * 0.32
         const gx = cx + r * Math.cos(angle)
         const gy = cy + r * Math.sin(angle)
+        const jitterX = (Math.random() - 0.5) * 20
+        const jitterY = (Math.random() - 0.5) * 20
+        const gx0 = gx + jitterX
+        const gy0 = gy + jitterY
 
         simNodes.push({
             id: `guild-${guild.id}`,
             type: 'guild',
             guildId: guild.id,
-            x: gx + (Math.random() - 0.5) * 20,
-            y: gy + (Math.random() - 0.5) * 20,
+            x: gx0,
+            y: gy0,
+            baseX: gx0,
+            baseY: gy0,
+            homeX: gx0,
+            homeY: gy0,
+            returning: false,
             vx: 0, vy: 0,
         })
 
@@ -328,14 +341,20 @@ function initSim() {
         members.forEach((m, j) => {
             const mAngle = (j / (members.length || 1)) * 2 * Math.PI
             const mR = 55
+            const mx0 = gx + mR * Math.cos(mAngle)
+            const my0 = gy + mR * Math.sin(mAngle)
             simNodes.push({
                 id: `member-${guild.id}-${m.user_id}`,
                 type: 'member',
                 guildId: guild.id,
                 memberId: m.user_id,
                 memberData: m,
-                x: gx + mR * Math.cos(mAngle),
-                y: gy + mR * Math.sin(mAngle),
+                x: mx0,
+                y: my0,
+                baseX: mx0,
+                baseY: my0,
+                baseOffsetX: mx0 - gx0,
+                baseOffsetY: my0 - gy0,
                 vx: 0, vy: 0,
             })
             simLinks.push({
@@ -387,10 +406,10 @@ function simulateStep() {
         const delta = (dist - link.distance) / dist * link.strength
         const fx = dx * delta
         const fy = dy * delta
-        if (!a.fx) forces.get(a.id).x += fx
-        if (!a.fy) forces.get(a.id).y += fy
-        if (!b.fx) forces.get(b.id).x -= fx
-        if (!b.fy) forces.get(b.id).y -= fy
+        if (a.fx === undefined) forces.get(a.id).x += fx
+        if (a.fy === undefined) forces.get(a.id).y += fy
+        if (b.fx === undefined) forces.get(b.id).x -= fx
+        if (b.fy === undefined) forces.get(b.id).y -= fy
     })
 
     // 2. Repulsion between guild nodes
@@ -579,6 +598,10 @@ function onPointerDown(e) {
         if (sn) {
             // Cancel any ongoing snap-back so drag starts from current visual position
             sn.returning = false
+            if (sn.homeX === undefined || sn.homeY === undefined) {
+                sn.homeX = sn.baseX ?? sn.x
+                sn.homeY = sn.baseY ?? sn.y
+            }
             dragNodeId = nodeId
             dragPointerStart = { x: e.clientX, y: e.clientY }
             dragNodeStartPos = { x: sn.x, y: sn.y }
@@ -618,6 +641,8 @@ function onPointerMove(e) {
         if (dragNodeMoved) {
             const sn = simNodes.find(n => n.id === dragNodeId)
             if (sn) {
+                delete sn.fx
+                delete sn.fy
                 sn.x = dragNodeStartPos.x + dx / transform.k
                 sn.y = dragNodeStartPos.y + dy / transform.k
                 sn.vx = 0; sn.vy = 0
@@ -648,7 +673,13 @@ function onPointerUp() {
             const guildMatch = dragNodeId.match(/^guild-(\d+)$/)
             if (guildMatch) {
                 const sn = simNodes.find(n => n.id === dragNodeId)
-                if (sn && sn.homeX !== undefined) sn.returning = true
+                if (sn) {
+                    if (sn.homeX === undefined || sn.homeY === undefined) {
+                        sn.homeX = sn.baseX ?? sn.x
+                        sn.homeY = sn.baseY ?? sn.y
+                    }
+                    sn.returning = true
+                }
             }
         }
         dragNodeId = null; dragPointerStart = null; dragNodeStartPos = null; dragNodeMoved = false

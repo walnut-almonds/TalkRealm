@@ -61,6 +61,9 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-31 — Social Galaxy 拖曳回彈修正（HomeView.vue）：
+- **根因**：guild `homeX/homeY` 只在收斂後 (`alpha < ALPHA_MIN*5`) 才初始化；若使用者在此之前先拖曳，`baseX/baseY` 會先被寫入，導致 `homeX/homeY` 可能永遠未設定，放開後無法觸發回原點，節點看起來會固定在當前位置。
+- **修正**：`initSim` 建立 guild node 時直接初始化 `baseX/baseY/homeX/homeY`；`pointerdown/pointerup` 再加 fallback（home 未定義時補值）並在拖曳時清除 `fx/fy`；link force 判斷從 `!a.fx` 改為 `a.fx === undefined`，避免 0 值誤判。
 2026-05-31 — Unread & Mention 穩定性/安全性補強：
 - **Unread API 權限補洞**：`UnreadService` 現在會先驗證頻道存取權（guild member / DM participant），避免任意使用者對不屬於自己的頻道呼叫 `/channels/:id/unread` 或 `/channels/:id/ack`。
 - **ACK 目標驗證**：`AckChannel` 會檢查 `last_message_id` 是否真的屬於同一個 `channel_id`；不符時回 `400 invalid ack target`，避免用跨頻道 message ID 汙染已讀游標。
