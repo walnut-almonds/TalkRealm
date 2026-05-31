@@ -27,6 +27,7 @@ var ogHTTPClient = &http.Client{
 		if len(via) >= 3 {
 			return http.ErrUseLastResponse
 		}
+
 		return nil
 	},
 }
@@ -75,7 +76,16 @@ func GetOGPreview(c *gin.Context) {
 
 	contentType := resp.Header.Get("Content-Type")
 	if !strings.Contains(contentType, "text/html") {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "url does not return html"})
+		og := OGData{URL: rawURL}
+
+		// Direct image URLs are common in chat messages; return a minimal preview
+		// instead of treating them as an error.
+		if strings.HasPrefix(strings.ToLower(contentType), "image/") {
+			og.Image = rawURL
+		}
+
+		c.JSON(http.StatusOK, og)
+
 		return
 	}
 
@@ -84,6 +94,8 @@ func GetOGPreview(c *gin.Context) {
 }
 
 // parseOGTags extracts OG meta tags from the HTML response.
+//
+//nolint:gocognit
 func parseOGTags(resp *http.Response, originalURL string) OGData {
 	og := OGData{URL: originalURL}
 
