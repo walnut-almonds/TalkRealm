@@ -61,6 +61,9 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-31 — 文字聊天 UX 補強（Mention 候選高亮 + 未讀分隔線）：
+- **Mention 候選可視化**：`web/src/styles/main.css` 將 `.mention-item-selected` 背景改為 `var(--bg-hover)`（原本 `--hover-bg` 未定義導致高亮不明顯），並加入左側 primary 色條，讓上下鍵選取項目有明確視覺回饋。
+- **未讀分隔線**：`web/src/stores/useAppStore.js` 新增 `currentChannelUnreadCount`，在 `selectChannel()` 先快照進入頻道當下的 unread 數後再 ACK；`web/src/components/MessageList.vue` 依 unread 數反推第一則未讀位置並插入 `---以下為未讀訊息---` 分隔線（若未讀超出目前載入頁面，分隔線顯示在最上方）。
 2026-05-31 — 前端 Mention 輸入顯示與 Unread 指示修正：
 - **Mention 輸入框顯示優化**：`MessageInput.vue` 選人後不再插入 `<@id>`，改為顯示 `@名稱`；送出前再用 member alias 對照轉回 `<@id>`，兼顧可讀性與後端 mention 解析。
 - **Unread 根因與修正**：一般訊息未讀曾只靠 `channelGuildMap.get(channel_id)` 推 guild，當 map 不完整時 guild unread 不會亮（但 mention 因事件含 `guild_id` 仍會亮）。`useAppStore` 已改為 `guild_id` fallback + `channelGuildMap` 回填，並統一將 `channel_id/guild_id` 正規化為 number，避免 Set/Map 因型別不一致失效。

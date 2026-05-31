@@ -15,6 +15,7 @@ export const useAppStore = defineStore('app', () => {
     const currentGuild = ref(null)
     const channels = ref([])
     const currentChannel = ref(null)
+    const currentChannelUnreadCount = ref(0)
     const members = ref([])
     const messages = ref([])
     const isLoading = ref(false)
@@ -183,6 +184,7 @@ export const useAppStore = defineStore('app', () => {
         currentGuild.value = null
         channels.value = []
         currentChannel.value = null
+        currentChannelUnreadCount.value = 0
         members.value = []
         messages.value = []
         unreadGuildIds.clear()
@@ -270,6 +272,7 @@ export const useAppStore = defineStore('app', () => {
 
             // 切換群組時先清空頻道狀態，避免殘留上一個群組的頻道畫面
             currentChannel.value = null
+            currentChannelUnreadCount.value = 0
             messages.value = []
 
             // 恢復此群組最後停留的文字頻道，fallback 到第一個文字頻道
@@ -313,6 +316,8 @@ export const useAppStore = defineStore('app', () => {
     async function selectChannel(channelId) {
         try {
             setLoading(true)
+            // 保留切入頻道當下的未讀數，供訊息列表顯示未讀分隔線
+            currentChannelUnreadCount.value = channelUnreadMap.get(channelId)?.unread || 0
             const channel = await api.getChannel(channelId)
             currentChannel.value = channel
             messages.value = []
@@ -490,7 +495,7 @@ export const useAppStore = defineStore('app', () => {
     return {
         // state
         user, guilds, currentGuild, channels, currentChannel,
-        members, messages, isLoading, notification, pendingFileIds,
+        currentChannelUnreadCount, members, messages, isLoading, notification, pendingFileIds,
         lightboxUrl, typingUsers, typingList,
         translationCache, translationLoadingSet, onlineUserIds, unreadGuildIds, mentionGuildIds, channelUnreadMap,
         // computed

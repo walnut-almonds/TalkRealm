@@ -10,6 +10,23 @@ const container = ref(null)
 const isAtBottom = ref(true)
 const hasMore = ref(true)
 
+const firstUnreadIndex = computed(() => {
+  if (!store.currentChannel || store.currentChannel.type !== 'text') return -1
+  const unread = Number(store.currentChannelUnreadCount || 0)
+  if (!unread || unread < 1 || !store.messages.length) return -1
+
+  let seenUnread = 0
+  for (let i = store.messages.length - 1; i >= 0; i--) {
+    const msg = store.messages[i]
+    if (!msg || msg.user_id === store.user?.id) continue
+    seenUnread += 1
+    if (seenUnread >= unread) return i
+  }
+
+  // If older unread messages are not loaded yet, show the marker at top.
+  return 0
+})
+
 // Auto-scroll when new messages arrive if user is at bottom
 watch(() => store.messages.length, async () => {
   if (isAtBottom.value) {
@@ -85,13 +102,16 @@ function isGrouped(idx) {
       </div>
 
       <!-- Messages -->
-      <MessageItem
-        v-for="(msg, idx) in store.messages"
-        :key="msg.id || msg.nonce"
-        :message="msg"
-        :grouped="isGrouped(idx)"
-        :is-speaking="voiceStore.isSpeaking(msg.user_id)"
-      />
+      <template v-for="(msg, idx) in store.messages" :key="msg.id || msg.nonce">
+        <div v-if="idx === firstUnreadIndex" class="unread-divider">
+          <span>---以下為未讀訊息---</span>
+        </div>
+        <MessageItem
+          :message="msg"
+          :grouped="isGrouped(idx)"
+          :is-speaking="voiceStore.isSpeaking(msg.user_id)"
+        />
+      </template>
     </template>
   </div>
 </template>

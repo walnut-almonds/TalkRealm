@@ -523,7 +523,16 @@ select {
 
 .mention-item:hover,
 .mention-item-selected {
-    background: var(--hover-bg);
+    background: var(--bg-hover);
+}
+
+.mention-item-selected {
+    border-left: 3px solid var(--primary);
+    padding-left: 9px;
+}
+
+.mention-item-selected .mention-item-label {
+    color: #fff;
 }
 
 .mention-item-label {
@@ -1426,6 +1435,30 @@ select {
 .load-more-btn:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+}
+
+.unread-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 8px;
+    color: #ff7f7f;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    text-transform: none;
+}
+
+.unread-divider::before,
+.unread-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(237, 66, 69, 0.55);
+}
+
+.unread-divider span {
+    white-space: nowrap;
 }
 
 .message {
