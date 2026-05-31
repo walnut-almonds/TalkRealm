@@ -520,7 +520,25 @@ func (s *messageService) parseMentions(
 ) []*model.MessageMention {
 	content := msg.Content
 
-	var mentions []*model.MessageMention
+	mentions := make([]*model.MessageMention, 0, 8)
+	mentionIndexByUser := make(map[uint]int, 8)
+
+	upsertMention := func(userID uint, mentionType string) {
+		if idx, ok := mentionIndexByUser[userID]; ok {
+			if mentionTypePriority(mentionType) > mentionTypePriority(mentions[idx].MentionType) {
+				mentions[idx].MentionType = mentionType
+			}
+
+			return
+		}
+
+		mentionIndexByUser[userID] = len(mentions)
+		mentions = append(mentions, &model.MessageMention{
+			MessageID:   msg.ID,
+			UserID:      userID,
+			MentionType: mentionType,
+		})
+	}
 
 	// 解析 <@123> 格式
 	matches := mentionRe.FindAllStringSubmatch(content, -1)
@@ -530,11 +548,7 @@ func (s *messageService) parseMentions(
 			continue
 		}
 
-		mentions = append(mentions, &model.MessageMention{
-			MessageID:   msg.ID,
-			UserID:      uint(uid),
-			MentionType: "user",
-		})
+		upsertMention(uint(uid), "user")
 	}
 
 	// 解析 @here 和 @everyone（僅 guild 頻道）
@@ -570,14 +584,21 @@ func (s *messageService) parseMentions(
 			continue
 		}
 
-		mentions = append(mentions, &model.MessageMention{
-			MessageID:   msg.ID,
-			UserID:      member.UserID,
-			MentionType: mentionType,
-		})
+		upsertMention(member.UserID, mentionType)
 	}
 
 	return mentions
+}
+
+func mentionTypePriority(mentionType string) int {
+	switch mentionType {
+	case "user":
+		return 3
+	case "here":
+		return 2
+	default:
+		return 1
+	}
 }
 
 // containsMentionKeyword 檢查內容中是否包含 @keyword（不區分大小寫，詞邊界匹配）

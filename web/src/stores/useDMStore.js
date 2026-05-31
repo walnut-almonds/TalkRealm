@@ -35,9 +35,9 @@ export const useDMStore = defineStore('dm', () => {
         await loadDMMessages(channel.id)
         // ACK: 標記 DM 頻道已讀
         const appStore = useAppStore()
+        appStore.channelUnreadMap.delete(channel.id)
         const lastMsg = dmMessages.value[dmMessages.value.length - 1]
         if (lastMsg?.id) {
-            appStore.channelUnreadMap.delete(channel.id)
             apiClient.ackChannel(channel.id, lastMsg.id).catch(() => { })
         }
     }

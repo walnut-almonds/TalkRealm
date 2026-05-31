@@ -180,11 +180,18 @@ export const useAppStore = defineStore('app', () => {
         currentChannel.value = null
         members.value = []
         messages.value = []
+        unreadGuildIds.clear()
+        mentionGuildIds.clear()
+        channelUnreadMap.clear()
+        channelGuildMap.clear()
     }
 
     // ── Unread ───────────────────────────────────────────────────
     async function loadUnreadState() {
         try {
+            unreadGuildIds.clear()
+            mentionGuildIds.clear()
+            channelUnreadMap.clear()
             const counts = await api.getAllUnread()
             if (!Array.isArray(counts)) return
             counts.forEach(item => {

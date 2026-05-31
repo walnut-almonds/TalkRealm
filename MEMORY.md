@@ -61,6 +61,11 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-31 — Unread & Mention 穩定性/安全性補強：
+- **Unread API 權限補洞**：`UnreadService` 現在會先驗證頻道存取權（guild member / DM participant），避免任意使用者對不屬於自己的頻道呼叫 `/channels/:id/unread` 或 `/channels/:id/ack`。
+- **ACK 目標驗證**：`AckChannel` 會檢查 `last_message_id` 是否真的屬於同一個 `channel_id`；不符時回 `400 invalid ack target`，避免用跨頻道 message ID 汙染已讀游標。
+- **Mention 去重**：`parseMentions` 改成「每訊息每使用者僅一筆 mention」，並保留較高優先級 type（`user > here > everyone`），避免 `mention_count` 被重複累加。
+- **前端狀態殘留修正**：`useAppStore` 在 `loadUnreadState()` / `handleLogout()` 會先清空 `unreadGuildIds`、`mentionGuildIds`、`channelUnreadMap`；`useDMStore.openDMChannel()` 即使空頻道也會先清掉該 DM unread badge。
 2026-05-30 — Social Galaxy (HomeView.vue) 第二輪修正：
 - **+/- 按鈕縮放以畫面中心為基準**：新增 `zoomAtCenter(factor)` 函數，以 `(W/2, H/2)` 為縮放原點計算 `transform.x/y`；按鈕改為 `@click="zoomAtCenter(1.2/0.83)"`。
 - **成員牽引 bug 修正**：

@@ -12,6 +12,83 @@ import (
 	"github.com/walnut-almonds/talkrealm/internal/testutil"
 )
 
+func TestMessageService_CreateMessage_DeduplicatesMentions(t *testing.T) {
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "text"}
+	member := &model.GuildMember{ID: 1, GuildID: 10, UserID: 5}
+
+	done := make(chan []*model.MessageMention, 1)
+
+	fullMsg := &model.Message{
+		ID:        1,
+		ChannelID: 1,
+		UserID:    5,
+		Content:   "hello <@2> and @everyone and again <@2>",
+		User: model.User{
+			ID:       5,
+			Username: "author",
+		},
+	}
+
+	mockMsg := &testutil.MockMessageRepository{
+		CreateFn: func(m *model.Message) error {
+			m.ID = 1
+			return nil
+		},
+		GetByIDFn: func(id uint) (*model.Message, error) {
+			return fullMsg, nil
+		},
+	}
+
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
+	}
+
+	mockMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) {
+			return member, nil
+		},
+		GetByGuildIDFn: func(guildID uint) ([]*model.GuildMember, error) {
+			return []*model.GuildMember{
+				{UserID: 2},
+				{UserID: 3},
+				{UserID: 4},
+				{UserID: 5},
+			}, nil
+		},
+	}
+
+	mockMention := &testutil.MockMessageMentionRepository{
+		BulkCreateFn: func(mentions []*model.MessageMention) error {
+			done <- mentions
+			return nil
+		},
+	}
+
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, mockMention)
+
+	_, err := svc.CreateMessage(
+		5,
+		&service.CreateMessageRequest{ChannelID: 1, Content: fullMsg.Content},
+	)
+	require.NoError(t, err)
+
+	select {
+	case mentions := <-done:
+		require.Len(t, mentions, 3)
+
+		byUser := map[uint]string{}
+		for _, m := range mentions {
+			byUser[m.UserID] = m.MentionType
+		}
+
+		assert.Equal(t, "user", byUser[2])
+		assert.Equal(t, "everyone", byUser[3])
+		assert.Equal(t, "everyone", byUser[4])
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("mention processing did not complete in time")
+	}
+}
+
 func TestMessageService_CreateMessage_Success(t *testing.T) {
 	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	member := &model.GuildMember{ID: 1, GuildID: 10, UserID: 5}

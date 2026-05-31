@@ -165,7 +165,12 @@ func New(cfg *config.Config) (*Server, error) {
 	friendHandler := handler.NewFriendHandler(friendSvc)
 
 	// 未讀服務
-	unreadService := service.NewUnreadService(channelReadStateRepo)
+	unreadService := service.NewUnreadService(
+		channelReadStateRepo,
+		channelRepo,
+		guildMemberRepo,
+		messageRepo,
+	)
 	unreadHandler := handler.NewUnreadHandler(unreadService)
 
 	// 互動統計 Handler

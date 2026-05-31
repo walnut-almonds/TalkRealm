@@ -492,12 +492,13 @@ func (m *MockMessageRepository) CountByUserInGuildsSince(
 
 // MockChannelRepository is a test double for repository.ChannelRepository.
 type MockChannelRepository struct {
-	CreateFn       func(channel *model.Channel) error
-	GetByIDFn      func(id uint) (*model.Channel, error)
-	UpdateFn       func(channel *model.Channel) error
-	DeleteFn       func(id uint) error
-	GetByGuildIDFn func(guildID uint) ([]*model.Channel, error)
-	GetByTypeFn    func(guildID uint, channelType string) ([]*model.Channel, error)
+	CreateFn          func(channel *model.Channel) error
+	GetByIDFn         func(id uint) (*model.Channel, error)
+	UpdateFn          func(channel *model.Channel) error
+	DeleteFn          func(id uint) error
+	GetByGuildIDFn    func(guildID uint) ([]*model.Channel, error)
+	GetByTypeFn       func(guildID uint, channelType string) ([]*model.Channel, error)
+	IsDMParticipantFn func(channelID, userID uint) (bool, error)
 }
 
 var _ repository.ChannelRepository = (*MockChannelRepository)(nil)
@@ -564,6 +565,10 @@ func (m *MockChannelRepository) ListDMChannels(userID uint) ([]*model.Channel, e
 }
 
 func (m *MockChannelRepository) IsDMParticipant(channelID, userID uint) (bool, error) {
+	if m.IsDMParticipantFn != nil {
+		return m.IsDMParticipantFn(channelID, userID)
+	}
+
 	return true, nil
 }
 

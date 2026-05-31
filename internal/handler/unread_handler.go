@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -59,7 +60,13 @@ func (h *UnreadHandler) GetChannelUnread(c *gin.Context) {
 
 	count, err := h.unreadService.GetChannelUnread(userID, uint(channelID))
 	if err != nil {
+		if errors.Is(err, service.ErrUnreadAccessDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -94,7 +101,18 @@ func (h *UnreadHandler) AckChannel(c *gin.Context) {
 	}
 
 	if err := h.unreadService.AckChannel(userID, uint(channelID), req.LastMessageID); err != nil {
+		if errors.Is(err, service.ErrUnreadAccessDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+
+		if errors.Is(err, service.ErrUnreadInvalidAckTarget) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ack target"})
+			return
+		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
