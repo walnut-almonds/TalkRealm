@@ -270,12 +270,12 @@ onUnmounted(() => {
 }
 
 .gif-picker-grid {
-  flex: 1;
-  min-height: 240px;
+  height: 360px;
   overflow-y: auto;
   padding: 2px 12px 6px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 128px;
   gap: 12px;
   align-content: start;
 }
@@ -286,7 +286,6 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   padding: 0;
-  aspect-ratio: 16 / 10;
 }
 
 .gif-card:hover {
