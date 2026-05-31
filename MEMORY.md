@@ -30,6 +30,7 @@ make check        # 全部檢查（lint + build + test）
 - 目前訊息分頁是 offset，計畫改為 cursor-based（before message_id）
 
 ## Pitfalls
+- **Tenor key 相容性**：`LIVDSRZULELA` 在 Tenor v2 (`tenor.googleapis.com/v2`) 目前會回 `API_KEY_INVALID`（400），但在 v1 (`g.tenor.com/v1`) 仍可用。前端 `searchGIFs` 應採「有 `VITE_TENOR_API_KEY` 才走 v2，否則/失敗 fallback v1」策略，避免 GIF picker 直接壞掉。
 - DM 與群組訊息共用 `MessageItem` 時，編輯/刪除/翻譯 API 不能固定呼叫 `/messages/:id/*`；DM 需要走 `/dm/messages/:id/*`。建議以 `isDM` prop 分流，否則 DM 會出現 404/權限錯誤。
 - Vue SFC 大改版時要避免「新版內容 + 舊版內容同檔重複貼上」；會造成 `<script>/<template>/<style>` 區塊重複、前端編譯直接失敗。
 - DM 與群組訊息整合後，後端 `message_create` payload 主要欄位是 `channel_id`（不再保證有 `dm_channel_id`）。前端 DM store 若仍只讀 `dm_channel_id`，會導致私訊新訊息不顯示、頻道排序不更新。

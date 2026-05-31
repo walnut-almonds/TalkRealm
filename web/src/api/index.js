@@ -5,6 +5,7 @@ const wsOrigin = origin.replace(/^http/, 'ws')
 export const API_BASE = origin
 export const WS_URL = `${wsOrigin}/api/v1/ws`
 const TENOR_BASE = 'https://tenor.googleapis.com/v2'
+const TENOR_LEGACY_BASE = 'https://g.tenor.com/v1'
 
 export const EP = {
     REGISTER: '/api/v1/auth/register',
@@ -288,33 +289,69 @@ class ApiClient {
 
     // ── GIF ──
     async searchGIFs(query = '', limit = 18) {
-        const key = import.meta.env.VITE_TENOR_API_KEY || 'LIVDSRZULELA'
+        const cappedLimit = Math.min(Math.max(Number(limit) || 18, 1), 30)
+        const v2Key = import.meta.env.VITE_TENOR_API_KEY
         const clientKey = import.meta.env.VITE_TENOR_CLIENT_KEY || 'talkrealm-web'
-        const endpoint = query ? 'search' : 'featured'
 
-        const params = new URLSearchParams({
-            key,
-            client_key: clientKey,
-            media_filter: 'gif,tinygif',
-            contentfilter: 'medium',
-            locale: 'zh_TW',
-            limit: String(Math.min(Math.max(Number(limit) || 18, 1), 30)),
+        // Tenor v2 requires a valid Google API key. If not configured,
+        // or if the key is rejected, fallback to Tenor v1 demo key.
+        if (v2Key) {
+            const endpoint = query ? 'search' : 'featured'
+            const params = new URLSearchParams({
+                key: v2Key,
+                client_key: clientKey,
+                media_filter: 'gif,tinygif',
+                contentfilter: 'medium',
+                locale: 'zh_TW',
+                limit: String(cappedLimit),
+            })
+            if (query) params.set('q', query)
+
+            const res = await fetch(`${TENOR_BASE}/${endpoint}?${params.toString()}`)
+            const data = await res.json().catch(() => ({}))
+            if (res.ok) {
+                return (data.results || []).map((item) => {
+                    const gif = item?.media_formats?.gif?.url || ''
+                    const tiny = item?.media_formats?.tinygif?.url || gif
+                    return {
+                        id: item.id,
+                        title: item.content_description || 'GIF',
+                        url: gif,
+                        previewUrl: tiny,
+                        source: 'tenor-v2',
+                    }
+                }).filter(item => item.url)
+            }
+            // If user configured a key but it's invalid, continue to v1 fallback.
+            // Other errors should still fallback to keep GIF UX available.
+            console.warn('Tenor v2 request failed, fallback to v1:', data?.error?.message || res.statusText)
+        }
+
+        const legacyKey = 'LIVDSRZULELA'
+        const legacyEndpoint = query ? 'search' : 'trending'
+        const legacyParams = new URLSearchParams({
+            key: legacyKey,
+            limit: String(cappedLimit),
+            media_filter: 'minimal',
         })
-        if (query) params.set('q', query)
+        if (query) legacyParams.set('q', query)
 
-        const res = await fetch(`${TENOR_BASE}/${endpoint}?${params.toString()}`)
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data?.error || 'GIF 服務暫時不可用')
+        const legacyRes = await fetch(`${TENOR_LEGACY_BASE}/${legacyEndpoint}?${legacyParams.toString()}`)
+        const legacyData = await legacyRes.json().catch(() => ({}))
+        if (!legacyRes.ok) {
+            throw new Error(legacyData?.error || 'GIF 服務暫時不可用')
+        }
 
-        return (data.results || []).map((item) => {
-            const gif = item?.media_formats?.gif?.url || ''
-            const tiny = item?.media_formats?.tinygif?.url || gif
+        return (legacyData.results || []).map((item) => {
+            const media = item?.media?.[0] || {}
+            const gif = media?.gif?.url || media?.tinygif?.url || ''
+            const tiny = media?.tinygif?.url || media?.nanogif?.url || gif
             return {
                 id: item.id,
                 title: item.content_description || 'GIF',
                 url: gif,
                 previewUrl: tiny,
-                source: 'tenor',
+                source: 'tenor-v1',
             }
         }).filter(item => item.url)
     }
