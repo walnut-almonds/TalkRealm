@@ -5,6 +5,7 @@ import { useWebSocket } from '@/composables/useWebSocket.js'
 import { useFileUpload } from '@/composables/useFileUpload.js'
 import { randomUUID } from '@/utils/format.js'
 import { api } from '@/api/index.js'
+import GifPicker from '@/components/GifPicker.vue'
 
 const store = useAppStore()
 const ws = useWebSocket()
@@ -13,6 +14,7 @@ const { pendingChips, uploadFile, removeChip, clearChips } = useFileUpload(store
 const input = ref(null)
 const content = ref('')
 const isDragging = ref(false)
+const showGifPicker = ref(false)
 let dragCounter = 0
 
 // typing throttle
@@ -179,6 +181,18 @@ async function send() {
   }
 }
 
+function toggleGifPicker() {
+  showGifPicker.value = !showGifPicker.value
+}
+
+function onSelectGif(gif) {
+  if (!gif?.url) return
+  const draft = content.value.trim()
+  content.value = draft ? `${draft}\n${gif.url}` : gif.url
+  showGifPicker.value = false
+  send()
+}
+
 function onKeydown(e) {
   if (mentionActive.value && mentionCandidates.value.length) {
     if (e.key === 'ArrowDown') { e.preventDefault(); mentionSelectedIdx.value = (mentionSelectedIdx.value + 1) % mentionCandidates.value.length; return }
@@ -287,7 +301,17 @@ async function onDrop(e) {
       <button class="btn-icon" title="發送訊息" @click="send">
         <i class="fas fa-paper-plane"></i>
       </button>
+      <button class="btn-icon" :class="{ active: showGifPicker }" title="GIF" @click="toggleGifPicker">
+        <i class="fas fa-film"></i>
+      </button>
     </div>
+
+    <GifPicker
+      v-if="showGifPicker"
+      class="message-gif-picker"
+      @close="showGifPicker = false"
+      @select="onSelectGif"
+    />
 
     <!-- Hidden file input -->
     <input

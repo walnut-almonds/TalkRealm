@@ -4,6 +4,7 @@ const wsOrigin = origin.replace(/^http/, 'ws')
 
 export const API_BASE = origin
 export const WS_URL = `${wsOrigin}/api/v1/ws`
+const TENOR_BASE = 'https://tenor.googleapis.com/v2'
 
 export const EP = {
     REGISTER: '/api/v1/auth/register',
@@ -284,6 +285,39 @@ class ApiClient {
 
     // ── OG Preview ──
     getOGPreview(url) { return this.get(`/api/v1/og?url=${encodeURIComponent(url)}`) }
+
+    // ── GIF ──
+    async searchGIFs(query = '', limit = 18) {
+        const key = import.meta.env.VITE_TENOR_API_KEY || 'LIVDSRZULELA'
+        const clientKey = import.meta.env.VITE_TENOR_CLIENT_KEY || 'talkrealm-web'
+        const endpoint = query ? 'search' : 'featured'
+
+        const params = new URLSearchParams({
+            key,
+            client_key: clientKey,
+            media_filter: 'gif,tinygif',
+            contentfilter: 'medium',
+            locale: 'zh_TW',
+            limit: String(Math.min(Math.max(Number(limit) || 18, 1), 30)),
+        })
+        if (query) params.set('q', query)
+
+        const res = await fetch(`${TENOR_BASE}/${endpoint}?${params.toString()}`)
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data?.error || 'GIF 服務暫時不可用')
+
+        return (data.results || []).map((item) => {
+            const gif = item?.media_formats?.gif?.url || ''
+            const tiny = item?.media_formats?.tinygif?.url || gif
+            return {
+                id: item.id,
+                title: item.content_description || 'GIF',
+                url: gif,
+                previewUrl: tiny,
+                source: 'tenor',
+            }
+        }).filter(item => item.url)
+    }
 
     // ── Unread ──
     getAllUnread() { return this.get('/api/v1/users/me/unread') }

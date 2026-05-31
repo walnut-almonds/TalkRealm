@@ -6,6 +6,7 @@ import { useAppStore } from '@/stores/useAppStore.js'
 import { useFileUpload } from '@/composables/useFileUpload.js'
 import { randomUUID } from '@/utils/format.js'
 import MessageItem from '@/components/MessageItem.vue'
+import GifPicker from '@/components/GifPicker.vue'
 
 const emit = defineEmits(['open-sidebar'])
 
@@ -17,6 +18,7 @@ const messageListEl = ref(null)
 const inputEl = ref(null)
 const fileInputEl = ref(null)
 const content = ref('')
+const showGifPicker = ref(false)
 
 const partner = computed(() => {
     const ch = dm.currentDMChannel
@@ -111,6 +113,18 @@ async function send() {
     await dm.sendDM(text, nonce, fileIds)
 }
 
+function toggleGifPicker() {
+    showGifPicker.value = !showGifPicker.value
+}
+
+function onSelectGif(gif) {
+    if (!gif?.url) return
+    const draft = content.value.trim()
+    content.value = draft ? `${draft}\n${gif.url}` : gif.url
+    showGifPicker.value = false
+    send()
+}
+
 function autoResize() {
     if (!inputEl.value) return
     inputEl.value.style.height = 'auto'
@@ -190,6 +204,15 @@ function onKeydown(e) {
             <button class="dm-send-btn" @click="send" :disabled="!content.trim() && dm.dmPendingFileIds.length === 0">
                 <i class="fas fa-paper-plane"></i>
             </button>
+            <button class="dm-gif-btn" :class="{ active: showGifPicker }" title="GIF" @click="toggleGifPicker">
+                <i class="fas fa-film"></i>
+            </button>
+            <GifPicker
+                v-if="showGifPicker"
+                class="dm-gif-picker"
+                @close="showGifPicker = false"
+                @select="onSelectGif"
+            />
         </div>
     </div>
     <div class="dm-empty-state" v-else>
@@ -339,6 +362,7 @@ function onKeydown(e) {
     display: flex;
     gap: 8px;
     align-items: flex-end;
+    position: relative;
 }
 
 .dm-attach-btn {
@@ -398,5 +422,35 @@ function onKeydown(e) {
 .dm-send-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+.dm-gif-btn {
+    background: var(--bg-secondary, #2f3136);
+    border: none;
+    border-radius: 8px;
+    color: var(--text-primary, #dcddde);
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.1s, color 0.1s;
+}
+
+.dm-gif-btn:hover {
+    background: var(--bg-hover, #4f545c);
+}
+
+.dm-gif-btn.active {
+    color: var(--accent, #5865f2);
+}
+
+.dm-gif-picker {
+    position: absolute;
+    right: 16px;
+    bottom: 64px;
+    z-index: 20;
 }
 </style>

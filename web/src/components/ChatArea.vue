@@ -39,6 +39,6 @@ const store = useAppStore()
     <TypingIndicator />
 
     <!-- Input -->
-    <MessageInput v-if="store.currentChannel && store.currentChannel.type !== 'voice'" />
+    <MessageInput v-if="store.currentChannel" />
   </div>
 </template>

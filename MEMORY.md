@@ -61,6 +61,12 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-31 — 聊天輸入新增 GIF Picker（Tenor）與語音頻道可發送訊息：
+- **GIF 按鈕位置**：`MessageInput.vue` 與 `DMChatArea.vue` 在送出按鈕右側新增 GIF 按鈕（`fa-film`），打開 `GifPicker.vue` 可搜尋/預覽 Tenor GIF。
+- **Provider 串接**：`web/src/api/index.js` 新增 `searchGIFs(query, limit)`，使用 Tenor v2 API；可透過 `VITE_TENOR_API_KEY`、`VITE_TENOR_CLIENT_KEY` 覆寫，未設定時 fallback 測試 key `LIVDSRZULELA`。
+- **訊息渲染**：`web/src/utils/markdown.js` 針對 `.gif` URL 直接輸出 `<img class="md-inline-gif">`，不再只顯示連結文字，發送後可直接在訊息區看到 GIF。
+- **語音頻道輸入**：`ChatArea.vue` 移除 `type !== 'voice'` 限制，現在在語音頻道也會顯示 `MessageInput`，可直接送出 GIF。
+
 2026-05-31 — 文字聊天 UX 補強（Mention 候選高亮 + 未讀分隔線）：
 - **Mention 候選可視化**：`web/src/styles/main.css` 將 `.mention-item-selected` 背景改為 `var(--bg-hover)`（原本 `--hover-bg` 未定義導致高亮不明顯），並加入左側 primary 色條，讓上下鍵選取項目有明確視覺回饋。
 - **未讀分隔線**：`web/src/stores/useAppStore.js` 新增 `currentChannelUnreadCount`，在 `selectChannel()` 先快照進入頻道當下的 unread 數後再 ACK；`web/src/components/MessageList.vue` 依 unread 數反推第一則未讀位置並插入 `---以下為未讀訊息---` 分隔線（若未讀超出目前載入頁面，分隔線顯示在最上方）。

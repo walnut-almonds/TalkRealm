@@ -169,6 +169,10 @@ select {
     background: var(--bg-hover);
 }
 
+.btn-icon.active {
+    color: var(--primary);
+}
+
 .btn-sm {
     padding: 4px 12px;
     font-size: 13px;
@@ -1721,6 +1725,16 @@ select {
     text-decoration: underline;
 }
 
+.md-inline-gif {
+    display: block;
+    margin-top: 8px;
+    max-width: min(100%, 360px);
+    max-height: 280px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    object-fit: cover;
+}
+
 /* ── OG Preview Card ────────────────────────────────────── */
 .og-previews {
     margin-top: 8px;
@@ -2130,6 +2144,13 @@ select {
 
 .message-input-row textarea::placeholder {
     color: var(--text-muted);
+}
+
+.message-gif-picker {
+    position: absolute;
+    right: 16px;
+    bottom: 64px;
+    z-index: 20;
 }
 
 /* Drop Overlay */

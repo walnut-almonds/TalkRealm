@@ -1,5 +1,6 @@
 // URL regex — matches http(s) URLs, stopped at whitespace or common trailing punctuation.
 const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g
+const GIF_URL_RE = /\.gif(?:$|[?#])/i
 
 // Extensions that are direct media/document files — skip OGP for these.
 const MEDIA_EXT_RE = /\.(jpe?g|png|gif|webp|svg|avif|bmp|ico|mp4|webm|mov|avi|mp3|wav|ogg|pdf|zip|tar|gz|dmg|exe|apk|docx?|xlsx?|pptx?)\b/i
@@ -127,6 +128,9 @@ function applyInline(escaped, urlSet) {
         // Only queue for OGP if this looks like a web page, not a media file.
         if (!MEDIA_EXT_RE.test(href)) {
             urlSet.add(href)
+        }
+        if (GIF_URL_RE.test(href)) {
+            return `<img src="${escapeAttr(href)}" alt="GIF" class="md-inline-gif" loading="lazy" />`
         }
         return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" class="md-link">${match}</a>`
     })
