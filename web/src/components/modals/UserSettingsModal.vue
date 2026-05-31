@@ -2,7 +2,6 @@
 import { ref, onMounted } from 'vue'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { api } from '@/api/index.js'
-import { STORAGE_KEYS } from '@/api/index.js'
 
 const emit = defineEmits(['close'])
 const store = useAppStore()
@@ -14,6 +13,9 @@ const preferredLang = ref('zh')
 const oldPassword = ref('')
 const newPassword = ref('')
 const saving = ref(false)
+const gifProvider = ref('auto')
+const gifApiKey = ref('')
+const gifClientKey = ref('talkrealm-web')
 
 onMounted(() => {
   const user = store.user
@@ -23,6 +25,11 @@ onMounted(() => {
     status.value = user.status || 'online'
     preferredLang.value = user.preferred_lang || 'zh'
   }
+
+  const gifConfig = api.getGIFConfig()
+  gifProvider.value = gifConfig.provider || 'auto'
+  gifApiKey.value = gifConfig.apiKey || ''
+  gifClientKey.value = gifConfig.clientKey || 'talkrealm-web'
 })
 
 async function saveProfile() {
@@ -41,6 +48,13 @@ async function saveProfile() {
       store.user.status = status.value
       store.user.preferred_lang = preferredLang.value
     }
+
+    api.setGIFConfig({
+      provider: gifProvider.value,
+      apiKey: gifApiKey.value,
+      clientKey: gifClientKey.value,
+    })
+
     store.showNotification('個人資料已更新', 'success')
     emit('close')
   } catch (e) {
@@ -105,6 +119,29 @@ async function changePassword() {
               <option value="en">🇺🇸 English</option>
             </select>
           </div>
+        </div>
+
+        <hr style="border-color:var(--border-color);margin:16px 0" />
+
+        <div class="settings-section">
+          <h3>GIF 搜尋設定</h3>
+          <div class="form-group">
+            <label>Provider</label>
+            <select v-model="gifProvider">
+              <option value="auto">Auto（優先 Tenor v2，失敗 fallback v1）</option>
+              <option value="tenor-v2">Tenor v2（需 API Key）</option>
+              <option value="tenor-v1">Tenor v1（相容模式）</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tenor API Key（v2）</label>
+            <input v-model="gifApiKey" placeholder="未填寫時 Auto 會走 v1 相容模式" />
+          </div>
+          <div class="form-group">
+            <label>Tenor Client Key</label>
+            <input v-model="gifClientKey" placeholder="talkrealm-web" />
+          </div>
+          <div class="form-hint">這些設定會儲存在你的瀏覽器本地端，不會上傳到伺服器。</div>
         </div>
 
         <hr style="border-color:var(--border-color);margin:16px 0" />

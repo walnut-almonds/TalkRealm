@@ -62,6 +62,12 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-31 — GIF 搜尋與設定強化（分頁 + Provider 設定 + markdown inline-code 保護）：
+- **GIF API 回傳改為可分頁**：`api.searchGIFs(query, limit, cursor)` 現在回傳 `{ items, next }`；`next` 直接對接 Tenor 的 `pos/next` token。
+- **Provider 設定持久化**：新增 localStorage keys（`talkrealm_gif_provider` / `talkrealm_gif_api_key` / `talkrealm_gif_client_key`），並在 `UserSettingsModal` 提供 UI（`auto`/`tenor-v2`/`tenor-v1`）。
+- **GIF Picker UX**：`GifPicker.vue` 支援 scroll-bottom 自動載更多與 hover 大圖跟隨預覽；卡片改 2 欄較寬鬆。
+- **Markdown 規則**：inline code（反引號）內容先 token 化再套 URL 規則，避免 `` `https://...gif` `` 被誤轉成 `<img>` 或 `<a>`。
+
 2026-05-31 — 聊天輸入新增 GIF Picker（Tenor）與語音頻道可發送訊息：
 - **GIF 按鈕位置**：`MessageInput.vue` 與 `DMChatArea.vue` 在送出按鈕右側新增 GIF 按鈕（`fa-film`），打開 `GifPicker.vue` 可搜尋/預覽 Tenor GIF。
 - **Provider 串接**：`web/src/api/index.js` 新增 `searchGIFs(query, limit)`，使用 Tenor v2 API；可透過 `VITE_TENOR_API_KEY`、`VITE_TENOR_CLIENT_KEY` 覆寫，未設定時 fallback 測試 key `LIVDSRZULELA`。

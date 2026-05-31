@@ -63,6 +63,9 @@ export const STORAGE_KEYS = {
     REFRESH_TOKEN: 'talkrealm_refresh_token',
     LAST_GUILD: 'talkrealm_last_guild',
     LAST_CHANNEL: 'talkrealm_last_channel',
+    GIF_PROVIDER: 'talkrealm_gif_provider',
+    GIF_API_KEY: 'talkrealm_gif_api_key',
+    GIF_CLIENT_KEY: 'talkrealm_gif_client_key',
 }
 
 /** 取得/設定某個 guild 最後停留的頻道 ID */
@@ -287,15 +290,40 @@ class ApiClient {
     // ── OG Preview ──
     getOGPreview(url) { return this.get(`/api/v1/og?url=${encodeURIComponent(url)}`) }
 
+    // ── GIF Settings ──
+    getGIFConfig() {
+        const provider = localStorage.getItem(STORAGE_KEYS.GIF_PROVIDER) || 'auto'
+        const apiKey = localStorage.getItem(STORAGE_KEYS.GIF_API_KEY) || ''
+        const clientKey = localStorage.getItem(STORAGE_KEYS.GIF_CLIENT_KEY) || 'talkrealm-web'
+        return { provider, apiKey, clientKey }
+    }
+
+    setGIFConfig({ provider = 'auto', apiKey = '', clientKey = 'talkrealm-web' } = {}) {
+        const normalizedProvider = ['auto', 'tenor-v2', 'tenor-v1'].includes(provider) ? provider : 'auto'
+        const normalizedAPIKey = (apiKey || '').trim()
+        const normalizedClientKey = (clientKey || 'talkrealm-web').trim() || 'talkrealm-web'
+
+        localStorage.setItem(STORAGE_KEYS.GIF_PROVIDER, normalizedProvider)
+        if (normalizedAPIKey) localStorage.setItem(STORAGE_KEYS.GIF_API_KEY, normalizedAPIKey)
+        else localStorage.removeItem(STORAGE_KEYS.GIF_API_KEY)
+        localStorage.setItem(STORAGE_KEYS.GIF_CLIENT_KEY, normalizedClientKey)
+    }
+
     // ── GIF ──
-    async searchGIFs(query = '', limit = 18) {
+    async searchGIFs(query = '', limit = 18, cursor = '') {
         const cappedLimit = Math.min(Math.max(Number(limit) || 18, 1), 30)
-        const v2Key = import.meta.env.VITE_TENOR_API_KEY
-        const clientKey = import.meta.env.VITE_TENOR_CLIENT_KEY || 'talkrealm-web'
+        const gifCfg = this.getGIFConfig()
+        const provider = gifCfg.provider || 'auto'
+
+        const v2Key = gifCfg.apiKey || import.meta.env.VITE_TENOR_API_KEY || ''
+        const clientKey = gifCfg.clientKey || import.meta.env.VITE_TENOR_CLIENT_KEY || 'talkrealm-web'
+
+        const tryV2 = provider !== 'tenor-v1'
+        const tryV1 = provider !== 'tenor-v2'
 
         // Tenor v2 requires a valid Google API key. If not configured,
         // or if the key is rejected, fallback to Tenor v1 demo key.
-        if (v2Key) {
+        if (tryV2 && v2Key) {
             const endpoint = query ? 'search' : 'featured'
             const params = new URLSearchParams({
                 key: v2Key,
@@ -306,25 +334,38 @@ class ApiClient {
                 limit: String(cappedLimit),
             })
             if (query) params.set('q', query)
+            if (cursor) params.set('pos', cursor)
 
             const res = await fetch(`${TENOR_BASE}/${endpoint}?${params.toString()}`)
             const data = await res.json().catch(() => ({}))
             if (res.ok) {
-                return (data.results || []).map((item) => {
-                    const gif = item?.media_formats?.gif?.url || ''
-                    const tiny = item?.media_formats?.tinygif?.url || gif
-                    return {
-                        id: item.id,
-                        title: item.content_description || 'GIF',
-                        url: gif,
-                        previewUrl: tiny,
-                        source: 'tenor-v2',
-                    }
-                }).filter(item => item.url)
+                return {
+                    items: (data.results || []).map((item) => {
+                        const gif = item?.media_formats?.gif?.url || ''
+                        const tiny = item?.media_formats?.tinygif?.url || gif
+                        return {
+                            id: item.id,
+                            title: item.content_description || 'GIF',
+                            url: gif,
+                            previewUrl: tiny,
+                            source: 'tenor-v2',
+                        }
+                    }).filter(item => item.url),
+                    next: data.next || '',
+                }
             }
             // If user configured a key but it's invalid, continue to v1 fallback.
             // Other errors should still fallback to keep GIF UX available.
             console.warn('Tenor v2 request failed, fallback to v1:', data?.error?.message || res.statusText)
+            if (!tryV1) {
+                throw new Error(data?.error?.message || data?.error || 'GIF 服務暫時不可用')
+            }
+        } else if (provider === 'tenor-v2') {
+            throw new Error('請先在使用者設定中填入 Tenor API Key')
+        }
+
+        if (!tryV1) {
+            throw new Error('目前 GIF provider 設定不支援此請求')
         }
 
         const legacyKey = 'LIVDSRZULELA'
@@ -335,6 +376,7 @@ class ApiClient {
             media_filter: 'minimal',
         })
         if (query) legacyParams.set('q', query)
+        if (cursor) legacyParams.set('pos', cursor)
 
         const legacyRes = await fetch(`${TENOR_LEGACY_BASE}/${legacyEndpoint}?${legacyParams.toString()}`)
         const legacyData = await legacyRes.json().catch(() => ({}))
@@ -342,18 +384,21 @@ class ApiClient {
             throw new Error(legacyData?.error || 'GIF 服務暫時不可用')
         }
 
-        return (legacyData.results || []).map((item) => {
-            const media = item?.media?.[0] || {}
-            const gif = media?.gif?.url || media?.tinygif?.url || ''
-            const tiny = media?.tinygif?.url || media?.nanogif?.url || gif
-            return {
-                id: item.id,
-                title: item.content_description || 'GIF',
-                url: gif,
-                previewUrl: tiny,
-                source: 'tenor-v1',
-            }
-        }).filter(item => item.url)
+        return {
+            items: (legacyData.results || []).map((item) => {
+                const media = item?.media?.[0] || {}
+                const gif = media?.gif?.url || media?.tinygif?.url || ''
+                const tiny = media?.tinygif?.url || media?.nanogif?.url || gif
+                return {
+                    id: item.id,
+                    title: item.content_description || 'GIF',
+                    url: gif,
+                    previewUrl: tiny,
+                    source: 'tenor-v1',
+                }
+            }).filter(item => item.url),
+            next: legacyData.next || '',
+        }
     }
 
     // ── Unread ──

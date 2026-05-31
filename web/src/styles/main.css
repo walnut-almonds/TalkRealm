@@ -303,6 +303,13 @@ select {
     cursor: pointer;
 }
 
+.form-hint {
+    margin-top: -4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
 /* ── OAuth Button ────────────────────────────────────────── */
 .btn-oauth {
     display: flex;

@@ -5,23 +5,72 @@ import { api } from '@/api/index.js'
 const emit = defineEmits(['select', 'close'])
 
 const rootEl = ref(null)
+const gridEl = ref(null)
 const query = ref('')
 const gifs = ref([])
 const loading = ref(false)
+const loadingMore = ref(false)
 const error = ref('')
+const nextCursor = ref('')
+const hasMore = ref(false)
+
+const hoverGif = ref(null)
+const previewPos = ref({ x: 0, y: 0 })
 
 let searchTimer = null
 
-async function loadGifs(keyword = '') {
-  loading.value = true
-  error.value = ''
+function resetList() {
+  gifs.value = []
+  nextCursor.value = ''
+  hasMore.value = false
+}
+
+function mergeByID(origin, incoming) {
+  const seen = new Set(origin.map(item => item.id))
+  const merged = [...origin]
+  incoming.forEach((item) => {
+    if (seen.has(item.id)) return
+    seen.add(item.id)
+    merged.push(item)
+  })
+  return merged
+}
+
+async function loadGifs(keyword = '', { append = false, cursor = '' } = {}) {
+  if (append) {
+    if (loadingMore.value || loading.value) return
+    loadingMore.value = true
+  } else {
+    if (loading.value) return
+    loading.value = true
+    error.value = ''
+  }
+
   try {
-    gifs.value = await api.searchGIFs(keyword, 18)
+    const result = await api.searchGIFs(keyword, 18, cursor)
+    const items = result?.items || []
+    nextCursor.value = result?.next || ''
+    hasMore.value = Boolean(nextCursor.value)
+    gifs.value = append ? mergeByID(gifs.value, items) : items
   } catch (e) {
+    if (!append) resetList()
     error.value = e?.message || 'GIF 服務暫時無法使用'
   } finally {
-    loading.value = false
+    if (append) loadingMore.value = false
+    else loading.value = false
   }
+}
+
+function loadMoreIfNeeded() {
+  if (!hasMore.value || !nextCursor.value || loading.value || loadingMore.value) return
+  loadGifs(query.value.trim(), { append: true, cursor: nextCursor.value })
+}
+
+function onGridScroll(e) {
+  const el = e.target
+  if (!el) return
+  const remain = el.scrollHeight - el.scrollTop - el.clientHeight
+  if (remain < 140) loadMoreIfNeeded()
 }
 
 function selectGif(gif) {
@@ -41,9 +90,39 @@ function onDocPointerDown(e) {
   }
 }
 
+function calcPreviewPos(clientX, clientY) {
+  const previewW = 350
+  const previewH = 270
+  const offset = 18
+  const pad = 12
+
+  let x = clientX + offset
+  let y = clientY + offset
+  if (x + previewW > window.innerWidth - pad) x = clientX - previewW - offset
+  if (y + previewH > window.innerHeight - pad) y = window.innerHeight - previewH - pad
+  if (y < pad) y = pad
+
+  previewPos.value = { x, y }
+}
+
+function onGifEnter(gif, e) {
+  hoverGif.value = gif
+  calcPreviewPos(e.clientX, e.clientY)
+}
+
+function onGifMove(e) {
+  if (!hoverGif.value) return
+  calcPreviewPos(e.clientX, e.clientY)
+}
+
+function onGifLeave() {
+  hoverGif.value = null
+}
+
 watch(query, (val) => {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
+    resetList()
     loadGifs(val.trim())
   }, 280)
 })
@@ -85,17 +164,36 @@ onUnmounted(() => {
     <div v-else-if="error" class="gif-picker-state gif-picker-state-error">{{ error }}</div>
     <div v-else-if="!gifs.length" class="gif-picker-state">找不到 GIF，換個關鍵字試試</div>
 
-    <div v-else class="gif-picker-grid">
+    <div v-else ref="gridEl" class="gif-picker-grid" @scroll="onGridScroll">
       <button
         v-for="gif in gifs"
         :key="gif.id"
         class="gif-card"
         :title="gif.title || 'GIF'"
+        @mouseenter="onGifEnter(gif, $event)"
+        @mousemove="onGifMove($event)"
+        @mouseleave="onGifLeave"
         @click="selectGif(gif)"
       >
         <img :src="gif.previewUrl || gif.url" :alt="gif.title || 'gif'" loading="lazy" />
       </button>
+
+      <div v-if="loadingMore" class="gif-picker-more">載入更多...</div>
+      <div v-else-if="!hasMore && gifs.length > 0" class="gif-picker-more gif-picker-more-end">
+        沒有更多 GIF 了
+      </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="hoverGif"
+        class="gif-hover-preview"
+        :style="{ left: `${previewPos.x}px`, top: `${previewPos.y}px` }"
+      >
+        <img :src="hoverGif.url || hoverGif.previewUrl" :alt="hoverGif.title || 'GIF 預覽'" />
+        <div class="gif-hover-preview-title">{{ hoverGif.title || 'GIF 預覽' }}</div>
+      </div>
+    </Teleport>
 
     <div class="gif-picker-footer">Powered by Tenor</div>
   </div>
@@ -178,8 +276,9 @@ onUnmounted(() => {
   overflow-y: auto;
   padding: 0 12px 10px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-content: start;
 }
 
 .gif-card {
@@ -188,7 +287,7 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   padding: 0;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 16 / 11;
 }
 
 .gif-card:hover {
@@ -200,6 +299,48 @@ onUnmounted(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.gif-picker-more {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted, #a7a9ad);
+  font-size: 12px;
+  padding: 8px 0 2px;
+}
+
+.gif-picker-more-end {
+  opacity: 0.8;
+}
+
+.gif-hover-preview {
+  position: fixed;
+  width: min(48vw, 340px);
+  max-height: min(48vh, 260px);
+  z-index: 2200;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #17181b;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.gif-hover-preview img {
+  width: 100%;
+  height: calc(100% - 30px);
+  max-height: 230px;
+  object-fit: cover;
+  display: block;
+}
+
+.gif-hover-preview-title {
+  color: #e5e7eb;
+  font-size: 12px;
+  padding: 7px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gif-picker-footer {

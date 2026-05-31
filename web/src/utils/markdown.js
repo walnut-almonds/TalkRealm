@@ -104,10 +104,16 @@ export function renderMarkdown(rawText) {
  * Detected URLs are added to the urlSet.
  */
 function applyInline(escaped, urlSet) {
+    const inlineCodeTokens = []
+
     // Bold before italic to avoid greedy overlap.
     escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     escaped = escaped.replace(/\*(.+?)\*/g, '<em>$1</em>')
-    escaped = escaped.replace(/`([^`\n]+)`/g, '<code class="md-inline-code">$1</code>')
+    escaped = escaped.replace(/`([^`\n]+)`/g, (_, code) => {
+        const token = `__INLINE_CODE_TOKEN_${inlineCodeTokens.length}__`
+        inlineCodeTokens.push(`<code class="md-inline-code">${code}</code>`)
+        return token
+    })
 
     // @mention chips — render after escapeHtml so &lt; is the token marker
     escaped = escaped.replace(USER_MENTION_RE, (_, uid) => {
@@ -133,6 +139,10 @@ function applyInline(escaped, urlSet) {
             return `<img src="${escapeAttr(href)}" alt="GIF" class="md-inline-gif" loading="lazy" />`
         }
         return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" class="md-link">${match}</a>`
+    })
+
+    inlineCodeTokens.forEach((codeHTML, idx) => {
+        escaped = escaped.replaceAll(`__INLINE_CODE_TOKEN_${idx}__`, codeHTML)
     })
 
     return escaped
