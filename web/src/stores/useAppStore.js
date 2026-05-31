@@ -4,6 +4,11 @@ import { api, STORAGE_KEYS, guildLastChannel } from '@/api/index.js'
 import { useVoiceStore } from './useVoiceStore.js'
 
 export const useAppStore = defineStore('app', () => {
+    const toID = (v) => {
+        const n = Number(v)
+        return Number.isFinite(n) ? n : null
+    }
+
     // ── State ──────────────────────────────────────────────────
     const user = ref(null)
     const guilds = ref([])
@@ -195,12 +200,17 @@ export const useAppStore = defineStore('app', () => {
             const counts = await api.getAllUnread()
             if (!Array.isArray(counts)) return
             counts.forEach(item => {
-                const { channel_id, guild_id, unread_count, mention_count } = item
-                channelUnreadMap.set(channel_id, { unread: unread_count, mention: mention_count })
+                const channelID = toID(item.channel_id)
+                const guildID = toID(item.guild_id)
+                const unreadCount = Number(item.unread_count) || 0
+                const mentionCount = Number(item.mention_count) || 0
+                if (!channelID) return
+
+                channelUnreadMap.set(channelID, { unread: unreadCount, mention: mentionCount })
                 // 補全 channelGuildMap（解決 unvisited guild 的 channelId 找不到問題）
-                if (guild_id) channelGuildMap.set(channel_id, guild_id)
-                if (unread_count > 0 && guild_id) unreadGuildIds.add(guild_id)
-                if (mention_count > 0 && guild_id) mentionGuildIds.add(guild_id)
+                if (guildID) channelGuildMap.set(channelID, guildID)
+                if (unreadCount > 0 && guildID) unreadGuildIds.add(guildID)
+                if (mentionCount > 0 && guildID) mentionGuildIds.add(guildID)
             })
         } catch (e) {
             console.warn('loadUnreadState failed', e)
@@ -208,14 +218,16 @@ export const useAppStore = defineStore('app', () => {
     }
 
     function handleMentionCreate(data) {
-        if (!data?.channel_id) return
-        const cur = channelUnreadMap.get(data.channel_id) || { unread: 0, mention: 0 }
+        const channelID = toID(data?.channel_id)
+        if (!channelID) return
+        const cur = channelUnreadMap.get(channelID) || { unread: 0, mention: 0 }
         // 提及的訊息也算未讀，確保 unread >= mention
-        channelUnreadMap.set(data.channel_id, {
+        channelUnreadMap.set(channelID, {
             unread: Math.max(cur.unread, cur.mention + 1),
             mention: cur.mention + 1,
         })
-        const gid = channelGuildMap.get(data.channel_id) || data.guild_id
+        const gid = toID(channelGuildMap.get(channelID)) || toID(data?.guild_id)
+        if (gid) channelGuildMap.set(channelID, gid)
         // 只在非當前 guild 時才加 guild 層級指示（已在裡面的 guild 不需要再跳出提醒）
         if (gid && (!currentGuild.value || currentGuild.value.id !== gid)) {
             unreadGuildIds.add(gid)
@@ -342,15 +354,19 @@ export const useAppStore = defineStore('app', () => {
     }
 
     function handleNewMessage(msg) {
-        if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) {
+        const channelID = toID(msg?.channel_id)
+        if (!channelID) return
+
+        if (!currentChannel.value || channelID !== currentChannel.value.id) {
             // Track unread by channel→guild map
-            const gid = channelGuildMap.get(msg.channel_id)
+            const gid = toID(channelGuildMap.get(channelID)) || toID(msg?.guild_id)
+            if (gid) channelGuildMap.set(channelID, gid)
             if (gid && (!currentGuild.value || currentGuild.value.id !== gid)) {
                 unreadGuildIds.add(gid)
             }
             // Increment channel-level unread counter
-            const cur = channelUnreadMap.get(msg.channel_id) || { unread: 0, mention: 0 }
-            channelUnreadMap.set(msg.channel_id, { ...cur, unread: cur.unread + 1 })
+            const cur = channelUnreadMap.get(channelID) || { unread: 0, mention: 0 }
+            channelUnreadMap.set(channelID, { ...cur, unread: cur.unread + 1 })
             return
         }
         if (msg.nonce) {

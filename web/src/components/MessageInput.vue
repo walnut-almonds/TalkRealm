@@ -24,6 +24,10 @@ const mentionActive = ref(false)
 let mentionStartIndex = -1     // caret position when @ was typed
 const mentionSelectedIdx = ref(0)
 
+function escapeRegExp(input) {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 const SPECIAL_MENTIONS = [
   { id: '@here',     label: '@here',     desc: '通知此頻道線上的成員' },
   { id: '@everyone', label: '@everyone', desc: '通知此社群所有成員' },
@@ -80,7 +84,8 @@ function pickMention(candidate) {
   const after = text.slice(mentionStartIndex + 1 + mentionQuery.value.length)
   let insertion
   if (typeof candidate.id === 'number') {
-    insertion = `<@${candidate.id}> `
+    // Show friendly text while typing; convert to mention token right before send.
+    insertion = `${candidate.label} `
   } else {
     // @here / @everyone
     insertion = `${candidate.id} `
@@ -94,6 +99,33 @@ function pickMention(candidate) {
   })
 }
 
+function toWireMentions(text) {
+  let output = text
+  const aliasToId = new Map()
+
+  store.members.forEach((m) => {
+    if (m.user_id === store.user?.id) return
+    const aliases = [m.user?.nickname, m.user?.username]
+    aliases.forEach((alias) => {
+      const name = (alias || '').trim()
+      if (!name) return
+      const lower = name.toLowerCase()
+      if (lower === 'here' || lower === 'everyone') return
+      if (!aliasToId.has(name)) aliasToId.set(name, m.user_id)
+    })
+  })
+
+  // Prefer longer aliases first so @alexander is not partially matched by @alex.
+  const sortedAliases = [...aliasToId.keys()].sort((a, b) => b.length - a.length)
+  sortedAliases.forEach((alias) => {
+    const uid = aliasToId.get(alias)
+    const re = new RegExp(`(^|\\s)@${escapeRegExp(alias)}(?=$|\\s|[.,!?;:])`, 'g')
+    output = output.replace(re, (_, prefix) => `${prefix}<@${uid}>`)
+  })
+
+  return output
+}
+
 function autoResize() {
   if (!input.value) return
   input.value.style.height = 'auto'
@@ -102,6 +134,7 @@ function autoResize() {
 
 async function send() {
   const text = content.value.trim()
+  const wireText = toWireMentions(text)
   const fileIds = [...store.pendingFileIds]
   if (!text && fileIds.length === 0) return
   if (!store.currentChannel) return
@@ -132,10 +165,10 @@ async function send() {
   clearChips()
 
   try {
-    const ok = ws.sendMessage(store.currentChannel.id, text, 'text', nonce, fileIds)
+    const ok = ws.sendMessage(store.currentChannel.id, wireText, 'text', nonce, fileIds)
     if (!ok) {
       // WS 未連線，退回 REST
-      await api.sendMessage(store.currentChannel.id, text, 'text', nonce, fileIds)
+      await api.sendMessage(store.currentChannel.id, wireText, 'text', nonce, fileIds)
     }
   } catch (e) {
     console.error('Send failed', e)

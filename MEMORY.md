@@ -61,6 +61,9 @@ make check        # 全部檢查（lint + build + test）
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-05-31 — 前端 Mention 輸入顯示與 Unread 指示修正：
+- **Mention 輸入框顯示優化**：`MessageInput.vue` 選人後不再插入 `<@id>`，改為顯示 `@名稱`；送出前再用 member alias 對照轉回 `<@id>`，兼顧可讀性與後端 mention 解析。
+- **Unread 根因與修正**：一般訊息未讀曾只靠 `channelGuildMap.get(channel_id)` 推 guild，當 map 不完整時 guild unread 不會亮（但 mention 因事件含 `guild_id` 仍會亮）。`useAppStore` 已改為 `guild_id` fallback + `channelGuildMap` 回填，並統一將 `channel_id/guild_id` 正規化為 number，避免 Set/Map 因型別不一致失效。
 2026-05-31 — Social Galaxy 長時間停留後凍結修正（HomeView.vue）：
 - **現象**：進入 Social Galaxy 一段時間後（alpha 冷卻完成），畫面會跳一下後節點像被固定，後續只剩拖曳時的相對平移感。
 - **根因補充**：除了 alpha 冷卻外，`startAnimLoop()` 在 `alpha < ALPHA_MIN*5` 時會直接覆寫 guild/member/friend 的 `x/y`（noise/baseOffset 模式），等同把 force simulation 架空，視覺上就會像「整組平行漂移」。
