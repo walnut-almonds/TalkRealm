@@ -204,15 +204,6 @@ function resetFocus() {
     focusedNodeId.value = null
 }
 
-// ── Noise helper (organic drift) ──────────────────────────────
-function harmonicNoise(seed, t, freq = 0.5) {
-    return (
-        Math.sin(seed * 7.31 + t * freq) * 0.55 +
-        Math.sin(seed * 13.73 + t * freq * 1.618) * 0.30 +
-        Math.sin(seed * 5.07 + t * freq * 0.618) * 0.15
-    )
-}
-
 // ── Guild members cache ───────────────────────────────────────
 const guildMembersCache = reactive(new Map())
 
@@ -256,7 +247,7 @@ const displayLinks = ref([])
 let rafId = null
 let alpha = 1
 const ALPHA_DECAY = 0.025
-const ALPHA_MIN = 0.001
+const ALPHA_MIN = 0.06
 const VELOCITY_DECAY = 0.4
 
 function initSim() {
@@ -482,10 +473,28 @@ function simulateStep() {
         forces.get(n.id).y += (cy - n.y) * 0.02 * alpha
     })
 
-    // 6. Integrate positions
+    // 6. Return-to-home spring for guild nodes after drag release.
+    guildNodes.forEach(n => {
+        if (!n.returning || n.homeX === undefined || n.homeY === undefined) return
+        if (n.fx !== undefined || n.fy !== undefined) return
+        const dx = n.homeX - n.x
+        const dy = n.homeY - n.y
+        forces.get(n.id).x += dx * 0.12
+        forces.get(n.id).y += dy * 0.12
+        if (Math.hypot(dx, dy) < 0.8 && Math.hypot(n.vx, n.vy) < 0.25) {
+            n.x = n.homeX
+            n.y = n.homeY
+            n.vx = 0
+            n.vy = 0
+            n.returning = false
+        }
+    })
+
+    // 7. Integrate positions
     simNodes.forEach(n => {
-        if (n.fx !== undefined) { n.x = n.fx; n.vx = 0; return }
-        if (n.fy !== undefined) { n.y = n.fy; n.vy = 0; return }
+        if (n.fx !== undefined) { n.x = n.fx; n.vx = 0 }
+        if (n.fy !== undefined) { n.y = n.fy; n.vy = 0 }
+        if (n.fx !== undefined || n.fy !== undefined) return
         const f = forces.get(n.id)
         n.vx = (n.vx + f.x * alpha) * (1 - VELOCITY_DECAY)
         n.vy = (n.vy + f.y * alpha) * (1 - VELOCITY_DECAY)
@@ -766,49 +775,6 @@ function startAnimLoop() {
                 satelliteAngles.set(gid, (now * 1.8) % (2 * Math.PI))
             })
             updateParticles(now)
-
-            // ── Organic drift (post-convergence) ─────────────────
-            if (alpha < ALPHA_MIN * 5) {
-                simNodes.forEach((n, i) => {
-                    if (n.fx !== undefined || n.type === 'user') return
-                    // Set base positions once when sim first converges
-                    if (n.baseX === undefined) {
-                        n.baseX = n.x; n.baseY = n.y
-                        // Record initial equilibrium as home for drag-return
-                        if (n.type === 'guild') { n.homeX = n.baseX; n.homeY = n.baseY }
-                        if (n.type === 'member') {
-                            const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
-                            // Use gn.baseX (not gn.x) so offset is clean, without guild noise baked in
-                            if (gn) { n.baseOffsetX = n.x - gn.baseX; n.baseOffsetY = n.y - gn.baseY }
-                        }
-                    }
-                    const isOnline = store.onlineUserIds.has(n.friendData?.id ?? n.memberId)
-                    const speed = isOnline ? 0.38 : 0.18
-                    if (n.type === 'member') {
-                        // Members follow guild node + small independent wobble
-                        const gn = simNodes.find(s => s.type === 'guild' && s.guildId === n.guildId)
-                        if (gn) {
-                            n.x = gn.x + (n.baseOffsetX ?? 0) + harmonicNoise(i * 3.7 + 0, now, speed) * 3
-                            n.y = gn.y + (n.baseOffsetY ?? 0) + harmonicNoise(i * 3.7 + 1, now, speed) * 3
-                        }
-                    } else {
-                        // Guild: smoothly lerp base back toward home after drag release
-                        if (n.type === 'guild' && n.returning && n.homeX !== undefined) {
-                            n.baseX += (n.homeX - n.baseX) * 0.025
-                            n.baseY += (n.homeY - n.baseY) * 0.025
-                            if (Math.hypot(n.homeX - n.baseX, n.homeY - n.baseY) < 0.5) {
-                                n.baseX = n.homeX; n.baseY = n.homeY
-                                n.returning = false
-                            }
-                        }
-                        // Guild/friend: gentle bob around base position
-                        const amp = n.type === 'guild' ? 9 : 5
-                        n.x = n.baseX + harmonicNoise(i * 3.7 + 0, now, speed) * amp
-                        n.y = n.baseY + harmonicNoise(i * 3.7 + 1, now, speed) * amp
-                    }
-                })
-                syncDisplay()
-            }
         } catch (err) {
             // Keep the loop alive even if one frame throws.
             console.error('[SocialGalaxy] animation tick error:', err)
