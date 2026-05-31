@@ -16,6 +16,7 @@ const hasMore = ref(false)
 
 const hoverGif = ref(null)
 const previewPos = ref({ x: 0, y: 0 })
+const PAGE_SIZE = 10
 
 let searchTimer = null
 
@@ -47,7 +48,7 @@ async function loadGifs(keyword = '', { append = false, cursor = '' } = {}) {
   }
 
   try {
-    const result = await api.searchGIFs(keyword, 18, cursor)
+    const result = await api.searchGIFs(keyword, PAGE_SIZE, cursor)
     const items = result?.items || []
     nextCursor.value = result?.next || ''
     hasMore.value = Boolean(nextCursor.value)
@@ -177,12 +178,10 @@ onUnmounted(() => {
       >
         <img :src="gif.previewUrl || gif.url" :alt="gif.title || 'gif'" loading="lazy" />
       </button>
-
-      <div v-if="loadingMore" class="gif-picker-more">載入更多...</div>
-      <div v-else-if="!hasMore && gifs.length > 0" class="gif-picker-more gif-picker-more-end">
-        沒有更多 GIF 了
-      </div>
     </div>
+
+    <div v-if="loadingMore" class="gif-picker-more">載入更多...</div>
+    <div v-else-if="!hasMore && gifs.length > 0" class="gif-picker-more gif-picker-more-end">沒有更多 GIF 了</div>
 
     <Teleport to="body">
       <div
@@ -201,8 +200,8 @@ onUnmounted(() => {
 
 <style scoped>
 .gif-picker {
-  width: min(92vw, 420px);
-  max-height: min(74vh, 520px);
+  width: min(92vw, 460px);
+  max-height: min(76vh, 560px);
   background: var(--bg-modal, #2b2d31);
   border: 1px solid var(--border, #3f4147);
   border-radius: 12px;
@@ -272,12 +271,12 @@ onUnmounted(() => {
 
 .gif-picker-grid {
   flex: 1;
-  min-height: 180px;
+  min-height: 240px;
   overflow-y: auto;
-  padding: 0 12px 10px;
+  padding: 2px 12px 6px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   align-content: start;
 }
 
@@ -287,7 +286,7 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   padding: 0;
-  aspect-ratio: 16 / 11;
+  aspect-ratio: 16 / 10;
 }
 
 .gif-card:hover {
@@ -302,11 +301,10 @@ onUnmounted(() => {
 }
 
 .gif-picker-more {
-  grid-column: 1 / -1;
   text-align: center;
   color: var(--text-muted, #a7a9ad);
   font-size: 12px;
-  padding: 8px 0 2px;
+  padding: 8px 12px 10px;
 }
 
 .gif-picker-more-end {
