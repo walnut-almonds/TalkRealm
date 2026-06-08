@@ -21,6 +21,16 @@
                 "Accept": "application/json",
                 "X-Goog-Api-Key": "${input:stitch_api_key}"
             }
+        },
+        "serena": {
+            "type": "stdio",
+            "command": "serena",
+            "args": [
+                "start-mcp-server",
+                "--context=vscode",
+                "--project",
+                "${workspaceFolder}"
+            ]
         }
     },
     "inputs": [

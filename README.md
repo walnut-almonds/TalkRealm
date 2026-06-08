@@ -102,7 +102,7 @@ TalkRealm/
 
 ### 前置需求
 
-- Go 1.21+
+- Go 1.26+
 - Docker & Docker Compose
 - Node.js 20+（前端開發）
 

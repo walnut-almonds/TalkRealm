@@ -10,6 +10,11 @@
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
             "moby": false
         },
+        "ghcr.io/devcontainer-community/devcontainer-features/astral.sh-uv:1": {
+            "shellautocompletion": true
+        },
+        "ghcr.io/devcontainers/features/python:1": {},
+        "ghcr.io/devcontainers/features/node:2": {},
         "ghcr.io/devcontainers/features/git:1": {},
         "ghcr.io/devcontainers/features/aws-cli:1": {}
     },

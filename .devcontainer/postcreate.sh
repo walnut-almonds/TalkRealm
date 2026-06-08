@@ -9,6 +9,8 @@ source /workspaces/TalkRealm/.devcontainer/bashrc.bash
 sudo apt update
 sudo apt install -y iputils-ping
 
+uv tool install -p 3.13 serena-agent
+
 # Install ASDF
 go install github.com/asdf-vm/asdf/cmd/asdf@v0.18.0
 
