@@ -135,7 +135,6 @@ func (s *userService) Register(req *RegisterRequest) (*model.User, error) {
 		Nickname:      req.Nickname,
 		Status:        "offline",
 		PreferredLang: "zh",
-		UILocale:      "zh",
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -417,7 +416,6 @@ func (s *userService) OAuthLoginOrRegister(info *OAuthUserInfo) (*LoginResponse,
 				Avatar:        info.Avatar,
 				Status:        "offline",
 				PreferredLang: "zh",
-				UILocale:      "zh",
 				CreatedAt:     time.Now(),
 				UpdatedAt:     time.Now(),
 			}

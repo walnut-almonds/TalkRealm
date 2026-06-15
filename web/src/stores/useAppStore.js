@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, reactive } from 'vue'
 import { api, STORAGE_KEYS, guildLastChannel } from '@/api/index.js'
-import { setLocale, translate } from '@/i18n/index.js'
+import { getLocale, setLocale, translate } from '@/i18n/index.js'
 import { useVoiceStore } from './useVoiceStore.js'
 
 export const useAppStore = defineStore('app', () => {
@@ -157,7 +157,15 @@ export const useAppStore = defineStore('app', () => {
             const res = await api.getCurrentUser()
             user.value = res.user
             cacheUser(res.user)
-            setLocale(res.user?.ui_locale || res.user?.preferred_lang || 'zh')
+            if (res.user?.ui_locale) {
+                setLocale(res.user.ui_locale)
+            } else {
+                // First login without user-set locale: keep browser/local detected locale and persist.
+                const initialLocale = getLocale()
+                setLocale(initialLocale)
+                api.updateProfile({ ui_locale: initialLocale }).catch(() => { })
+                if (user.value) user.value.ui_locale = initialLocale
+            }
             await loadGuilds()
 
             // 啟動時載入未讀狀態（含 channelGuildMap 補全）

@@ -9,10 +9,16 @@ const SUPPORTED_LOCALES = ['zh', 'zh-tw', 'ja', 'en']
 
 function normalizeLocale(input) {
     if (!input) return null
-    const lower = input.toLowerCase()
+    const lower = input.toLowerCase().replace(/_/g, '-')
     if (SUPPORTED_LOCALES.includes(lower)) return lower
-    if (lower === 'zh-hant' || lower === 'zh_tw' || lower === 'zh-tw') return 'zh-tw'
-    if (lower.startsWith('zh')) return 'zh'
+    if (lower.startsWith('zh')) {
+        // Traditional Chinese script or traditional regions.
+        if (lower.includes('hant') || /-(tw|hk|mo)(-|$)/.test(lower)) return 'zh-tw'
+        // Simplified Chinese script or simplified regions.
+        if (lower.includes('hans') || /-(cn|sg)(-|$)/.test(lower)) return 'zh'
+        // Other Chinese locale defaults to simplified.
+        return 'zh'
+    }
     if (lower.startsWith('ja')) return 'ja'
     if (lower.startsWith('en')) return 'en'
     return null
@@ -22,16 +28,22 @@ function detectInitialLocale() {
     const stored = normalizeLocale(localStorage.getItem(STORAGE_KEY))
     if (stored) return stored
 
-    const browser = normalizeLocale(navigator.language)
-    if (browser) return browser
+    const browserLocales = Array.isArray(navigator.languages) && navigator.languages.length > 0
+        ? navigator.languages
+        : [navigator.language]
 
-    return 'zh'
+    for (const lang of browserLocales) {
+        const normalized = normalizeLocale(lang)
+        if (normalized) return normalized
+    }
+
+    return 'en'
 }
 
 export const i18n = createI18n({
     legacy: false,
     locale: detectInitialLocale(),
-    fallbackLocale: 'zh',
+    fallbackLocale: 'en',
     messages: {
         en,
         zh,
@@ -41,7 +53,7 @@ export const i18n = createI18n({
 })
 
 export function setLocale(locale) {
-    const normalized = normalizeLocale(locale) || 'zh'
+    const normalized = normalizeLocale(locale) || 'en'
     i18n.global.locale.value = normalized
     localStorage.setItem(STORAGE_KEY, normalized)
 }

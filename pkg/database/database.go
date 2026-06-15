@@ -108,6 +108,10 @@ func AutoMigrate() error {
 		return err
 	}
 
+	if err := patchUserUILocaleDefault(); err != nil {
+		return err
+	}
+
 	logger.Info("Database migrations completed successfully")
 
 	return nil
@@ -119,6 +123,17 @@ func patchChannelGuildIDNullable() error {
 	err := db.Exec(`ALTER TABLE channels ALTER COLUMN guild_id DROP NOT NULL`).Error
 	if err != nil {
 		return fmt.Errorf("failed to patch channels.guild_id nullable: %w", err)
+	}
+
+	return nil
+}
+
+// patchUserUILocaleDefault removes server-side default for users.ui_locale.
+// Empty value means "user has not set preferred UI locale yet".
+func patchUserUILocaleDefault() error {
+	err := db.Exec(`ALTER TABLE users ALTER COLUMN ui_locale DROP DEFAULT`).Error
+	if err != nil {
+		return fmt.Errorf("failed to patch users.ui_locale default: %w", err)
 	}
 
 	return nil
