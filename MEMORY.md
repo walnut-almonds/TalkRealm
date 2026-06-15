@@ -28,6 +28,7 @@ make check        # 全部檢查（lint + build + test）
 - REST API 路由前綴：`/api/v1/`
 - WebSocket 端點：`GET /api/v1/ws`（token 透過 identify op 傳遞，不再放 query string）
 - 目前訊息分頁是 offset，計畫改為 cursor-based（before message_id）
+- 使用者語言偏好已拆分：`users.ui_locale`（介面語言）與 `users.preferred_lang`（訊息翻譯目標語言）分離；前端 `UserSettingsModal` 會同時送出兩者，`useAppStore.loadUserData()` 以 `ui_locale` 設定 i18n locale
 
 ## Pitfalls
 - **OG 預覽對非 HTML 連結**：`GET /api/v1/og` 遇到 `image/*` 或其他非 `text/html` 內容時，現在改為回 `200`（image 會帶最小預覽 `{image:url}`，其他類型回空 OG）而非 `422`。可避免前端在訊息含 CDN 圖片連結（例如 `googleusercontent` avatar URL）時持續出現 console `Unprocessable Content`。

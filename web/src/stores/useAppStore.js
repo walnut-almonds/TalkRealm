@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, reactive } from 'vue'
 import { api, STORAGE_KEYS, guildLastChannel } from '@/api/index.js'
+import { setLocale, translate } from '@/i18n/index.js'
 import { useVoiceStore } from './useVoiceStore.js'
 
 export const useAppStore = defineStore('app', () => {
@@ -156,6 +157,7 @@ export const useAppStore = defineStore('app', () => {
             const res = await api.getCurrentUser()
             user.value = res.user
             cacheUser(res.user)
+            setLocale(res.user?.ui_locale || res.user?.preferred_lang || 'zh')
             await loadGuilds()
 
             // 啟動時載入未讀狀態（含 channelGuildMap 補全）
@@ -236,7 +238,9 @@ export const useAppStore = defineStore('app', () => {
             mentionGuildIds.add(gid)
         }
         // 顯示桌面通知
-        showNotification(`${data.author || '有人'} 提及了你`, 'info')
+        showNotification(translate('notifications.mentionYou', {
+            author: data.author || translate('chat.unknownUser')
+        }), 'info')
     }
 
     // ── Guild ────────────────────────────────────────────────────
@@ -306,7 +310,7 @@ export const useAppStore = defineStore('app', () => {
             }))
         } catch (e) {
             console.error('selectGuild failed', e)
-            showNotification('載入社群失敗', 'error')
+            showNotification(translate('notifications.loadGuildFailed'), 'error')
         } finally {
             setLoading(false)
         }
@@ -334,7 +338,7 @@ export const useAppStore = defineStore('app', () => {
             }
         } catch (e) {
             console.error('selectChannel failed', e)
-            showNotification('載入頻道失敗', 'error')
+            showNotification(translate('notifications.loadChannelFailed'), 'error')
         } finally {
             setLoading(false)
         }
@@ -353,7 +357,7 @@ export const useAppStore = defineStore('app', () => {
             return msgs
         } catch (e) {
             console.error('loadMessages failed', e)
-            showNotification('載入訊息失敗', 'error')
+            showNotification(translate('notifications.loadMessagesFailed'), 'error')
             return []
         }
     }
@@ -444,7 +448,7 @@ export const useAppStore = defineStore('app', () => {
         if (currentGuild.value?.id === data.guild_id) {
             currentGuild.value = null; currentChannel.value = null
             channels.value = []; members.value = []; messages.value = []
-            showNotification('所在社群已被刪除', 'info')
+            showNotification(translate('notifications.guildDeleted'), 'info')
         }
     }
 
@@ -480,7 +484,7 @@ export const useAppStore = defineStore('app', () => {
                 guilds.value = guilds.value.filter(g => g.id !== data.guild_id)
                 currentGuild.value = null; currentChannel.value = null
                 channels.value = []; members.value = []; messages.value = []
-                showNotification('您已被移出該社群', 'info')
+                showNotification(translate('notifications.kickedFromGuild'), 'info')
             }
         }
     }

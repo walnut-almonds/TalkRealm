@@ -59,6 +59,7 @@ type UpdateUserRequest struct {
 	Avatar        string `json:"avatar"         binding:"max=256"`
 	Status        string `json:"status"         binding:"omitempty,oneof=offline busy away"`
 	PreferredLang string `json:"preferred_lang" binding:"omitempty,oneof=zh zh-tw ja en"`
+	UILocale      string `json:"ui_locale"      binding:"omitempty,oneof=zh zh-tw ja en"`
 }
 
 // OAuthUserInfo OAuth 登入時由 provider 提供的使用者資訊
@@ -128,13 +129,15 @@ func (s *userService) Register(req *RegisterRequest) (*model.User, error) {
 
 	// 建立使用者
 	user := &model.User{
-		Username:  req.Username,
-		Email:     req.Email,
-		Password:  string(hashedPassword),
-		Nickname:  req.Nickname,
-		Status:    "offline",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Username:      req.Username,
+		Email:         req.Email,
+		Password:      string(hashedPassword),
+		Nickname:      req.Nickname,
+		Status:        "offline",
+		PreferredLang: "zh",
+		UILocale:      "zh",
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	// 如果沒有提供 nickname，使用 username
@@ -228,6 +231,10 @@ func (s *userService) Update(id uint, req *UpdateUserRequest) (*model.User, erro
 
 	if req.PreferredLang != "" {
 		user.PreferredLang = req.PreferredLang
+	}
+
+	if req.UILocale != "" {
+		user.UILocale = req.UILocale
 	}
 
 	user.UpdatedAt = time.Now()
@@ -404,13 +411,15 @@ func (s *userService) OAuthLoginOrRegister(info *OAuthUserInfo) (*LoginResponse,
 			}
 
 			user = &model.User{
-				Username:  username,
-				Email:     info.Email,
-				Nickname:  nickname,
-				Avatar:    info.Avatar,
-				Status:    "offline",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+				Username:      username,
+				Email:         info.Email,
+				Nickname:      nickname,
+				Avatar:        info.Avatar,
+				Status:        "offline",
+				PreferredLang: "zh",
+				UILocale:      "zh",
+				CreatedAt:     time.Now(),
+				UpdatedAt:     time.Now(),
 			}
 			if err := s.repo.Create(user); err != nil {
 				return nil, err

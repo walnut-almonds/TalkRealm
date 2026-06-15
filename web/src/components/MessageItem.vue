@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import { useDMStore } from '@/stores/useDMStore.js'
@@ -18,12 +19,13 @@ const props = defineProps({
 const store = useAppStore()
 const voiceStore = useVoiceStore()
 const dm = useDMStore()
+const { t } = useI18n()
 
 // Set mention resolver once (idempotent — same fn reference is fine)
 setMentionResolver(store.resolveMessageUser)
 
 const user = computed(() => store.resolveMessageUser(props.message))
-const nickname = computed(() => user.value?.nickname || user.value?.username || 'Unknown')
+const nickname = computed(() => user.value?.nickname || user.value?.username || t('chat.unknownUser'))
 const avatar = computed(() => user.value?.avatar || null)
 const timestamp = computed(() => formatTimestamp(props.message.created_at))
 const fullTimestamp = computed(() => formatFullTimestamp(props.message.created_at))
@@ -66,7 +68,7 @@ async function saveEdit() {
     dm.handleDMMessageUpdate({ ...props.message, ...(updated || {}), content: text, is_edited: true })
     cancelEdit()
   } catch (e) {
-    store.showNotification('編輯失敗', 'error')
+    store.showNotification(t('notifications.editFailed'), 'error')
   }
 }
 
@@ -77,7 +79,7 @@ function onEditKeydown(e) {
 
 // ── Delete ────────────────────────────────────────────────────
 async function deleteMessage() {
-  if (!confirm('確定要刪除此訊息？')) return
+  if (!confirm(t('chat.deleteConfirm'))) return
   try {
     if (props.isDM) {
       await api.deleteDMMessage(props.message.id)
@@ -87,7 +89,7 @@ async function deleteMessage() {
     store.handleMessageDelete({ message_id: props.message.id })
     dm.handleDMMessageDelete({ id: props.message.id })
   } catch (e) {
-    store.showNotification('刪除失敗', 'error')
+    store.showNotification(t('notifications.deleteFailed'), 'error')
   }
 }
 
@@ -117,11 +119,16 @@ async function openLightbox(fileId, imgEl) {
 async function openAttachment(fileId) {
   const url = await store.getImageUrl(fileId)
   if (url) window.open(url, '_blank')
-  else store.showNotification('無法取得檔案連結', 'error')
+  else store.showNotification(t('notifications.fileUrlFailed'), 'error')
 }
 
 // ── Translation & Guess ───────────────────────────────────────
-const LANG_LABELS = { zh: '中文（簡體）', 'zh-tw': '繁體中文', ja: '日本語', en: 'English' }
+const langLabels = computed(() => ({
+  zh: t('settings.langZh'),
+  'zh-tw': t('settings.langZhTw'),
+  ja: t('settings.langJa'),
+  en: t('settings.langEn'),
+}))
 
 const isTextMessage = computed(() => !props.message.type || props.message.type === 'text')
 const showTranslationSection = computed(() =>
@@ -195,7 +202,7 @@ async function submitGuess() {
     guessResult.value = result
     guessMode.value = false
   } catch (e) {
-    store.showNotification('猜測失敗：' + (e.message || '未知錯誤'), 'error')
+    store.showNotification(`${t('notifications.guessFailed')}: ${e.message || t('common.unknownError')}`, 'error')
   } finally {
     isGuessing.value = false
   }
@@ -216,7 +223,7 @@ async function submitGuess() {
       <div v-if="!grouped" class="message-header">
         <span class="message-author">{{ nickname }}</span>
         <span class="message-timestamp" :title="fullTimestamp">{{ timestamp }}</span>
-        <span v-if="message.is_edited" class="message-edited">(已編輯)</span>
+        <span v-if="message.is_edited" class="message-edited">({{ t('chat.edited') }})</span>
       </div>
 
       <!-- Normal / Edit mode -->
@@ -233,10 +240,10 @@ async function submitGuess() {
           @keydown="onEditKeydown"
         ></textarea>
         <div class="message-edit-hints">
-          <span>Enter 儲存 · Esc 取消</span>
+          <span>{{ t('chat.editHint') }}</span>
           <div style="display:flex;gap:6px">
-            <button class="btn-secondary btn-sm" @click="cancelEdit">取消</button>
-            <button class="btn-primary btn-sm" @click="saveEdit">儲存</button>
+            <button class="btn-secondary btn-sm" @click="cancelEdit">{{ t('common.cancel') }}</button>
+            <button class="btn-primary btn-sm" @click="saveEdit">{{ t('common.save') }}</button>
           </div>
         </div>
       </div>
@@ -258,7 +265,7 @@ async function submitGuess() {
               <span class="attachment-name">{{ att.file.filename }}</span>
               <span class="attachment-size">{{ formatFileSize(att.file.size) }}</span>
             </div>
-            <button class="attachment-download" @click="openAttachment(att.file.id)" title="下載">
+            <button class="attachment-download" @click="openAttachment(att.file.id)" :title="t('chat.download')">
               <i class="fas fa-download"></i>
             </button>
           </div>
@@ -270,13 +277,13 @@ async function submitGuess() {
         <!-- In-flight: waiting for translation_ready WS event -->
         <div v-if="isTranslationLoading && !translation" class="translation-loading">
           <i class="fas fa-circle-notch fa-spin"></i>
-          <span>翻譯中...</span>
+          <span>{{ t('chat.translating') }}</span>
         </div>
 
         <!-- Translation ready -->
         <template v-else-if="translation && translatedText">
           <div class="translation-bar">
-            <span class="translation-lang-badge">{{ LANG_LABELS[displayLang] }}</span>
+            <span class="translation-lang-badge">{{ langLabels[displayLang] }}</span>
             <span
               class="translation-text"
               :class="{ 'translation-text--blurred': !translationVisible && !guessResult }"
@@ -286,7 +293,7 @@ async function submitGuess() {
               <button
                 v-if="!guessMode && !guessResult"
                 class="trans-btn"
-                :title="translationVisible ? '隱藏譯文' : '顯示譯文'"
+                :title="translationVisible ? t('chat.hideTranslation') : t('chat.showTranslation')"
                 @click="translationVisible = !translationVisible"
               >
                 <i :class="['fas', translationVisible ? 'fa-eye-slash' : 'fa-eye']"></i>
@@ -294,14 +301,14 @@ async function submitGuess() {
               <button
                 v-if="!translationVisible && !guessResult"
                 class="trans-btn trans-btn--guess"
-                title="猜猜看"
+                :title="t('chat.guessAction')"
                 @click="guessMode = !guessMode"
               >
                 <i class="fas fa-question-circle"></i>
               </button>
               <button
                 class="trans-btn"
-                title="收起翻譯"
+                :title="t('chat.collapseTranslation')"
                 @click="translationDismissed = true; translationVisible = false; guessMode = false"
               >
                 <i class="fas fa-xmark"></i>
@@ -314,13 +321,13 @@ async function submitGuess() {
             <input
               v-model="guessInput"
               class="guess-input"
-              :placeholder="`猜猜 ${LANG_LABELS[displayLang]} 的意思...`"
+              :placeholder="t('chat.guessPlaceholder', { lang: langLabels[displayLang] })"
               @keydown.enter="submitGuess"
             />
             <button class="btn-sm btn-primary" :disabled="isGuessing" @click="submitGuess">
-              {{ isGuessing ? '送出中...' : '送出' }}
+              {{ isGuessing ? t('common.submitting') : t('common.submit') }}
             </button>
-            <button class="btn-sm btn-secondary" @click="guessMode = false; guessInput = ''">取消</button>
+            <button class="btn-sm btn-secondary" @click="guessMode = false; guessInput = ''">{{ t('common.cancel') }}</button>
           </div>
 
           <!-- Guess result -->
@@ -330,11 +337,11 @@ async function submitGuess() {
             :class="guessResult.is_correct ? 'guess-result--correct' : 'guess-result--wrong'"
           >
             <i :class="['fas', guessResult.is_correct ? 'fa-check-circle' : 'fa-times-circle']"></i>
-            <span v-if="guessResult.is_correct">猜對了！</span>
+            <span v-if="guessResult.is_correct">{{ t('chat.guessCorrect') }}</span>
             <span v-else>
-              相似度 {{ Math.round((guessResult.similarity_score || 0) * 100) }}%
+              {{ t('chat.similarity') }} {{ Math.round((guessResult.similarity_score || 0) * 100) }}%
               <span v-if="guessResult.correct_content" class="guess-answer">
-                正解：{{ guessResult.correct_content }}
+                {{ t('chat.correctAnswer') }}{{ guessResult.correct_content }}
               </span>
             </span>
           </div>
@@ -351,16 +358,16 @@ async function submitGuess() {
       <button
         v-if="showTranslationSection && (!translation || translationDismissed) && !isTranslationLoading"
         class="msg-action-btn"
-        title="翻譯"
+        :title="t('chat.translate')"
         @click="fetchTranslation"
       >
         <i class="fas fa-language"></i>
       </button>
       <template v-if="isCurrentUser">
-        <button class="msg-action-btn" title="編輯" @click="startEdit">
+        <button class="msg-action-btn" :title="t('chat.edit')" @click="startEdit">
           <i class="fas fa-pencil"></i>
         </button>
-        <button class="msg-action-btn danger" title="刪除" @click="deleteMessage">
+        <button class="msg-action-btn danger" :title="t('chat.delete')" @click="deleteMessage">
           <i class="fas fa-trash"></i>
         </button>
       </template>

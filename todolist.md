@@ -131,6 +131,14 @@
 ### 延後事項
 - [ ] **字典單字 hover**：前端 hover 單字 → `GET /api/v1/dictionary/{lang}/{word}`（後端 proxy 公開 API：Jisho / CC-CEDICT / dictionaryapi.dev）
 
+### i18n 介面在地化（新增）
+- [x] **i18n 基礎骨架**：前端加入 `vue-i18n`、建立 `web/src/i18n/index.js`，在 `main.js` 掛載 plugin
+- [x] **語系檔初始化**：建立 `zh` / `zh-tw` / `ja` / `en` locale 檔（先覆蓋 Settings 模組）
+- [x] **設定頁接入 i18n**：`UserSettingsModal.vue` 文案改為 i18n key，新增「介面語言」切換（localStorage 持久化）
+- [x] **聊天室文案 i18n 化**：`MessageItem.vue`、通知文案與常用按鈕改用 i18n key
+- [x] **語言偏好拆分**：新增 `ui_locale`（介面語言）與 `preferred_lang`（翻譯目標語言）分離，補 API + migration
+- [ ] **i18n 測試與檢查**：新增 key 覆蓋檢查與語言切換 smoke test，納入 `make check`
+
 ---
 
 

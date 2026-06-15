@@ -13,7 +13,8 @@ type User struct {
 	Nickname      string    `                            json:"nickname"`
 	Avatar        string    `                            json:"avatar"`
 	Status        string    `gorm:"default:'offline'"    json:"status"`         // online, offline, busy, away
-	PreferredLang string    `gorm:"default:'zh'"         json:"preferred_lang"` // zh, ja, en
+	PreferredLang string    `gorm:"default:'zh'"         json:"preferred_lang"` // zh, zh-tw, ja, en (translation target)
+	UILocale      string    `gorm:"default:'zh'"         json:"ui_locale"`      // zh, zh-tw, ja, en (UI locale)
 	CreatedAt     time.Time `                            json:"created_at"`
 	UpdatedAt     time.Time `                            json:"updated_at"`
 }
