@@ -1,10 +1,12 @@
 <script setup>
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { api } from '@/api/index.js'
 
 const emit = defineEmits(['close'])
 const store = useAppStore()
+const { t } = useI18n()
 
 const inviteCode = ref('')
 const loading = ref(false)
@@ -17,10 +19,10 @@ async function joinGuild() {
     const guild = await api.joinByInvite(code)
     await store.loadGuilds()
     if (guild?.id) await store.selectGuild(guild.id)
-    store.showNotification('成功加入社群！', 'success')
+    store.showNotification(t('joinInvite.joinSuccess'), 'success')
     emit('close')
   } catch (e) {
-    store.showNotification('加入失敗：' + (e.message || '邀請碼無效或已過期'), 'error')
+    store.showNotification(t('joinInvite.joinFailed') + (e.message || t('joinInvite.invalidOrExpired')), 'error')
   } finally {
     loading.value = false
   }
@@ -31,25 +33,25 @@ async function joinGuild() {
   <div class="modal-overlay" @click.self="emit('close')">
     <div class="modal">
       <div class="modal-header">
-        <h2>加入社群</h2>
+        <h2>{{ t('joinInvite.title') }}</h2>
         <button class="modal-close" @click="emit('close')">×</button>
       </div>
       <div class="modal-body">
-        <p style="color:var(--text-muted);margin-bottom:16px">輸入邀請碼以加入一個已存在的社群。</p>
+        <p style="color:var(--text-muted);margin-bottom:16px">{{ t('joinInvite.description') }}</p>
         <div class="form-group">
-          <label>邀請碼</label>
+          <label>{{ t('joinInvite.inviteCode') }}</label>
           <input
             v-model="inviteCode"
-            placeholder="輸入邀請碼..."
+            :placeholder="t('joinInvite.inputPlaceholder')"
             @keydown.enter="joinGuild"
             autocomplete="off"
           />
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" @click="emit('close')">取消</button>
+        <button class="btn btn-secondary" @click="emit('close')">{{ t('common.cancel') }}</button>
         <button class="btn btn-primary" :disabled="!inviteCode.trim() || loading" @click="joinGuild">
-          {{ loading ? '加入中...' : '加入社群' }}
+          {{ loading ? t('joinInvite.joining') : t('joinInvite.joinButton') }}
         </button>
       </div>
     </div>

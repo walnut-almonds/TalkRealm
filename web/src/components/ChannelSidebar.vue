@@ -1,5 +1,6 @@
 <script setup>
 import { inject } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import VoiceBar from './VoiceBar.vue'
@@ -11,6 +12,7 @@ const voice     = inject('voice')
 
 const store = useAppStore()
 const voiceStore = useVoiceStore()
+const { t } = useI18n()
 
 async function selectChannel(channel) {
   if (channel.type === 'voice') {
@@ -27,10 +29,10 @@ async function selectChannel(channel) {
     <!-- Guild header -->
     <div class="guild-header" v-if="store.currentGuild">
       <h2>{{ store.currentGuild.name }}</h2>
-      <i class="fas fa-cog" title="社群設定" @click="openModal('guildSettings')"></i>
+      <i class="fas fa-cog" :title="t('channelSidebar.guildSettings')" @click="openModal('guildSettings')"></i>
     </div>
     <div class="guild-header" v-else>
-      <h2>選擇一個社群</h2>
+      <h2>{{ t('channelSidebar.selectGuild') }}</h2>
     </div>
 
     <!-- Channels -->
@@ -39,8 +41,8 @@ async function selectChannel(channel) {
       <div class="channel-category">
         <div class="category-header">
           <i class="fas fa-chevron-down"></i>
-          <span>文字頻道</span>
-          <i class="fas fa-plus" title="建立文字頻道" @click.stop="openModal('createChannel', 'text')"></i>
+          <span>{{ t('channelSidebar.textChannels') }}</span>
+          <i class="fas fa-plus" :title="t('channelSidebar.createTextChannel')" @click.stop="openModal('createChannel', 'text')"></i>
         </div>
         <div class="channels-list">
           <div
@@ -70,8 +72,8 @@ async function selectChannel(channel) {
       <div class="channel-category">
         <div class="category-header">
           <i class="fas fa-chevron-down"></i>
-          <span>語音頻道</span>
-          <i class="fas fa-plus" title="建立語音頻道" @click.stop="openModal('createChannel', 'voice')"></i>
+          <span>{{ t('channelSidebar.voiceChannels') }}</span>
+          <i class="fas fa-plus" :title="t('channelSidebar.createVoiceChannel')" @click.stop="openModal('createChannel', 'voice')"></i>
         </div>
         <div class="channels-list">
           <div
@@ -82,7 +84,7 @@ async function selectChannel(channel) {
           >
             <i class="fas fa-volume-up"></i>
             <span>{{ ch.name }}</span>
-            <i v-if="voiceStore.voiceChannel?.id === ch.id" class="fas fa-microphone voice-active-icon" title="語音連線中"></i>
+            <i v-if="voiceStore.voiceChannel?.id === ch.id" class="fas fa-microphone voice-active-icon" :title="t('voice.connected')"></i>
 
             <!-- Voice participants under the channel -->
             <div v-if="voiceStore.getChannelParticipants(ch.id).length" class="voice-participants" @click.stop>
@@ -100,25 +102,25 @@ async function selectChannel(channel) {
                     v-if="voiceStore.getParticipantState(ch.id, p.user_id)?.mic_enabled === false"
                     class="fas fa-microphone-slash"
                     style="color:var(--danger)"
-                    title="已靜音"
+                    :title="t('voice.muted')"
                   ></i>
                   <i
                     v-if="voiceStore.getParticipantState(ch.id, p.user_id)?.deafened"
                     class="fas fa-volume-xmark"
                     style="color:var(--danger)"
-                    title="已關閉收音"
+                    :title="t('voice.deafened')"
                   ></i>
                   <i
                     v-if="voiceStore.getParticipantState(ch.id, p.user_id)?.screen_sharing"
                     class="fas fa-display"
                     style="color:var(--brand)"
-                    title="螢幕分享中"
+                    :title="t('voice.screenSharing')"
                   ></i>
                   <i
                     v-if="voiceStore.getParticipantState(ch.id, p.user_id)?.camera_enabled"
                     class="fas fa-video"
                     style="color:var(--brand)"
-                    title="攝影機開啟中"
+                    :title="t('voice.cameraOn')"
                   ></i>
                 </div>
               </div>

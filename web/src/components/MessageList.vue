@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import MessageItem from './MessageItem.vue'
 
 const store = useAppStore()
 const voiceStore = useVoiceStore()
+const { t } = useI18n()
 const container = ref(null)
 const isAtBottom = ref(true)
 const hasMore = ref(true)
@@ -85,26 +87,26 @@ function isGrouped(idx) {
   <div class="messages-container" ref="container" @scroll="onScroll">
     <!-- Welcome / Empty state -->
     <div v-if="!store.currentChannel" class="welcome-message">
-      <h1>歡迎來到 TalkRealm！</h1>
-      <p>選擇一個頻道開始聊天，或建立一個新的社群。</p>
+      <h1>{{ t('messageList.welcomeTitle') }}</h1>
+      <p>{{ t('messageList.welcomeSubtitle') }}</p>
     </div>
 
     <template v-else>
       <!-- Load more -->
       <button v-if="hasMore && store.messages.length >= 50" class="load-more-btn" @click="loadMore">
-        載入更多訊息
+        {{ t('messageList.loadMore') }}
       </button>
 
       <!-- Channel start indicator -->
       <div v-if="!hasMore || store.messages.length < 50" class="welcome-message" style="flex:0;padding:24px 16px">
         <h1 style="font-size:18px"># {{ store.currentChannel.name }}</h1>
-        <p>{{ store.currentChannel.topic || '這是頻道的開始。' }}</p>
+        <p>{{ store.currentChannel.topic || t('messageList.channelStart') }}</p>
       </div>
 
       <!-- Messages -->
       <template v-for="(msg, idx) in store.messages" :key="msg.id || msg.nonce">
         <div v-if="idx === firstUnreadIndex" class="unread-divider">
-          <span>---以下為未讀訊息---</span>
+          <span>{{ t('messageList.unreadDivider') }}</span>
         </div>
         <MessageItem
           :message="msg"

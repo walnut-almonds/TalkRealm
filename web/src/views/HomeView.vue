@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useDMStore } from '@/stores/useDMStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
@@ -8,6 +9,7 @@ import { api } from '@/api/index.js'
 const store = useAppStore()
 const dm = useDMStore()
 const voiceStore = useVoiceStore()
+const { t } = useI18n()
 
 // ── Guild color palette (8 distinct colors) ──────────────────
 const GUILD_PALETTE = [
@@ -1410,40 +1412,40 @@ watch(
                         <span class="sg-tip-name">{{ tooltipGuild.guild.name }}</span>
                         <span class="sg-tip-online">
                             <span class="sg-tip-indicator"></span>
-                            {{ tooltipGuild.onlineCount }} 在線
+                            {{ t('home.onlineCount', { count: tooltipGuild.onlineCount }) }}
                         </span>
                     </div>
                 </div>
                 <div class="sg-tip-body">
                     <div class="sg-tip-stat">
-                        <span class="sg-tip-stat-label">近30天訊息</span>
+                        <span class="sg-tip-stat-label">{{ t('home.messagesLast30Days') }}</span>
                         <span class="sg-tip-stat-val">{{ tooltipGuild.msgCount }}</span>
                     </div>
                     <div class="sg-tip-stat">
-                        <span class="sg-tip-stat-label">成員數</span>
+                        <span class="sg-tip-stat-label">{{ t('home.memberCount') }}</span>
                         <span class="sg-tip-stat-val">{{ tooltipGuild.members.length }}</span>
                     </div>
                 </div>
                 <div class="sg-tip-badges">
-                    <span v-if="tooltipGuild.isTyping" class="sg-tip-badge sg-tip-badge--typing">✍️ 有人正在輸入</span>
-                    <span v-if="tooltipGuild.hasVoice" class="sg-tip-badge sg-tip-badge--voice">🎙️ 語音頻道活躍</span>
+                    <span v-if="tooltipGuild.isTyping" class="sg-tip-badge sg-tip-badge--typing">✍️ {{ t('home.someoneTyping') }}</span>
+                    <span v-if="tooltipGuild.hasVoice" class="sg-tip-badge sg-tip-badge--voice">🎙️ {{ t('home.voiceActive') }}</span>
                 </div>
-                <div class="sg-tip-action" @click="enterGuild(tooltipGuild.guild.id)">點擊進入社群 →</div>
+                <div class="sg-tip-action" @click="enterGuild(tooltipGuild.guild.id)">{{ t('home.enterGuild') }}</div>
             </div>
         </Transition>
 
         <!-- ── Welcome overlay ────────────────────────────── -->
         <div class="sg-welcome">
             <p class="sg-username">{{ displayName }}</p>
-            <p v-if="store.guilds.length > 0" class="sg-hint">點一下聚焦 · 點兩下或聚焦後再點進入 · 滾輪縮放 · 拖曳球體移動</p>
-            <p v-else class="sg-hint">在左側建立或加入一個社群</p>
+            <p v-if="store.guilds.length > 0" class="sg-hint">{{ t('home.hintWithGuilds') }}</p>
+            <p v-else class="sg-hint">{{ t('home.hintNoGuild') }}</p>
         </div>
 
         <!-- Zoom controls -->
         <div class="sg-zoom-controls">
-            <button class="sg-zoom-btn" @click="zoomAtCenter(1.2)" aria-label="放大">+</button>
-            <button class="sg-zoom-btn" @click="zoomAtCenter(0.83)" aria-label="縮小">−</button>
-            <button class="sg-zoom-btn" @click="transform.x=0; transform.y=0; transform.k=1" aria-label="重置">⌂</button>
+            <button class="sg-zoom-btn" @click="zoomAtCenter(1.2)" :aria-label="t('home.zoomIn')">+</button>
+            <button class="sg-zoom-btn" @click="zoomAtCenter(0.83)" :aria-label="t('home.zoomOut')">−</button>
+            <button class="sg-zoom-btn" @click="transform.x=0; transform.y=0; transform.k=1" :aria-label="t('home.reset')">⌂</button>
         </div>
     </div>
 </template>

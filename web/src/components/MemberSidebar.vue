@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import { api } from '@/api/index.js'
@@ -8,9 +9,14 @@ import { getStatusText } from '@/utils/format.js'
 const emit = defineEmits(['close-mobile'])
 const store = useAppStore()
 const voiceStore = useVoiceStore()
+const { t } = useI18n()
 
 const ROLE_LEVEL = { owner: 4, admin: 3, moderator: 2, member: 1 }
-const ROLE_LABEL = { owner: '擁有者', admin: '管理員', moderator: '版主' }
+const ROLE_LABEL = {
+  owner: () => t('memberSidebar.roleOwner'),
+  admin: () => t('memberSidebar.roleAdmin'),
+  moderator: () => t('memberSidebar.roleModerator'),
+}
 
 function myLevel() {
   return ROLE_LEVEL[store.currentUserRole] || 0
@@ -22,27 +28,27 @@ function canManage(member) {
 }
 
 async function kickMember(guildId, userId, username) {
-  if (!confirm(`確定要將「${username}」移出社群？`)) return
+  if (!confirm(t('memberSidebar.kickConfirm', { username }))) return
   try {
     await api.kickMember(guildId, userId)
     store.members = store.members.filter(m => m.user_id !== userId)
-    store.showNotification(`已移除成員 ${username}`, 'success')
+    store.showNotification(t('memberSidebar.kickSuccess', { username }), 'success')
   } catch (e) {
-    store.showNotification(e.message || '移除失敗', 'error')
+    store.showNotification(e.message || t('memberSidebar.kickFailed'), 'error')
   }
 }
 
 async function updateRole(guildId, userId, username, currentRole) {
   const newRole = currentRole === 'member' ? 'moderator' : 'member'
-  const label = newRole === 'moderator' ? '版主' : '一般成員'
-  if (!confirm(`將「${username}」的角色變更為 ${label}？`)) return
+  const label = newRole === 'moderator' ? t('memberSidebar.roleModerator') : t('memberSidebar.roleMember')
+  if (!confirm(t('memberSidebar.updateRoleConfirm', { username, label }))) return
   try {
     await api.updateMemberRole(guildId, userId, newRole)
     const m = store.members.find(m => m.user_id === userId)
     if (m) m.role = newRole
-    store.showNotification(`已更新 ${username} 的角色`, 'success')
+    store.showNotification(t('memberSidebar.updateRoleSuccess', { username }), 'success')
   } catch (e) {
-    store.showNotification(e.message || '更新角色失敗', 'error')
+    store.showNotification(e.message || t('memberSidebar.updateRoleFailed'), 'error')
   }
 }
 </script>
@@ -50,8 +56,8 @@ async function updateRole(guildId, userId, username, currentRole) {
 <template>
   <div class="members-sidebar">
     <div class="members-header">
-      <h3>成員 — {{ store.members.length }}</h3>
-      <button class="members-close-btn" @click="emit('close-mobile')" title="關閉">
+      <h3>{{ t('memberSidebar.membersCount', { count: store.members.length }) }}</h3>
+      <button class="members-close-btn" @click="emit('close-mobile')" :title="t('common.close')">
         <i class="fas fa-times"></i>
       </button>
     </div>
@@ -70,29 +76,29 @@ async function updateRole(guildId, userId, username, currentRole) {
         </div>
         <div class="member-info">
           <div class="member-name">
-            {{ member.user?.nickname || member.user?.username || 'Unknown' }}
+            {{ member.user?.nickname || member.user?.username || t('common.unknown') }}
             <span v-if="ROLE_LABEL[member.role]" :class="['role-badge', `role-${member.role}`]">
-              {{ ROLE_LABEL[member.role] }}
+              {{ ROLE_LABEL[member.role]() }}
             </span>
           </div>
           <div style="font-size:11px;color:var(--text-muted)">
             {{ getStatusText(member.user?.status) }}
             <span v-if="voiceStore.isSpeaking(member.user_id)" style="color:var(--success)">
-              🔊 發話中
+              🔊 {{ t('memberSidebar.speaking') }}
             </span>
           </div>
         </div>
         <div v-if="canManage(member)" class="member-actions">
           <button
             class="btn-icon-sm"
-            title="更改角色"
+            :title="t('memberSidebar.changeRole')"
             @click="updateRole(store.currentGuild.id, member.user_id, member.user?.nickname || member.user?.username, member.role)"
           >
             <i class="fas fa-user-shield"></i>
           </button>
           <button
             class="btn-icon-sm danger"
-            title="移出社群"
+            :title="t('memberSidebar.kickFromGuild')"
             @click="kickMember(store.currentGuild.id, member.user_id, member.user?.nickname || member.user?.username)"
           >
             <i class="fas fa-user-times"></i>

@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 // Future: Language Learning integration
 // Planned features:
 //  - Lesson browser (vocabulary, grammar, listening, speaking exercises)
@@ -7,6 +8,7 @@
 //  - Language exchange rooms — pair users for text/voice conversation practice
 //  - Progress tracking (streaks, XP, skill tree)
 //  - Integrated with chat: "Practice mode" inside channels
+const { t } = useI18n()
 </script>
 
 <template>
@@ -15,14 +17,14 @@
       <div class="stub-view__icon learn">
         <i class="fas fa-graduation-cap"></i>
       </div>
-      <h2>語言學習</h2>
-      <p>即將推出 — 在這裡學習新語言、練習口語、與母語者交流。</p>
+      <h2>{{ t('views.learn.title') }}</h2>
+      <p>{{ t('views.learn.subtitle') }}</p>
       <div class="stub-tags">
-        <span class="stub-tag">單字卡</span>
-        <span class="stub-tag">聽力練習</span>
-        <span class="stub-tag">口說評分</span>
-        <span class="stub-tag">語言交換</span>
-        <span class="stub-tag">進度追蹤</span>
+        <span class="stub-tag">{{ t('views.learn.tagFlashcards') }}</span>
+        <span class="stub-tag">{{ t('views.learn.tagListening') }}</span>
+        <span class="stub-tag">{{ t('views.learn.tagSpeakingScore') }}</span>
+        <span class="stub-tag">{{ t('views.learn.tagExchange') }}</span>
+        <span class="stub-tag">{{ t('views.learn.tagProgress') }}</span>
       </div>
     </div>
   </div>

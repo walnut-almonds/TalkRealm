@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDMStore } from '@/stores/useDMStore.js'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useFriendStore } from '@/stores/useFriendStore.js'
@@ -13,6 +14,7 @@ const dm = useDMStore()
 const store = useAppStore()
 const friendStore = useFriendStore()
 const ws = useWebSocket()
+const { t } = useI18n()
 
 // ── Tabs ──
 const activeTab = ref('messages') // 'messages' | 'friends' | 'requests'
@@ -73,9 +75,9 @@ async function sendFriendRequest(username) {
     friendAddSuccess.value = ''
     try {
         await friendStore.sendRequest(username)
-        friendAddSuccess.value = `已送出好友申請給 ${username}`
+        friendAddSuccess.value = t('dm.requestSentTo', { username })
     } catch (e) {
-        friendSearchError.value = e?.message || '送出申請失敗'
+        friendSearchError.value = e?.message || t('dm.requestSendFailed')
     }
 }
 
@@ -88,7 +90,7 @@ async function rejectFriend(userId) {
 }
 
 async function removeFriend(userId, name) {
-    if (!confirm(`確定要移除好友「${name}」？`)) return
+    if (!confirm(t('dm.removeFriendConfirm', { name }))) return
     await friendStore.unfriend(userId)
 }
 
@@ -116,13 +118,13 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
         <!-- Tab bar -->
         <div class="tab-bar">
             <button :class="['tab-btn', { active: activeTab === 'messages' }]" @click="activeTab = 'messages'">
-                私訊
+                {{ t('dm.tabMessages') }}
             </button>
             <button :class="['tab-btn', { active: activeTab === 'friends' }]" @click="activeTab = 'friends'">
-                好友
+                {{ t('dm.tabFriends') }}
             </button>
             <button :class="['tab-btn requests-tab', { active: activeTab === 'requests' }]" @click="activeTab = 'requests'">
-                申請
+                {{ t('dm.tabRequests') }}
                 <span v-if="pendingCount > 0" class="badge">{{ pendingCount }}</span>
             </button>
         </div>
@@ -130,15 +132,15 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
         <!-- ══ Messages Tab ══ -->
         <template v-if="activeTab === 'messages'">
             <div class="section-header">
-                <span>私人訊息</span>
-                <button class="icon-btn" title="新增私人訊息" @click="showPicker = !showPicker">
+                <span>{{ t('dm.privateMessages') }}</span>
+                <button class="icon-btn" :title="t('dm.newPrivateMessage')" @click="showPicker = !showPicker">
                     <i class="fas fa-plus"></i>
                 </button>
             </div>
 
             <!-- DM picker: search from friends -->
             <div v-if="showPicker" class="picker">
-                <input v-model="pickerQuery" class="search-input" placeholder="搜尋好友..." autofocus />
+                <input v-model="pickerQuery" class="search-input" :placeholder="t('dm.searchFriends')" autofocus />
                 <div class="picker-list">
                     <div
                         v-for="f in friendStore.friends.filter(fr => {
@@ -155,7 +157,7 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
                         </div>
                         <span>{{ friendDisplayName(f) }}</span>
                     </div>
-                    <div v-if="friendStore.friends.length === 0" class="empty-hint">尚無好友，請先在「好友」分頁加入好友</div>
+                    <div v-if="friendStore.friends.length === 0" class="empty-hint">{{ t('dm.noFriendsHint') }}</div>
                 </div>
             </div>
 
@@ -180,17 +182,17 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
                         class="badge-unread"
                     ></span>
                 </div>
-                <div v-if="dm.dmChannels.length === 0" class="empty-hint">沒有私人訊息</div>
+                <div v-if="dm.dmChannels.length === 0" class="empty-hint">{{ t('dm.noPrivateMessages') }}</div>
             </div>
         </template>
 
         <!-- ══ Friends Tab ══ -->
         <template v-else-if="activeTab === 'friends'">
             <div class="section-header">
-                <span>搜尋使用者</span>
+                <span>{{ t('dm.searchUsers') }}</span>
             </div>
             <div class="friend-search-box">
-                <input v-model="friendSearchQuery" class="search-input" placeholder="輸入 username 或暱稱..." />
+                <input v-model="friendSearchQuery" class="search-input" :placeholder="t('dm.searchUsersPlaceholder')" />
                 <p v-if="friendSearchError" class="error-text">{{ friendSearchError }}</p>
                 <p v-if="friendAddSuccess" class="success-text">{{ friendAddSuccess }}</p>
                 <div v-if="friendSearchResults.length > 0" class="picker-list">
@@ -200,14 +202,14 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
                             <span v-else>{{ (u.username || '?').charAt(0).toUpperCase() }}</span>
                         </div>
                         <span class="flex-1">{{ u.nickname || u.username }}</span>
-                        <button class="add-btn" @click="sendFriendRequest(u.username)">加好友</button>
+                        <button class="add-btn" @click="sendFriendRequest(u.username)">{{ t('dm.addFriend') }}</button>
                     </div>
                 </div>
-                <div v-else-if="friendSearchQuery && !friendSearchLoading" class="empty-hint">找不到使用者</div>
+                <div v-else-if="friendSearchQuery && !friendSearchLoading" class="empty-hint">{{ t('dm.userNotFound') }}</div>
             </div>
 
             <div class="section-header" style="margin-top: 8px">
-                <span>好友 ({{ friendStore.friends.length }})</span>
+                <span>{{ t('dm.friendsCount', { count: friendStore.friends.length }) }}</span>
             </div>
             <div class="list">
                 <div v-for="f in friendStore.friends" :key="f.id" class="list-item">
@@ -216,21 +218,21 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
                         <span v-else>{{ friendDisplayName(f).charAt(0).toUpperCase() }}</span>
                     </div>
                     <span class="name flex-1">{{ friendDisplayName(f) }}</span>
-                    <button class="icon-btn danger" title="解除好友" @click="removeFriend(friendUserId(f), friendDisplayName(f))">
+                    <button class="icon-btn danger" :title="t('dm.unfriend')" @click="removeFriend(friendUserId(f), friendDisplayName(f))">
                         <i class="fas fa-user-minus"></i>
                     </button>
-                    <button class="icon-btn" title="發送私訊" @click="selectUserForDM(friendUserId(f)); activeTab = 'messages'">
+                    <button class="icon-btn" :title="t('dm.sendMessage')" @click="selectUserForDM(friendUserId(f)); activeTab = 'messages'">
                         <i class="fas fa-comment"></i>
                     </button>
                 </div>
-                <div v-if="friendStore.friends.length === 0 && !friendStore.loading" class="empty-hint">尚無好友</div>
+                <div v-if="friendStore.friends.length === 0 && !friendStore.loading" class="empty-hint">{{ t('dm.noFriends') }}</div>
             </div>
         </template>
 
         <!-- ══ Requests Tab ══ -->
         <template v-else-if="activeTab === 'requests'">
             <div class="section-header">
-                <span>收到的申請 ({{ friendStore.incomingRequests.length }})</span>
+                <span>{{ t('dm.receivedRequestsCount', { count: friendStore.incomingRequests.length }) }}</span>
             </div>
             <div class="list">
                 <div v-for="f in friendStore.incomingRequests" :key="f.id" class="list-item">
@@ -239,18 +241,18 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
                         <span v-else>{{ requesterName(f).charAt(0).toUpperCase() }}</span>
                     </div>
                     <span class="name flex-1">{{ requesterName(f) }}</span>
-                    <button class="icon-btn accent" title="接受" @click="acceptFriend(f.requester_id)">
+                    <button class="icon-btn accent" :title="t('dm.accept')" @click="acceptFriend(f.requester_id)">
                         <i class="fas fa-check"></i>
                     </button>
-                    <button class="icon-btn danger" title="拒絕" @click="rejectFriend(f.requester_id)">
+                    <button class="icon-btn danger" :title="t('dm.reject')" @click="rejectFriend(f.requester_id)">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <div v-if="friendStore.incomingRequests.length === 0" class="empty-hint">沒有待處理的申請</div>
+                <div v-if="friendStore.incomingRequests.length === 0" class="empty-hint">{{ t('dm.noPendingRequests') }}</div>
             </div>
 
             <div class="section-header" style="margin-top: 8px">
-                <span>送出的申請 ({{ friendStore.outgoingRequests.length }})</span>
+                <span>{{ t('dm.sentRequestsCount', { count: friendStore.outgoingRequests.length }) }}</span>
             </div>
             <div class="list">
                 <div v-for="f in friendStore.outgoingRequests" :key="f.id" class="list-item">
@@ -259,9 +261,9 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
                         <span v-else>{{ (f.addressee?.nickname || f.addressee?.username || '?').charAt(0).toUpperCase() }}</span>
                     </div>
                     <span class="name flex-1">{{ f.addressee?.nickname || f.addressee?.username }}</span>
-                    <span class="muted-text">等待中</span>
+                    <span class="muted-text">{{ t('dm.pending') }}</span>
                 </div>
-                <div v-if="friendStore.outgoingRequests.length === 0" class="empty-hint">沒有送出的申請</div>
+                <div v-if="friendStore.outgoingRequests.length === 0" class="empty-hint">{{ t('dm.noSentRequests') }}</div>
             </div>
         </template>
 

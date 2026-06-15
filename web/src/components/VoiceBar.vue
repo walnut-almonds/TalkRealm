@@ -1,9 +1,11 @@
 <script setup>
 import { inject } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
 
 const voice = inject('voice')
 const voiceStore = useVoiceStore()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -13,7 +15,7 @@ const voiceStore = useVoiceStore()
       <i class="fas fa-volume-up voice-bar-icon"></i>
       <div class="voice-bar-text">
         <div class="voice-bar-channel">#{{ voiceStore.voiceChannel?.name }}</div>
-        <div class="voice-bar-guild">語音連線中</div>
+        <div class="voice-bar-guild">{{ t('voice.connected') }}</div>
       </div>
     </div>
 
@@ -22,7 +24,7 @@ const voiceStore = useVoiceStore()
       <!-- Microphone -->
       <button
         :class="['voice-bar-toggle', { off: !voiceStore.voiceSelfState.micEnabled }]"
-        :title="voiceStore.voiceSelfState.micEnabled ? '關閉麥克風' : '開啟麥克風'"
+        :title="voiceStore.voiceSelfState.micEnabled ? t('voice.micOff') : t('voice.micOn')"
         @click="voice.toggleMicrophone"
       >
         <i :class="['fas', voiceStore.voiceSelfState.micEnabled ? 'fa-microphone' : 'fa-microphone-slash']"></i>
@@ -30,7 +32,7 @@ const voiceStore = useVoiceStore()
       <!-- Deafen -->
       <button
         :class="['voice-bar-toggle', { off: voiceStore.voiceSelfState.deafened }]"
-        :title="voiceStore.voiceSelfState.deafened ? '開啟收音' : '關閉收音'"
+        :title="voiceStore.voiceSelfState.deafened ? t('voice.deafenOff') : t('voice.deafenOn')"
         @click="voice.toggleDeafen"
       >
         <i :class="['fas', voiceStore.voiceSelfState.deafened ? 'fa-volume-xmark' : 'fa-volume-high']"></i>
@@ -38,7 +40,7 @@ const voiceStore = useVoiceStore()
       <!-- Camera -->
       <button
         :class="['voice-bar-toggle', { active: voiceStore.voiceSelfState.cameraEnabled }]"
-        :title="voiceStore.voiceSelfState.cameraEnabled ? '關閉攝影機' : '開啟攝影機'"
+        :title="voiceStore.voiceSelfState.cameraEnabled ? t('voice.cameraOff') : t('voice.cameraOnAction')"
         @click="voice.toggleCamera"
       >
         <i :class="['fas', voiceStore.voiceSelfState.cameraEnabled ? 'fa-video' : 'fa-video-slash']"></i>
@@ -46,7 +48,7 @@ const voiceStore = useVoiceStore()
       <!-- Screen share -->
       <button
         :class="['voice-bar-toggle', { active: voiceStore.voiceSelfState.screenSharing }]"
-        :title="voiceStore.voiceSelfState.screenSharing ? '停止螢幕分享' : '分享螢幕'"
+        :title="voiceStore.voiceSelfState.screenSharing ? t('voice.stopScreenShare') : t('voice.startScreenShare')"
         @click="voice.toggleScreenShare"
       >
         <i class="fas fa-display"></i>
@@ -55,13 +57,13 @@ const voiceStore = useVoiceStore()
       <button
         v-if="voiceStore.remoteVideoTracks.length > 0 || voiceStore.voiceSelfState.screenSharing || voiceStore.voiceSelfState.cameraEnabled"
         class="voice-bar-toggle"
-        title="開啟視訊視窗"
+        :title="t('voice.openVideoOverlay')"
         @click="voiceStore.videoOverlayOpen = true"
       >
         <i class="fas fa-expand"></i>
       </button>
       <!-- Leave -->
-      <button class="voice-bar-leave" title="離開語音" @click="voice.leaveVoiceChannel">
+      <button class="voice-bar-leave" :title="t('voice.leave')" @click="voice.leaveVoiceChannel">
         <i class="fas fa-phone-slash"></i>
       </button>
     </div>

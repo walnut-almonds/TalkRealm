@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
 import { useVoice } from '@/composables/useVoice.js'
 
 const voice = useVoiceStore()
 const { updateVideoQuality, updateScreenFps } = useVoice()
+const { t } = useI18n()
 
 // Pinned track index (null = no pin, show all in grid)
 const pinnedIdx = ref(null)
@@ -13,16 +15,16 @@ const pinnedIdx = ref(null)
 const showSettings = ref(false)
 
 const CAMERA_QUALITY_OPTIONS = [
-    { value: '360p', label: '360p（省頻）' },
-    { value: '720p', label: '720p（建議）' },
-    { value: '1080p', label: '1080p（高畫質）' },
+  { value: '360p', label: t('voiceOverlay.quality360p') },
+  { value: '720p', label: t('voiceOverlay.quality720p') },
+  { value: '1080p', label: t('voiceOverlay.quality1080p') },
 ]
 
 const SCREEN_FPS_OPTIONS = [
-    { value: 5,  label: '5 FPS（省頻）' },
-    { value: 15, label: '15 FPS（建議）' },
-    { value: 30, label: '30 FPS（流暢）' },
-    { value: 60, label: '60 FPS（最高）' },
+  { value: 5,  label: t('voiceOverlay.fps5') },
+  { value: 15, label: t('voiceOverlay.fps15') },
+  { value: 30, label: t('voiceOverlay.fps30') },
+  { value: 60, label: t('voiceOverlay.fps60') },
 ]
 
 function onQualityChange(val) {
@@ -105,8 +107,10 @@ function pin(idx) {
 }
 
 function labelOf(track) {
-    const name = track.username || track.participantIdentity || '參與者'
-    return track.kind === 'screen' ? `${name} 的螢幕` : `${name} 的攝影機`
+  const name = track.username || track.participantIdentity || t('voiceOverlay.participant')
+  return track.kind === 'screen'
+    ? t('voiceOverlay.screenOf', { name })
+    : t('voiceOverlay.cameraOf', { name })
 }
 
 const hasSelfCamera = computed(() => voice.voiceSelfState.cameraEnabled)
@@ -132,17 +136,17 @@ const panelCount = computed(() => {
         <div class="vvo-header">
           <span class="vvo-title">
             <i class="fas fa-video"></i>
-            語音視訊 &mdash; {{ voice.voiceChannel?.name ?? '' }}
+            {{ t('voiceOverlay.title') }} &mdash; {{ voice.voiceChannel?.name ?? '' }}
           </span>
           <div class="vvo-header-actions">
             <button
               :class="['vvo-btn-icon', { active: showSettings }]"
-              title="畫質 / FPS 設定"
+              :title="t('voiceOverlay.settings')"
               @click="showSettings = !showSettings"
             >
               <i class="fas fa-sliders"></i>
             </button>
-            <button class="vvo-btn-icon" title="關閉視訊視窗" @click="close">
+            <button class="vvo-btn-icon" :title="t('voiceOverlay.close')" @click="close">
               <i class="fas fa-xmark"></i>
             </button>
           </div>
@@ -153,7 +157,7 @@ const panelCount = computed(() => {
           <div v-if="showSettings" class="vvo-settings">
             <div class="vvo-settings-row">
               <label class="vvo-settings-label">
-                <i class="fas fa-video"></i> 攝影機畫質
+                <i class="fas fa-video"></i> {{ t('voiceOverlay.cameraQuality') }}
               </label>
               <select
                 class="vvo-select"
@@ -167,7 +171,7 @@ const panelCount = computed(() => {
             </div>
             <div class="vvo-settings-row">
               <label class="vvo-settings-label">
-                <i class="fas fa-display"></i> 螢幕分享 FPS
+                <i class="fas fa-display"></i> {{ t('voiceOverlay.screenFps') }}
               </label>
               <select
                 class="vvo-select"
@@ -217,7 +221,7 @@ const panelCount = computed(() => {
             <!-- Pin button -->
             <button
               class="vvo-pin-btn"
-              :title="pinnedIdx === idx ? '取消固定' : '固定此畫面'"
+              :title="pinnedIdx === idx ? t('voiceOverlay.unpin') : t('voiceOverlay.pin')"
               @click.stop="pin(idx)"
             >
               <i :class="['fas', pinnedIdx === idx ? 'fa-thumbtack fa-rotate-90' : 'fa-thumbtack']"></i>
@@ -229,7 +233,7 @@ const panelCount = computed(() => {
             <video ref="selfVideoEl" class="vvo-self-video" autoplay playsinline muted></video>
             <div class="vvo-tile-label">
               <i class="fas fa-video"></i>
-              你的攝影機（本地預覽）
+              {{ t('voiceOverlay.yourCameraPreview') }}
             </div>
           </div>
 
@@ -238,15 +242,15 @@ const panelCount = computed(() => {
             <video ref="selfScreenEl" class="vvo-self-video" autoplay playsinline muted></video>
             <div class="vvo-tile-label">
               <i class="fas fa-display"></i>
-              你的螢幕分享（本地預覽）
+              {{ t('voiceOverlay.yourScreenPreview') }}
             </div>
           </div>
 
           <!-- Empty state -->
           <div v-if="!hasAnyVideo" class="vvo-empty">
             <i class="fas fa-video-slash"></i>
-            <p>目前沒有視訊串流</p>
-            <p class="vvo-empty-hint">按下螢幕分享或攝影機按鈕以開始</p>
+            <p>{{ t('voiceOverlay.noStream') }}</p>
+            <p class="vvo-empty-hint">{{ t('voiceOverlay.noStreamHint') }}</p>
           </div>
         </div>
       </div>

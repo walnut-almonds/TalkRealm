@@ -1,8 +1,10 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 
 const emit = defineEmits(['create-guild', 'join-guild'])
 const store = useAppStore()
+const { t } = useI18n()
 
 async function selectGuild(guildId) {
   await store.selectGuild(guildId)
@@ -17,7 +19,7 @@ function goHome() {
 
 <template>
   <div class="guilds-sidebar">
-    <div class="guild-item home" title="首頁" @click="goHome">
+    <div class="guild-item home" :title="t('guildSidebar.home')" @click="goHome">
       <i class="fas fa-home"></i>
     </div>
     <div class="guilds-separator"></div>
@@ -31,10 +33,10 @@ function goHome() {
       <img v-if="guild.icon" :src="guild.icon" :alt="guild.name" />
       <span v-else>{{ guild.name.charAt(0).toUpperCase() }}</span>
     </div>
-    <div class="guild-item add-guild" title="建立社群" @click="emit('create-guild')">
+    <div class="guild-item add-guild" :title="t('guildSidebar.createGuild')" @click="emit('create-guild')">
       <i class="fas fa-plus"></i>
     </div>
-    <div class="guild-item join-guild" title="透過邀請碼加入" @click="emit('join-guild')">
+    <div class="guild-item join-guild" :title="t('guildSidebar.joinByInvite')" @click="emit('join-guild')">
       <i class="fas fa-link"></i>
     </div>
   </div>

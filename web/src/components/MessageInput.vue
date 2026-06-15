@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useWebSocket } from '@/composables/useWebSocket.js'
 import { useFileUpload } from '@/composables/useFileUpload.js'
@@ -10,6 +11,7 @@ import GifPicker from '@/components/GifPicker.vue'
 const store = useAppStore()
 const ws = useWebSocket()
 const { pendingChips, uploadFile, removeChip, clearChips } = useFileUpload(store)
+const { t } = useI18n()
 
 const input = ref(null)
 const content = ref('')
@@ -31,8 +33,8 @@ function escapeRegExp(input) {
 }
 
 const SPECIAL_MENTIONS = [
-  { id: '@here',     label: '@here',     desc: '通知此頻道線上的成員' },
-  { id: '@everyone', label: '@everyone', desc: '通知此社群所有成員' },
+  { id: '@here',     label: '@here',     desc: t('messageInput.mentionHereDesc') },
+  { id: '@everyone', label: '@everyone', desc: t('messageInput.mentionEveryoneDesc') },
 ]
 
 const mentionCandidates = computed(() => {
@@ -174,7 +176,7 @@ async function send() {
     }
   } catch (e) {
     console.error('Send failed', e)
-    store.showNotification('發送訊息失敗', 'error')
+    store.showNotification(t('messageInput.sendFailed'), 'error')
     const idx = store.messages.findIndex(m => m.nonce === nonce && m._pending)
     if (idx !== -1) store.messages.splice(idx, 1)
     content.value = savedContent
@@ -247,7 +249,7 @@ async function onDrop(e) {
   isDragging.value = false
   const files = Array.from(e.dataTransfer?.files ?? [])
   if (!files.length) return
-  if (!store.currentChannel) { store.showNotification('請先選擇一個頻道', 'error'); return }
+  if (!store.currentChannel) { store.showNotification(t('messageInput.selectChannelFirst'), 'error'); return }
   for (const f of files) await uploadFile(f)
 }
 </script>
@@ -287,18 +289,18 @@ async function onDrop(e) {
 
     <!-- Input row -->
     <div class="message-input-row">
-      <button class="btn-icon" title="上傳檔案" @click="triggerFileInput">
+      <button class="btn-icon" :title="t('messageInput.uploadFile')" @click="triggerFileInput">
         <i class="fas fa-plus-circle"></i>
       </button>
       <textarea
         ref="input"
         v-model="content"
-        placeholder="在此輸入訊息..."
+        :placeholder="t('messageInput.placeholder')"
         rows="1"
         @keydown="onKeydown"
         @input="onInput"
       ></textarea>
-      <button class="btn-icon" title="發送訊息" @click="send">
+      <button class="btn-icon" :title="t('messageInput.send')" @click="send">
         <i class="fas fa-paper-plane"></i>
       </button>
       <button class="btn-icon" :class="{ active: showGifPicker }" title="GIF" @click="toggleGifPicker">

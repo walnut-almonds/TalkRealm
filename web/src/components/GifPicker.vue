@@ -1,8 +1,10 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api/index.js'
 
 const emit = defineEmits(['select', 'close'])
+const { t } = useI18n()
 
 const rootEl = ref(null)
 const gridEl = ref(null)
@@ -55,7 +57,7 @@ async function loadGifs(keyword = '', { append = false, cursor = '' } = {}) {
     gifs.value = append ? mergeByID(gifs.value, items) : items
   } catch (e) {
     if (!append) resetList()
-    error.value = e?.message || 'GIF 服務暫時無法使用'
+    error.value = e?.message || t('gif.serviceUnavailable')
   } finally {
     if (append) loadingMore.value = false
     else loading.value = false
@@ -140,13 +142,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="rootEl" class="gif-picker" role="dialog" aria-label="GIF 選擇器">
+  <div ref="rootEl" class="gif-picker" role="dialog" :aria-label="t('gif.picker')">
     <div class="gif-picker-header">
       <div class="gif-picker-title">
         <i class="fas fa-film"></i>
         <span>GIF</span>
       </div>
-      <button class="gif-picker-close" title="關閉" @click="closePicker">
+      <button class="gif-picker-close" :title="t('common.close')" @click="closePicker">
         <i class="fas fa-times"></i>
       </button>
     </div>
@@ -157,31 +159,31 @@ onUnmounted(() => {
         v-model="query"
         type="text"
         class="gif-picker-search"
-        placeholder="搜尋 GIF（例如：happy、cat、wow）"
+        :placeholder="t('gif.searchPlaceholder')"
       />
     </div>
 
-    <div v-if="loading" class="gif-picker-state">載入中...</div>
+    <div v-if="loading" class="gif-picker-state">{{ t('common.loading') }}</div>
     <div v-else-if="error" class="gif-picker-state gif-picker-state-error">{{ error }}</div>
-    <div v-else-if="!gifs.length" class="gif-picker-state">找不到 GIF，換個關鍵字試試</div>
+    <div v-else-if="!gifs.length" class="gif-picker-state">{{ t('gif.noResults') }}</div>
 
     <div v-else ref="gridEl" class="gif-picker-grid" @scroll="onGridScroll">
       <button
         v-for="gif in gifs"
         :key="gif.id"
         class="gif-card"
-        :title="gif.title || 'GIF'"
+        :title="gif.title || t('gif.label')"
         @mouseenter="onGifEnter(gif, $event)"
         @mousemove="onGifMove($event)"
         @mouseleave="onGifLeave"
         @click="selectGif(gif)"
       >
-        <img :src="gif.previewUrl || gif.url" :alt="gif.title || 'gif'" loading="lazy" />
+        <img :src="gif.previewUrl || gif.url" :alt="gif.title || t('gif.label')" loading="lazy" />
       </button>
     </div>
 
-    <div v-if="loadingMore" class="gif-picker-more">載入更多...</div>
-    <div v-else-if="!hasMore && gifs.length > 0" class="gif-picker-more gif-picker-more-end">沒有更多 GIF 了</div>
+    <div v-if="loadingMore" class="gif-picker-more">{{ t('gif.loadingMore') }}</div>
+    <div v-else-if="!hasMore && gifs.length > 0" class="gif-picker-more gif-picker-more-end">{{ t('gif.noMore') }}</div>
 
     <Teleport to="body">
       <div
@@ -189,8 +191,8 @@ onUnmounted(() => {
         class="gif-hover-preview"
         :style="{ left: `${previewPos.x}px`, top: `${previewPos.y}px` }"
       >
-        <img :src="hoverGif.url || hoverGif.previewUrl" :alt="hoverGif.title || 'GIF 預覽'" />
-        <div class="gif-hover-preview-title">{{ hoverGif.title || 'GIF 預覽' }}</div>
+        <img :src="hoverGif.url || hoverGif.previewUrl" :alt="hoverGif.title || t('gif.preview')" />
+        <div class="gif-hover-preview-title">{{ hoverGif.title || t('gif.preview') }}</div>
       </div>
     </Teleport>
 

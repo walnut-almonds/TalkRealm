@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDMStore } from '@/stores/useDMStore.js'
 import { useWebSocket } from '@/composables/useWebSocket.js'
 import { useAppStore } from '@/stores/useAppStore.js'
@@ -13,6 +14,7 @@ const emit = defineEmits(['open-sidebar'])
 const dm = useDMStore()
 const ws = useWebSocket()
 const store = useAppStore()
+const { t } = useI18n()
 
 const messageListEl = ref(null)
 const inputEl = ref(null)
@@ -34,7 +36,7 @@ const partner = computed(() => {
 // ── File upload (DM context) ──────────────────────────────────
 const { pendingChips, uploadFile, removeChip, clearChips } = useFileUpload({
     checkReady: () => !!dm.currentDMChannel,
-    onNotReady: () => store.showNotification('請先選擇一個對話', 'error'),
+    onNotReady: () => store.showNotification(t('dm.selectConversationFirst'), 'error'),
     addFileId: (id) => dm.dmPendingFileIds.push(id),
     removeFileId: (id) => {
         const idx = dm.dmPendingFileIds.indexOf(id)
@@ -143,7 +145,7 @@ function onKeydown(e) {
     <div class="dm-chat-area" v-if="dm.currentDMChannel" @drop="onDrop" @dragover="onDragover">
         <!-- Header -->
         <div class="dm-chat-header">
-            <button class="mobile-hamburger" @click="emit('open-sidebar')" title="私訊列表">
+            <button class="mobile-hamburger" @click="emit('open-sidebar')" :title="t('dm.list')">
                 <i class="fas fa-bars"></i>
             </button>
             <div class="dm-partner-info" v-if="partner">
@@ -153,16 +155,16 @@ function onKeydown(e) {
                 </div>
                 <span class="dm-partner-name">{{ partner.display_name || partner.username }}</span>
             </div>
-            <span v-else class="dm-partner-name">私人訊息</span>
+            <span v-else class="dm-partner-name">{{ t('dm.privateMessages') }}</span>
         </div>
 
         <!-- Messages -->
         <div class="dm-messages" ref="messageListEl">
             <div v-if="dm.hasMoreMessages" class="load-more">
-                <button @click="dm.loadDMMessages(dm.currentDMChannel.id, dm.dmMessages[0]?.id)">載入更多</button>
+                <button @click="dm.loadDMMessages(dm.currentDMChannel.id, dm.dmMessages[0]?.id)">{{ t('dm.loadMore') }}</button>
             </div>
             <div v-if="dm.isLoadingMessages && dm.dmMessages.length === 0" class="dm-loading">
-                載入中...
+                {{ t('dm.loading') }}
             </div>
             <MessageItem
                 v-for="(msg, idx) in dm.dmMessages"
@@ -172,7 +174,7 @@ function onKeydown(e) {
                 :is-d-m="true"
             />
             <div v-if="!dm.isLoadingMessages && dm.dmMessages.length === 0" class="dm-no-messages">
-                <p>這是你與 {{ partner?.display_name || partner?.username }} 的對話開始</p>
+                <p>{{ t('dm.conversationStart', { name: partner?.display_name || partner?.username }) }}</p>
             </div>
         </div>
 
@@ -189,14 +191,14 @@ function onKeydown(e) {
 
         <!-- Input -->
         <div class="dm-input-area">
-            <label class="dm-attach-btn" title="上傳檔案">
+            <label class="dm-attach-btn" :title="t('dm.uploadFile')">
                 <i class="fas fa-paperclip"></i>
                 <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileInput" />
             </label>
             <textarea
                 ref="inputEl"
                 v-model="content"
-                :placeholder="`傳訊息給 ${partner?.display_name || partner?.username || '...'}`"
+                :placeholder="t('dm.messageTo', { name: partner?.display_name || partner?.username || '...' })"
                 rows="1"
                 @input="autoResize"
                 @keydown="onKeydown"
@@ -217,7 +219,7 @@ function onKeydown(e) {
     </div>
     <div class="dm-empty-state" v-else>
         <i class="fas fa-comment-dots"></i>
-        <p>選擇一個對話開始聊天</p>
+        <p>{{ t('dm.selectToStart') }}</p>
     </div>
 </template>
 

@@ -1,10 +1,12 @@
 <script setup>
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { api } from '@/api/index.js'
 
 const emit = defineEmits(['close'])
 const store = useAppStore()
+const { t } = useI18n()
 
 const channelName = ref('')
 const channelTopic = ref('')
@@ -21,13 +23,13 @@ async function submit() {
       topic: channelTopic.value.trim(),
       type: channelType.value,
     })
-    store.showNotification('頻道建立成功！', 'success')
+    store.showNotification(t('createChannel.createdSuccess'), 'success')
     if (channelType.value === 'text') {
       await store.selectChannel(ch)
     }
     emit('close')
   } catch (e) {
-    store.showNotification('建立失敗：' + (e.message || '未知錯誤'), 'error')
+    store.showNotification(t('createChannel.createFailed') + (e.message || t('common.unknownError')), 'error')
   } finally {
     loading.value = false
   }
@@ -38,36 +40,36 @@ async function submit() {
   <div class="modal-overlay" @click.self="emit('close')">
     <div class="modal">
       <div class="modal-header">
-        <h2>建立頻道</h2>
+        <h2>{{ t('createChannel.title') }}</h2>
         <button class="modal-close" @click="emit('close')">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>頻道類型</label>
+          <label>{{ t('createChannel.channelType') }}</label>
           <div class="channel-type-selector">
             <label class="type-option" :class="{ active: channelType === 'text' }">
               <input type="radio" v-model="channelType" value="text" />
-              <i class="fas fa-hashtag"></i> 文字頻道
+              <i class="fas fa-hashtag"></i> {{ t('createChannel.textChannel') }}
             </label>
             <label class="type-option" :class="{ active: channelType === 'voice' }">
               <input type="radio" v-model="channelType" value="voice" />
-              <i class="fas fa-volume-up"></i> 語音頻道
+              <i class="fas fa-volume-up"></i> {{ t('createChannel.voiceChannel') }}
             </label>
           </div>
         </div>
         <div class="form-group">
-          <label>頻道名稱 *</label>
-          <input v-model="channelName" placeholder="新頻道" maxlength="100" @keydown.enter="submit" />
+          <label>{{ t('createChannel.channelNameRequired') }}</label>
+          <input v-model="channelName" :placeholder="t('createChannel.channelNamePlaceholder')" maxlength="100" @keydown.enter="submit" />
         </div>
         <div class="form-group" v-if="channelType === 'text'">
-          <label>頻道主題（可選）</label>
-          <input v-model="channelTopic" placeholder="這個頻道的主題..." maxlength="200" />
+          <label>{{ t('createChannel.channelTopicOptional') }}</label>
+          <input v-model="channelTopic" :placeholder="t('createChannel.channelTopicPlaceholder')" maxlength="200" />
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" @click="emit('close')">取消</button>
+        <button class="btn btn-secondary" @click="emit('close')">{{ t('common.cancel') }}</button>
         <button class="btn btn-primary" :disabled="!channelName.trim() || loading" @click="submit">
-          {{ loading ? '建立中...' : '建立頻道' }}
+          {{ loading ? t('createChannel.creating') : t('createChannel.createButton') }}
         </button>
       </div>
     </div>

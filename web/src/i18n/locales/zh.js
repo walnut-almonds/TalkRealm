@@ -1,5 +1,9 @@
+import en from './en.js'
+
 export default {
+    ...en,
     common: {
+        ...en.common,
         save: '储存',
         saving: '储存中...',
         cancel: '取消',
@@ -8,6 +12,7 @@ export default {
         unknownError: '未知错误'
     },
     settings: {
+        ...en.settings,
         title: '用户设定',
         profile: '个人资料',
         displayName: '显示名称',
@@ -44,6 +49,7 @@ export default {
         passwordRequired: '请填写旧密码和新密码'
     },
     chat: {
+        ...en.chat,
         unknownUser: '未知用户',
         edited: '已编辑',
         editHint: 'Enter 储存 · Esc 取消',
@@ -63,6 +69,7 @@ export default {
         deleteConfirm: '确定要删除此讯息？'
     },
     notifications: {
+        ...en.notifications,
         mentionYou: '{author} 提及了你',
         loadGuildFailed: '载入社群失败',
         loadChannelFailed: '载入频道失败',

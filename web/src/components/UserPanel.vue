@@ -1,9 +1,11 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { getStatusText } from '@/utils/format.js'
 
 const emit = defineEmits(['settings'])
 const store = useAppStore()
+const { t } = useI18n()
 
 async function logout() {
   await store.handleLogout()
@@ -26,10 +28,10 @@ async function logout() {
       </div>
     </div>
     <div class="user-actions">
-      <button class="btn-icon" title="使用者設定" @click="emit('settings')">
+      <button class="btn-icon" :title="t('userPanel.settings')" @click="emit('settings')">
         <i class="fas fa-cog"></i>
       </button>
-      <button class="btn-icon" title="登出" @click="logout">
+      <button class="btn-icon" :title="t('userPanel.logout')" @click="logout">
         <i class="fas fa-sign-out-alt"></i>
       </button>
     </div>

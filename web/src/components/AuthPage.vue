@@ -1,8 +1,10 @@
 <script setup>
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 
 const store = useAppStore()
+const { t } = useI18n()
 const showLogin = ref(true)
 
 const loginEmail = ref('')
@@ -19,10 +21,10 @@ async function onLogin() {
     const { api } = await import('@/api/index.js')
     const res = await api.login(loginEmail.value, loginPassword.value)
     store.user = res.user
-    store.showNotification('登入成功！', 'success')
+    store.showNotification(t('auth.loginSuccess'), 'success')
     await store.loadUserData()
   } catch (e) {
-    store.showNotification(e.message || '登入失敗', 'error')
+    store.showNotification(e.message || t('auth.loginFailed'), 'error')
   } finally {
     store.setLoading(false)
   }
@@ -33,12 +35,12 @@ async function onRegister() {
     store.setLoading(true)
     const { api } = await import('@/api/index.js')
     await api.register(regUsername.value, regEmail.value, regPassword.value, regNickname.value)
-    store.showNotification('註冊成功！正在登入...', 'success')
+    store.showNotification(t('auth.registerSuccess'), 'success')
     const res = await api.login(regEmail.value, regPassword.value)
     store.user = res.user
     await store.loadUserData()
   } catch (e) {
-    store.showNotification(e.message || '註冊失敗', 'error')
+    store.showNotification(e.message || t('auth.registerFailed'), 'error')
   } finally {
     store.setLoading(false)
   }
@@ -59,58 +61,58 @@ function loginWithGoogle() {
 
       <!-- Login -->
       <div :class="['auth-form', { active: showLogin }]">
-        <h2>歡迎回來！</h2>
-        <p class="auth-subtitle">我們很高興再次見到您！</p>
+        <h2>{{ t('auth.welcomeBack') }}</h2>
+        <p class="auth-subtitle">{{ t('auth.welcomeSubtitle') }}</p>
         <form @submit.prevent="onLogin">
           <div class="form-group">
-            <label>電子郵件</label>
+            <label>{{ t('auth.email') }}</label>
             <input v-model="loginEmail" type="email" placeholder="name@example.com" required />
           </div>
           <div class="form-group">
-            <label>密碼</label>
-            <input v-model="loginPassword" type="password" placeholder="請輸入密碼" required />
+            <label>{{ t('auth.password') }}</label>
+            <input v-model="loginPassword" type="password" :placeholder="t('auth.passwordPlaceholder')" required />
           </div>
-          <button type="submit" class="btn-primary">登入</button>
-          <div class="auth-divider"><span>或</span></div>
+          <button type="submit" class="btn-primary">{{ t('auth.login') }}</button>
+          <div class="auth-divider"><span>{{ t('auth.or') }}</span></div>
           <button type="button" class="btn-oauth btn-google" @click="loginWithGoogle">
             <GoogleIcon />
-            使用 Google 登入
+            {{ t('auth.loginWithGoogle') }}
           </button>
           <div class="auth-switch">
-            還沒有帳號？ <a href="#" @click.prevent="showLogin = false">立即註冊</a>
+            {{ t('auth.noAccount') }} <a href="#" @click.prevent="showLogin = false">{{ t('auth.signUpNow') }}</a>
           </div>
         </form>
       </div>
 
       <!-- Register -->
       <div :class="['auth-form', { active: !showLogin }]">
-        <h2>建立帳號</h2>
-        <p class="auth-subtitle">加入 TalkRealm 社群</p>
+        <h2>{{ t('auth.createAccount') }}</h2>
+        <p class="auth-subtitle">{{ t('auth.joinSubtitle') }}</p>
         <form @submit.prevent="onRegister">
           <div class="form-group">
-            <label>電子郵件</label>
+            <label>{{ t('auth.email') }}</label>
             <input v-model="regEmail" type="email" placeholder="name@example.com" required />
           </div>
           <div class="form-group">
-            <label>使用者名稱</label>
-            <input v-model="regUsername" type="text" placeholder="請輸入使用者名稱" required minlength="3" maxlength="32" />
+            <label>{{ t('auth.username') }}</label>
+            <input v-model="regUsername" type="text" :placeholder="t('auth.usernamePlaceholder')" required minlength="3" maxlength="32" />
           </div>
           <div class="form-group">
-            <label>暱稱（選填）</label>
-            <input v-model="regNickname" type="text" placeholder="顯示名稱" maxlength="64" />
+            <label>{{ t('auth.nicknameOptional') }}</label>
+            <input v-model="regNickname" type="text" :placeholder="t('auth.nicknamePlaceholder')" maxlength="64" />
           </div>
           <div class="form-group">
-            <label>密碼</label>
-            <input v-model="regPassword" type="password" placeholder="請輸入密碼" required minlength="6" />
+            <label>{{ t('auth.password') }}</label>
+            <input v-model="regPassword" type="password" :placeholder="t('auth.passwordPlaceholder')" required minlength="6" />
           </div>
-          <button type="submit" class="btn-primary">註冊</button>
-          <div class="auth-divider"><span>或</span></div>
+          <button type="submit" class="btn-primary">{{ t('auth.register') }}</button>
+          <div class="auth-divider"><span>{{ t('auth.or') }}</span></div>
           <button type="button" class="btn-oauth btn-google" @click="loginWithGoogle">
             <GoogleIcon />
-            使用 Google 繼續
+            {{ t('auth.continueWithGoogle') }}
           </button>
           <div class="auth-switch">
-            已有帳號？ <a href="#" @click.prevent="showLogin = true">立即登入</a>
+            {{ t('auth.haveAccount') }} <a href="#" @click.prevent="showLogin = true">{{ t('auth.loginNow') }}</a>
           </div>
         </form>
       </div>

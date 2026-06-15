@@ -1,5 +1,9 @@
+import en from './en.js'
+
 export default {
+    ...en,
     common: {
+        ...en.common,
         save: '保存',
         saving: '保存中...',
         cancel: 'キャンセル',
@@ -8,6 +12,7 @@ export default {
         unknownError: '不明なエラー'
     },
     settings: {
+        ...en.settings,
         title: 'ユーザー設定',
         profile: 'プロフィール',
         displayName: '表示名',
@@ -44,6 +49,7 @@ export default {
         passwordRequired: '現在のパスワードと新しいパスワードを入力してください'
     },
     chat: {
+        ...en.chat,
         unknownUser: '不明なユーザー',
         edited: '編集済み',
         editHint: 'Enter で保存 · Esc でキャンセル',
@@ -63,6 +69,7 @@ export default {
         deleteConfirm: 'このメッセージを削除しますか？'
     },
     notifications: {
+        ...en.notifications,
         mentionYou: '{author} さんがあなたにメンションしました',
         loadGuildFailed: 'サーバーの読み込みに失敗しました',
         loadChannelFailed: 'チャンネルの読み込みに失敗しました',
