@@ -57,7 +57,7 @@ type PublicUser struct {
 type UpdateUserRequest struct {
 	Nickname      string `json:"nickname"       binding:"max=64"`
 	Avatar        string `json:"avatar"         binding:"max=256"`
-	Status        string `json:"status"         binding:"omitempty,oneof=offline busy away"`
+	Status        string `json:"status"         binding:"omitempty,oneof=offline busy away online idle dnd invisible"`
 	PreferredLang string `json:"preferred_lang" binding:"omitempty,oneof=zh zh-tw ja en"`
 	UILocale      string `json:"ui_locale"      binding:"omitempty,oneof=zh zh-tw ja en"`
 }
