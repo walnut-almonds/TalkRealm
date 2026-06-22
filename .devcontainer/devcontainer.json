@@ -14,7 +14,7 @@
             "shellautocompletion": true
         },
         "ghcr.io/devcontainers/features/python:1": {},
-        "ghcr.io/devcontainers/features/node:2": {},
+        "ghcr.io/devcontainers/features/node:": {},
         "ghcr.io/devcontainers/features/git:1": {},
         "ghcr.io/devcontainers/features/aws-cli:1": {}
     },
