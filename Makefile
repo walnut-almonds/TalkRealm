@@ -12,11 +12,11 @@ tidy:
 
 .PHONY: install-asdf
 install-asdf:
-	./scripts/setup_asdf.sh
+	bash ./scripts/setup_asdf.sh
 
 .PHONY: install-kubectl
 install-kubectl: install-asdf
-	./scripts/setup_kubectl.sh
+	bash ./scripts/setup_kubectl.sh
 
 .PHONY: reinstall-kubectl
 reinstall-kubectl:
@@ -39,9 +39,15 @@ fix: install
 lint: install
 	golangci-lint run -v ./...
 
+# -race 需要 cgo + C compiler，Windows 開發機通常沒有，故僅在非 Windows 啟用
+GO_TEST_FLAGS = -race
+ifeq ($(OS),Windows_NT)
+GO_TEST_FLAGS =
+endif
+
 .PHONY: test
 test: install
-	go test -v -race -failfast ./...
+	go test -v $(GO_TEST_FLAGS) -failfast ./...
 
 .PHONY: docs
 docs: install

@@ -20,7 +20,9 @@ import (
 
 func TestMain(m *testing.M) {
 	gin.SetMode(gin.TestMode)
+
 	_ = logger.Init("error") // suppress logs during tests
+
 	os.Exit(m.Run())
 }
 
@@ -40,6 +42,7 @@ func newGuildTestRouter(h *handler.GuildHandler) *gin.Engine {
 	r.PATCH("/guilds/:id", auth, h.UpdateGuild)
 	r.DELETE("/guilds/:id", auth, h.DeleteGuild)
 	r.GET("/guilds/:id/members", auth, h.ListGuildMembers)
+
 	return r
 }
 
@@ -48,6 +51,7 @@ func newGuildHandler() (*handler.GuildHandler, *testutil.MockGuildService, *test
 	mockMember := &testutil.MockGuildMemberService{}
 	mockInvite := &testutil.MockGuildInviteService{}
 	h := handler.NewGuildHandler(mockGuild, mockMember, mockInvite)
+
 	return h, mockGuild, mockMember, mockInvite
 }
 
@@ -63,12 +67,19 @@ func TestGuildHandler_CreateGuild_Success(t *testing.T) {
 	router := newGuildTestRouter(h)
 
 	body, _ := json.Marshal(map[string]string{"name": "My Guild"})
-	req := httptest.NewRequest(http.MethodPost, "/guilds", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/guilds",
+		bytes.NewReader(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
+
 	var guild model.Guild
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &guild))
 	assert.Equal(t, "My Guild", guild.Name)
@@ -78,8 +89,14 @@ func TestGuildHandler_CreateGuild_BadRequest(t *testing.T) {
 	h, _, _, _ := newGuildHandler()
 	router := newGuildTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/guilds", bytes.NewReader([]byte("invalid")))
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/guilds",
+		bytes.NewReader([]byte("invalid")),
+	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -97,7 +114,7 @@ func TestGuildHandler_GetGuild_Success(t *testing.T) {
 	}
 	router := newGuildTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/guilds/1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/guilds/1", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -111,7 +128,7 @@ func TestGuildHandler_GetGuild_NotFound(t *testing.T) {
 	}
 	router := newGuildTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/guilds/999", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/guilds/999", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -129,7 +146,7 @@ func TestGuildHandler_ListGuilds_Success(t *testing.T) {
 	}
 	router := newGuildTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/guilds", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/guilds", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -148,8 +165,14 @@ func TestGuildHandler_UpdateGuild_Success(t *testing.T) {
 	router := newGuildTestRouter(h)
 
 	body, _ := json.Marshal(map[string]string{"name": "Updated"})
-	req := httptest.NewRequest(http.MethodPatch, "/guilds/1", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPatch,
+		"/guilds/1",
+		bytes.NewReader(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -164,8 +187,14 @@ func TestGuildHandler_UpdateGuild_NotOwner(t *testing.T) {
 	router := newGuildTestRouter(h)
 
 	body, _ := json.Marshal(map[string]string{"name": "Updated"})
-	req := httptest.NewRequest(http.MethodPatch, "/guilds/1", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPatch,
+		"/guilds/1",
+		bytes.NewReader(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -181,7 +210,7 @@ func TestGuildHandler_DeleteGuild_Success(t *testing.T) {
 	mockGuild.DeleteGuildFn = func(guildID, userID uint) error { return nil }
 	router := newGuildTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/guilds/1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/guilds/1", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -195,7 +224,7 @@ func TestGuildHandler_DeleteGuild_NotOwner(t *testing.T) {
 	}
 	router := newGuildTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/guilds/1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/guilds/1", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -213,9 +242,48 @@ func TestGuildHandler_ListGuildMembers_Success(t *testing.T) {
 	}
 	router := newGuildTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/guilds/1/members", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/guilds/1/members", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+type stubOnlineChecker struct{ online map[uint]bool }
+
+func (s *stubOnlineChecker) IsUserOnline(userID uint) bool { return s.online[userID] }
+
+func TestGuildHandler_ListGuildMembers_StatusVisibility(t *testing.T) {
+	h, _, mockMember, _ := newGuildHandler()
+	mockMember.ListGuildMembersFn = func(guildID uint) ([]*model.GuildMember, error) {
+		return []*model.GuildMember{
+			{ID: 1, UserID: 1, User: model.User{ID: 1, Status: "invisible"}}, // 在線但隱身 → offline
+			{ID: 2, UserID: 2, User: model.User{ID: 2, Status: "dnd"}},       // 在線 → 保留 dnd
+			{ID: 3, UserID: 3, User: model.User{ID: 3, Status: "offline"}},   // 在線 → online
+			{
+				ID:     4,
+				UserID: 4,
+				User:   model.User{ID: 4, Status: "online"},
+			}, // 不在線但殘留 online → offline
+			{ID: 5, UserID: 5, User: model.User{ID: 5, Status: "invisible"}}, // 不在線且隱身 → offline
+		}, nil
+	}
+
+	h.SetOnlineChecker(&stubOnlineChecker{online: map[uint]bool{1: true, 2: true, 3: true}})
+	router := newGuildTestRouter(h)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/guilds/1/members", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var members []model.GuildMember
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &members))
+	require.Len(t, members, 5)
+
+	want := []string{"offline", "dnd", "online", "offline", "offline"}
+	for i, m := range members {
+		assert.Equal(t, want[i], m.User.Status, "member user_id=%d", m.UserID)
+	}
 }

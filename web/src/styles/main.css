@@ -1322,15 +1322,18 @@ select {
     background: var(--online);
 }
 
-.status-indicator.away {
+.status-indicator.away,
+.status-indicator.idle {
     background: var(--idle);
 }
 
-.status-indicator.busy {
+.status-indicator.busy,
+.status-indicator.dnd {
     background: var(--busy);
 }
 
-.status-indicator.offline {
+.status-indicator.offline,
+.status-indicator.invisible {
     background: var(--offline);
 }
 

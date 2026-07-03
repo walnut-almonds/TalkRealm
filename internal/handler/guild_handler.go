@@ -78,6 +78,7 @@ func (h *GuildHandler) CreateGuild(c *gin.Context) {
 	if err != nil {
 		logger.Error("CreateGuild failed", "error", err, "userID", userID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
 		return
 	}
 
@@ -352,8 +353,13 @@ func (h *GuildHandler) KickMember(c *gin.Context) {
 
 	err = h.guildMemberService.KickMember(uint(guildID), uint(targetUserID), operatorUserID)
 	if err != nil {
-		if errors.Is(err, service.ErrNotGuildOwner) || errors.Is(err, service.ErrInsufficientPermission) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions to kick this member"})
+		if errors.Is(err, service.ErrNotGuildOwner) ||
+			errors.Is(err, service.ErrInsufficientPermission) {
+			c.JSON(
+				http.StatusForbidden,
+				gin.H{"error": "insufficient permissions to kick this member"},
+			)
+
 			return
 		}
 
@@ -402,19 +408,30 @@ func (h *GuildHandler) ListGuildMembers(c *gin.Context) {
 		return
 	}
 
-	// 以 Redis 實時判斷線上狀態：在線 → 強制 online；不在線 → 保留 DB 偏好值（busy/away/offline），
-	// 但若 DB 殘留 "online"（舊資料或用戶誤設）則改為 offline，避免鬼線上問題
-	if h.onlineChecker != nil {
-		for i := range members {
-			if members[i].User.ID == 0 {
-				continue
-			}
-			if h.onlineChecker.IsUserOnline(members[i].User.ID) {
-				members[i].User.Status = "online"
-			} else if members[i].User.Status == "online" {
-				members[i].User.Status = "offline"
-			}
+	// 狀態顯示規則：invisible 一律顯示 offline（不得洩漏給其他成員）；
+	// 在線（Redis）→ 自選狀態 idle/dnd/busy/away 優先，其餘強制 online；
+	// 不在線 → 保留 DB 偏好值，但殘留的 "online"（舊資料）改為 offline，避免鬼線上問題
+	for i := range members {
+		if members[i].User.ID == 0 {
+			continue
 		}
+
+		status := members[i].User.Status
+		switch {
+		case status == "invisible":
+			status = "offline"
+		case h.onlineChecker != nil && h.onlineChecker.IsUserOnline(members[i].User.ID):
+			switch status {
+			case "idle", "dnd", "busy", "away":
+				// 保留使用者自選狀態
+			default:
+				status = "online"
+			}
+		case status == "online":
+			status = "offline"
+		}
+
+		members[i].User.Status = status
 	}
 
 	c.JSON(http.StatusOK, members)
@@ -463,8 +480,13 @@ func (h *GuildHandler) UpdateMemberRole(c *gin.Context) {
 		req.Role,
 	)
 	if err != nil {
-		if errors.Is(err, service.ErrNotGuildOwner) || errors.Is(err, service.ErrInsufficientPermission) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions to update member role"})
+		if errors.Is(err, service.ErrNotGuildOwner) ||
+			errors.Is(err, service.ErrInsufficientPermission) {
+			c.JSON(
+				http.StatusForbidden,
+				gin.H{"error": "insufficient permissions to update member role"},
+			)
+
 			return
 		}
 
@@ -500,8 +522,8 @@ type SuccessResponse struct {
 //	@Tags			GuildInvite
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		int								true	"社群 ID"
-//	@Param			request	body		service.CreateInviteRequest		false	"建立邀請碼請求"
+//	@Param			id		path		int							true	"社群 ID"
+//	@Param			request	body		service.CreateInviteRequest	false	"建立邀請碼請求"
 //	@Success		201		{object}	model.GuildInvite
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse

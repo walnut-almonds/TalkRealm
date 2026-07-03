@@ -266,10 +266,13 @@ definitions:
       nickname:
         type: string
       preferred_lang:
-        description: zh, ja, en
+        description: zh, zh-tw, ja, en (translation target)
         type: string
       status:
-        description: online, offline, busy, away
+        description: online, idle, dnd, invisible (also accepts offline, busy, away)
+        type: string
+      ui_locale:
+        description: zh, zh-tw, ja, en (UI locale, empty = not set)
         type: string
       updated_at:
         type: string
@@ -533,6 +536,17 @@ definitions:
         - offline
         - busy
         - away
+        - online
+        - idle
+        - dnd
+        - invisible
+        type: string
+      ui_locale:
+        enum:
+        - zh
+        - zh-tw
+        - ja
+        - en
         type: string
     type: object
   voice.RoomTokenResponse:

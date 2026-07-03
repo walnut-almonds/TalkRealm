@@ -29,8 +29,16 @@ export function escapeHtml(text) {
     return d.innerHTML
 }
 
-export function getStatusText(status) {
-    return { online: '線上', offline: '離線', away: '離開', busy: '忙碌' }[status] ?? '離線'
+export function getStatusText(t, status) {
+    switch (status) {
+        case 'online': return t('status.online')
+        case 'idle': return t('status.idle')
+        case 'dnd': return t('status.dnd')
+        case 'busy': return t('status.busy')
+        case 'away': return t('status.away')
+        case 'invisible': return t('status.invisible') // 僅自己看得到（後端對他人一律回 offline）
+        default: return t('status.offline')
+    }
 }
 
 export function randomUUID() {

@@ -9,12 +9,19 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/walnut-almonds/talkrealm/internal/model"
 	"github.com/walnut-almonds/talkrealm/pkg/auth"
 )
 
 // GuildMemberLookup 提供查詢使用者所屬 guild IDs 的介面（避免 websocket package 直接相依 repository）
 type GuildMemberLookup interface {
 	GetUserGuildIDs(userID uint) ([]uint, error)
+}
+
+// UserLookup 提供查詢使用者資料的介面（identify 時判斷 invisible / 自選狀態用；
+// 由 repository.UserRepository 隱式實作）
+type UserLookup interface {
+	GetByID(id uint) (*model.User, error)
 }
 
 // MessageSender 訊息建立介面（避免循環依賴）
@@ -61,6 +68,9 @@ type Manager struct {
 
 	// guildLookup 用於查詢使用者所屬 guild IDs
 	guildLookup GuildMemberLookup
+
+	// userLookup 用於 identify 時查詢使用者自選狀態（invisible 不廣播上線）
+	userLookup UserLookup
 
 	// msgSender 用於 send_message op（注入 MessageService，避免循環依賴）
 	msgSender MessageSender
@@ -440,6 +450,11 @@ func (m *Manager) SetRedis(rdb *goredis.Client) {
 // SetGuildLookup 注入 guild 成員查詢介面
 func (m *Manager) SetGuildLookup(l GuildMemberLookup) {
 	m.guildLookup = l
+}
+
+// SetUserLookup 注入使用者查詢介面（identify 時判斷自選狀態用）
+func (m *Manager) SetUserLookup(l UserLookup) {
+	m.userLookup = l
 }
 
 // SetMessageSender 注入訊息建立器（供 send_message op 使用）

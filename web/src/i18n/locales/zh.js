@@ -11,6 +11,15 @@ export default {
         submitting: '送出中...',
         unknownError: '未知错误'
     },
+    status: {
+        online: '在线',
+        idle: '闲置',
+        dnd: '请勿打扰',
+        busy: '忙碌',
+        away: '离开',
+        invisible: '隐身',
+        offline: '离线'
+    },
     settings: {
         ...en.settings,
         title: '用户设定',

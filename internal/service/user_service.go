@@ -260,6 +260,15 @@ func generateSecureToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// publicStatus 對其他使用者顯示的狀態：invisible 一律顯示為 offline
+func publicStatus(status string) string {
+	if status == "invisible" {
+		return "offline"
+	}
+
+	return status
+}
+
 // GetPublicByID 取得使用者公開資料（不含 email）
 func (s *userService) GetPublicByID(id uint) (*PublicUser, error) {
 	user, err := s.repo.GetByID(id)
@@ -272,7 +281,7 @@ func (s *userService) GetPublicByID(id uint) (*PublicUser, error) {
 		Username:  user.Username,
 		Nickname:  user.Nickname,
 		Avatar:    user.Avatar,
-		Status:    user.Status,
+		Status:    publicStatus(user.Status),
 		CreatedAt: user.CreatedAt,
 	}, nil
 }
@@ -295,7 +304,7 @@ func (s *userService) SearchUsers(query string, excludeID uint) ([]*PublicUser, 
 			Username:  u.Username,
 			Nickname:  u.Nickname,
 			Avatar:    u.Avatar,
-			Status:    u.Status,
+			Status:    publicStatus(u.Status),
 			CreatedAt: u.CreatedAt,
 		})
 	}

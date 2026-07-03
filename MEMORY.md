@@ -50,13 +50,15 @@ cd web && npm run check:i18n  # 掃描 t/$t key 使用並檢查 locale key 完�
   - `handler.GuildHandler` 新增 `OnlineChecker` interface + `SetOnlineChecker` setter；`ListGuildMembers` 回傳前以 `IsUserOnline` 動態覆寫狀態為 `"online"`（若 Redis 確認在線）。
   - `server.go` 以 `guildHandler.SetOnlineChecker(wsManager)` 注入；不再有 `SetUserStatusUpdater`。
   - `UpdateStatus` 方法（repo/service）仍保留，供使用者透過 REST 設定 busy/away 偏好用途。
-- `golangci-lint --fix` + `whole-files: true` 坑：修改 `mocks.go` 會曝露所有既有的 nilnil 問題。已用 `//nolint:nilnil` 全部標記。新增 mock 方法必須一同加標記。
+- `golangci-lint --fix` + `whole-files: true` 坑：修改 `mocks.go` 會曝露所有既有的 nilnil 問題。已用 `//nolint:nilnil` 全部標記。新增 mock 方法必須一同加標記。同理：改到舊測試檔會曝露整檔既有 noctx（`httptest.NewRequest`）— 修法是換成 `httptest.NewRequestWithContext(t.Context(), ...)`（guild_handler_test.go 已全數改完）。
 - `golangci-lint --fix` 會重新格式化 oauth_handler.go，造成 `NewRequestWithContext` 行號改變；`wsl_v5` 需在 `if err != nil { c.JSON(); return }` 的 return 前加空行。
 - `wsl_v5` 在 service 邏輯中也會要求 guard-return 後與下一個賦值語句之間保留空行（例如 `if channel.GuildID == nil { return ... }` 之後的 `member, err := ...`），否則會報 `missing whitespace above this line`。
 - 前端拖曳檔案判斷不可只用 `e.dataTransfer.types.includes('Files')`：Safari/部分瀏覽器 `types` 是 `DOMStringList`，需改用 `types.contains('Files')` 或 `Array.from(types).includes('Files')`；另外要在 `window.dragover` `preventDefault()`，避免瀏覽器直接開啟拖入檔案。
 - 若部署使用 `docker-compose.prod.yml`，必須包含 `livekit` service（`livekit:7880` 供 nginx upstream 轉發）。缺少該容器會導致 `wss://voice.../rtc/v1` 連線失敗，前端可能同時看到 `/rtc/v1/validate` CORS 錯誤（實際上常是 upstream 不可達）。
 - LiveKit `--keys` 參數格式必須是 **`"key: secret"`**（冒號後必須有空白）。在 compose 建議整段 `command` 用單引號包住，避免 YAML 把 `:` 誤判為 mapping。
 - 前端 i18n 新增大量 key 時，`web/src/i18n/locales/zh.js`、`web/src/i18n/locales/zh-tw.js`、`web/src/i18n/locales/ja.js` 已改為 `import en from './en.js'` 並用 `...en` + 分區覆寫，避免缺 key 時大規模漏翻造成 runtime 噪音。
+- **Windows 開發環境**：`.tool-versions` 的 swag 需用 `go:github.com/swaggo/swag/cmd/swag` backend（aqua backend 不支援 windows）；Makefile 的 setup scripts 需以 `bash ./scripts/...` 呼叫（直接執行 `.sh` 會被 Windows 丟給 WSL）；`go test -race` 需 cgo + gcc，Windows 無 gcc 時 Makefile 以 `ifeq ($(OS),Windows_NT)` 跳過 `-race`。mise reshim 在 claude 執行中會因 claude.exe shim 被鎖而整批失敗；缺 shim 時可直接複製任一既有 shim（全是同一顆通用 exe，靠檔名辨識）：`cp shims/go.exe shims/<tool>.exe`（已補 golangci-lint/swag/kubectl/k9s）。
+- **Status 顯示規則（invisible/idle/dnd）**：`Status` 欄位是使用者自選偏好；對「其他人」顯示時 invisible 一律映射為 offline（`ListGuildMembers` 的 switch、`user_service.publicStatus()`）。WS identify 廣播 presence 時經 `Manager.userLookup`（`SetUserLookup(userRepo)` 注入）查偏好：invisible 不廣播、idle/dnd/busy/away 廣播自選值。前端 `handleUserStatus` 只有收到 `offline` 才從 `onlineUserIds` 移除。已知限制：透過 REST 改 status 不會即時廣播 presence，需等下次成員清單載入。注意：message/friendship 等 Preload("User") 的 JSON 仍會帶原始 status（含 invisible），尚未清洗。
 
 ## Decisions
 - MQ 選擇 NATS JetStream（輕量，適合小團隊），備選 Kafka
@@ -65,6 +67,9 @@ cd web && npm run check:i18n  # 掃描 t/$t key 使用並檢查 locale key 完�
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-07-03
+ — Windows 開發環境修正（swag go backend、Makefile bash 呼叫、-race 條件跳過）；invisible/idle/dnd 狀態顯示規則實裝（詳見 Pitfalls）
+
 2026-06-15
  — 使用者語言偏好已拆分：`users.ui_locale`（介面語言）與 `users.preferred_lang`（訊息翻譯目標語言）分離；前端 `UserSettingsModal` 會同時送出兩者，`useAppStore.loadUserData()` 以 `ui_locale` 設定 i18n locale
  — i18n 規則：未設定 `ui_locale` 時，前端以 `navigator.languages` 順序決定初始語言（中文依繁簡/地區判斷：`hant|tw|hk|mo -> zh-tw`，`hans|cn|sg -> zh`，其餘 zh 預設簡體）；缺少翻譯 key 時 fallback 到英文

@@ -437,10 +437,11 @@ export const useAppStore = defineStore('app', () => {
         const m = members.value.find(m => m.user_id === data.user_id)
         if (m?.user) m.user.status = data.status
         // Track global online set for HomeView galaxy
-        if (data.status === 'online') {
-            onlineUserIds.add(data.user_id)
-        } else {
+        // idle/dnd/busy/away 也代表在線，只有 offline 才移除
+        if (data.status === 'offline') {
             onlineUserIds.delete(data.user_id)
+        } else {
+            onlineUserIds.add(data.user_id)
         }
     }
 

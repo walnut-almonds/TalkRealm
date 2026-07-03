@@ -430,8 +430,23 @@ func (c *Client) handleIdentify(raw json.RawMessage) {
 		Timestamp: time.Now().UnixMilli(),
 	})
 
-	// 廣播上線狀態
-	c.manager.broadcastPresenceUpdate(c.userID, c.username, "online")
+	// 廣播上線狀態：invisible 不廣播；idle/dnd/busy/away 廣播使用者自選狀態
+	presence := "online"
+
+	if c.manager.userLookup != nil {
+		if u, err := c.manager.userLookup.GetByID(c.userID); err == nil {
+			switch u.Status {
+			case "invisible":
+				presence = ""
+			case "idle", "dnd", "busy", "away":
+				presence = u.Status
+			}
+		}
+	}
+
+	if presence != "" {
+		c.manager.broadcastPresenceUpdate(c.userID, c.username, presence)
+	}
 
 	// Redis：記錄 user server mapping 及 guild online set
 	go c.manager.redisOnIdentify(c.userID)

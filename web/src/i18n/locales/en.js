@@ -11,6 +11,15 @@ export default {
         unknown: 'Unknown',
         unknownError: 'Unknown error'
     },
+    status: {
+        online: 'Online',
+        idle: 'Idle',
+        dnd: 'Do Not Disturb',
+        busy: 'Busy',
+        away: 'Away',
+        invisible: 'Invisible',
+        offline: 'Offline'
+    },
     auth: {
         welcomeBack: 'Welcome back!',
         welcomeSubtitle: 'Great to see you again.',

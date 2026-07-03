@@ -82,7 +82,7 @@ async function updateRole(guildId, userId, username, currentRole) {
             </span>
           </div>
           <div style="font-size:11px;color:var(--text-muted)">
-            {{ getStatusText(member.user?.status) }}
+            {{ getStatusText(t, member.user?.status) }}
             <span v-if="voiceStore.isSpeaking(member.user_id)" style="color:var(--success)">
               🔊 {{ t('memberSidebar.speaking') }}
             </span>

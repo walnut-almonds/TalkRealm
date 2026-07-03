@@ -11,6 +11,15 @@ export default {
         submitting: '送出中...',
         unknownError: '未知錯誤'
     },
+    status: {
+        online: '線上',
+        idle: '閒置',
+        dnd: '請勿打擾',
+        busy: '忙碌',
+        away: '離開',
+        invisible: '隱身',
+        offline: '離線'
+    },
     settings: {
         ...en.settings,
         title: '使用者設定',

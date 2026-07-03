@@ -23,7 +23,7 @@ async function logout() {
         <div class="user-name">{{ store.user?.nickname || store.user?.username }}</div>
         <div class="user-status">
           <span :class="['status-indicator', store.user?.status || 'online']"></span>
-          <span>{{ getStatusText(store.user?.status) }}</span>
+          <span>{{ getStatusText(t, store.user?.status) }}</span>
         </div>
       </div>
     </div>

@@ -11,6 +11,15 @@ export default {
         submitting: '送信中...',
         unknownError: '不明なエラー'
     },
+    status: {
+        online: 'オンライン',
+        idle: '退席中',
+        dnd: '取り込み中',
+        busy: '取り込み中',
+        away: '離席中',
+        invisible: 'オフライン表示',
+        offline: 'オフライン'
+    },
     settings: {
         ...en.settings,
         title: 'ユーザー設定',

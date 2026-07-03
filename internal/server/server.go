@@ -88,6 +88,8 @@ func New(cfg *config.Config) (*Server, error) {
 	wsManager := websocket.NewManager(jwtManager)
 	// GuildLookup 讓 WS manager 在 identify 時訂閱使用者的所有 guild（Redis 可選）
 	wsManager.SetGuildLookup(guildMemberRepo)
+	// UserLookup 讓 WS manager 在 identify 時判斷自選狀態（invisible 不廣播上線）
+	wsManager.SetUserLookup(userRepo)
 
 	if rdb != nil {
 		wsManager.SetRedis(rdb)
