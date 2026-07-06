@@ -206,7 +206,7 @@ onUnmounted(() => {
   max-height: min(76vh, 560px);
   background: var(--bg-modal, #2b2d31);
   border: 1px solid var(--border, #3f4147);
-  border-radius: 12px;
+  border-radius: var(--radius);
   box-shadow: 0 10px 36px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
@@ -234,7 +234,7 @@ onUnmounted(() => {
   background: none;
   color: var(--text-muted, #9ca3af);
   padding: 4px;
-  border-radius: 6px;
+  border-radius: var(--radius);
 }
 
 .gif-picker-close:hover {
@@ -248,7 +248,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   background: var(--bg-input, #1f2125);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 8px 10px;
   color: var(--text-muted, #a7a9ad);
 }
@@ -283,9 +283,9 @@ onUnmounted(() => {
 }
 
 .gif-card {
-  background: #1e2024;
+  background: var(--bg-input);
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius);
   overflow: hidden;
   padding: 0;
 }
@@ -317,10 +317,10 @@ onUnmounted(() => {
   width: min(48vw, 340px);
   max-height: min(48vh, 260px);
   z-index: 2200;
-  border-radius: 10px;
+  border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: #17181b;
+  background: var(--bg-tertiary);
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
@@ -334,7 +334,7 @@ onUnmounted(() => {
 }
 
 .gif-hover-preview-title {
-  color: #e5e7eb;
+  color: var(--text-primary);
   font-size: 12px;
   padding: 7px 10px;
   white-space: nowrap;

@@ -89,7 +89,7 @@ async function deleteGuild() {
       <div class="modal-tabs">
         <button :class="['modal-tab', { active: activeTab === 'general' }]" @click="activeTab = 'general'">{{ t('guildSettings.tabGeneral') }}</button>
         <button :class="['modal-tab', { active: activeTab === 'invite' }]" @click="activeTab = 'invite'">{{ t('guildSettings.tabInvite') }}</button>
-        <button v-if="isOwner" :class="['modal-tab', { active: activeTab === 'danger' }]" @click="activeTab = 'danger'" style="color:#f04747">{{ t('guildSettings.tabDanger') }}</button>
+        <button v-if="isOwner" :class="['modal-tab', { active: activeTab === 'danger' }]" @click="activeTab = 'danger'" style="color:var(--danger)">{{ t('guildSettings.tabDanger') }}</button>
       </div>
       <div class="modal-body">
         <!-- General -->

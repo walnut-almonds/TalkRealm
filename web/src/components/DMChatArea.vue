@@ -307,7 +307,7 @@ function onKeydown(e) {
     color: var(--text-muted, #8e9297);
     border: none;
     padding: 6px 16px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-size: 13px;
 }
@@ -331,7 +331,7 @@ function onKeydown(e) {
     align-items: center;
     gap: 6px;
     background: var(--bg-secondary, #2f3136);
-    border-radius: 6px;
+    border-radius: var(--radius);
     padding: 4px 10px;
     font-size: 12px;
     color: var(--text-normal, #dcddde);
@@ -386,7 +386,7 @@ function onKeydown(e) {
     flex: 1;
     background: var(--bg-input, #40444b);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius);
     color: var(--text-primary, #dcddde);
     font-size: 14px;
     padding: 10px 14px;
@@ -405,7 +405,7 @@ function onKeydown(e) {
 .dm-send-btn {
     background: var(--accent, #5865f2);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius);
     color: #fff;
     width: 40px;
     height: 40px;
@@ -429,7 +429,7 @@ function onKeydown(e) {
 .dm-gif-btn {
     background: var(--bg-secondary, #2f3136);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius);
     color: var(--text-primary, #dcddde);
     width: 40px;
     height: 40px;

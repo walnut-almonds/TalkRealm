@@ -11,16 +11,16 @@ const dm = useDMStore()
 const voiceStore = useVoiceStore()
 const { t } = useI18n()
 
-// ── Guild color palette (8 distinct colors) ──────────────────
+// ── Guild color palette (8 muted "noir constellation" tones, see DESIGN.md) ──
 const GUILD_PALETTE = [
-    { hex: '#818cf8', rgb: '129,140,248' },  // indigo
-    { hex: '#34d399', rgb: '52,211,153'  },  // emerald
-    { hex: '#f472b6', rgb: '244,114,182' },  // pink
-    { hex: '#fb923c', rgb: '251,146,60'  },  // orange
-    { hex: '#22d3ee', rgb: '34,211,238'  },  // cyan
-    { hex: '#fbbf24', rgb: '251,191,36'  },  // amber
-    { hex: '#a78bfa', rgb: '167,139,250' },  // violet
-    { hex: '#f87171', rgb: '248,113,113' },  // red
+    { hex: '#b3c6f3', rgb: '179,198,243' },  // slate
+    { hex: '#83c896', rgb: '131,200,150' },  // sage
+    { hex: '#d9a5b5', rgb: '217,165,181' },  // dusty rose
+    { hex: '#d9b98a', rgb: '217,185,138' },  // sand
+    { hex: '#8fc1cc', rgb: '143,193,204' },  // steel cyan
+    { hex: '#e3c26d', rgb: '227,194,109' },  // pale gold
+    { hex: '#b3a5d9', rgb: '179,165,217' },  // lavender gray
+    { hex: '#ffb4ab', rgb: '255,180,171' },  // soft coral
 ]
 
 function guildPalette(guildId) {
@@ -756,7 +756,7 @@ function updateParticles(now) {
                 y: py,
                 opacity: Math.sin(t * Math.PI) * 0.90,
                 r: 2.2 + (gid % 2) * 0.4,
-                color: !isFocused && isMention ? '#ef4444' : col.hex,
+                color: !isFocused && isMention ? '#ffb4ab' : col.hex,
             })
         }
     })
@@ -922,26 +922,26 @@ watch(
                 <!-- Milky Way diagonal band -->
                 <linearGradient id="sg-milkyway" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%"   stop-color="transparent" />
-                    <stop offset="30%"  stop-color="#7c6fff" stop-opacity="0.025" />
+                    <stop offset="30%"  stop-color="#b3c6f3" stop-opacity="0.025" />
                     <stop offset="45%"  stop-color="#9f8fff" stop-opacity="0.055" />
-                    <stop offset="55%"  stop-color="#7c6fff" stop-opacity="0.040" />
+                    <stop offset="55%"  stop-color="#b3c6f3" stop-opacity="0.040" />
                     <stop offset="70%"  stop-color="#5b4fcf" stop-opacity="0.025" />
                     <stop offset="100%" stop-color="transparent" />
                 </linearGradient>
                 <!-- Deep nebula glow – top-left -->
                 <radialGradient id="sg-nebula-tl" cx="20%" cy="18%" r="40%">
-                    <stop offset="0%"   stop-color="#4f46e5" stop-opacity="0.14" />
-                    <stop offset="100%" stop-color="#4f46e5" stop-opacity="0" />
+                    <stop offset="0%"   stop-color="#33466c" stop-opacity="0.14" />
+                    <stop offset="100%" stop-color="#33466c" stop-opacity="0" />
                 </radialGradient>
                 <!-- Deep nebula glow – bottom-right -->
                 <radialGradient id="sg-nebula-br" cx="82%" cy="80%" r="38%">
-                    <stop offset="0%"   stop-color="#0e7490" stop-opacity="0.12" />
-                    <stop offset="100%" stop-color="#0e7490" stop-opacity="0" />
+                    <stop offset="0%"   stop-color="#5a7d85" stop-opacity="0.12" />
+                    <stop offset="100%" stop-color="#5a7d85" stop-opacity="0" />
                 </radialGradient>
                 <!-- Accent nebula – mid-right -->
                 <radialGradient id="sg-nebula-mr" cx="88%" cy="40%" r="28%">
-                    <stop offset="0%"   stop-color="#be185d" stop-opacity="0.10" />
-                    <stop offset="100%" stop-color="#be185d" stop-opacity="0" />
+                    <stop offset="0%"   stop-color="#a3697e" stop-opacity="0.10" />
+                    <stop offset="100%" stop-color="#a3697e" stop-opacity="0" />
                 </radialGradient>
             </defs>
 
@@ -1023,14 +1023,14 @@ watch(
                     </clipPath>
                     <!-- Galaxy core glow -->
                     <radialGradient v-if="userNode" id="sg-core-glow" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%"   stop-color="#818cf8" stop-opacity="0.55" />
-                        <stop offset="40%"  stop-color="#6366f1" stop-opacity="0.20" />
-                        <stop offset="100%" stop-color="#6366f1" stop-opacity="0" />
+                        <stop offset="0%"   stop-color="#b3c6f3" stop-opacity="0.55" />
+                        <stop offset="40%"  stop-color="#7d94c4" stop-opacity="0.20" />
+                        <stop offset="100%" stop-color="#7d94c4" stop-opacity="0" />
                     </radialGradient>
                     <!-- User glow -->
                     <radialGradient v-if="userNode" id="sg-user-glow" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%"   stop-color="#818cf8" stop-opacity="0.4" />
-                        <stop offset="100%" stop-color="#818cf8" stop-opacity="0" />
+                        <stop offset="0%"   stop-color="#b3c6f3" stop-opacity="0.4" />
+                        <stop offset="100%" stop-color="#b3c6f3" stop-opacity="0" />
                     </radialGradient>
                     <!-- Per-guild line gradients (palette-colored) -->
                     <linearGradient
@@ -1083,7 +1083,7 @@ watch(
                     v-if="userNode"
                     :cx="userNode.x * 1.4" :cy="userNode.y * 1.5"
                     :rx="Math.min(W, H) * 0.12" :ry="Math.min(W, H) * 0.08"
-                    fill="#f472b6" opacity="0.06"
+                    fill="#d9a5b5" opacity="0.06"
                     style="filter: blur(14px)"
                 />
 
@@ -1116,7 +1116,7 @@ watch(
                     :key="`fline-${link.target}`"
                     :x1="link.x1" :y1="link.y1"
                     :x2="link.x2" :y2="link.y2"
-                    stroke="rgba(34,211,238,0.28)"
+                    stroke="rgba(143,193,204,0.28)"
                     stroke-width="1"
                     stroke-dasharray="5 6"
                 />
@@ -1127,7 +1127,7 @@ watch(
                     :key="`mline-${link.target}`"
                     :x1="link.x1" :y1="link.y1"
                     :x2="link.x2" :y2="link.y2"
-                    stroke="rgba(139,92,246,0.18)"
+                    stroke="rgba(179,198,243,0.18)"
                     stroke-width="1"
                     stroke-dasharray="3 5"
                 />
@@ -1167,7 +1167,7 @@ watch(
 
                 <!-- Member nodes -->
                 <g v-for="n in memberNodes" :key="n.id" class="sg-member-node">
-                    <circle :cx="n.x" :cy="n.y" r="11" fill="#12102a" stroke="rgba(139,92,246,0.35)" stroke-width="1" />
+                    <circle :cx="n.x" :cy="n.y" r="11" fill="#16181f" stroke="rgba(179,198,243,0.35)" stroke-width="1" />
                     <image
                         v-if="n.memberData?.user?.avatar"
                         :href="n.memberData.user.avatar"
@@ -1185,7 +1185,7 @@ watch(
                     <circle
                         v-if="store.onlineUserIds.has(n.memberId)"
                         :cx="n.x + 7" :cy="n.y + 7"
-                        r="3.5" fill="#22c55e" stroke="#060918" stroke-width="1.5"
+                        r="3.5" fill="#83c896" stroke="#0a0a0d" stroke-width="1.5"
                     />
                 </g>
 
@@ -1206,11 +1206,11 @@ watch(
                         v-if="store.onlineUserIds.has(n.friendData?.id)"
                         :cx="n.x" :cy="n.y"
                         r="26"
-                        fill="rgba(34,211,238,0.10)"
+                        fill="rgba(143,193,204,0.10)"
                         class="sg-friend-breathe"
                     />
-                    <circle :cx="n.x" :cy="n.y" r="22" fill="rgba(6,183,210,0.06)" class="sg-friend-pulse" />
-                    <circle :cx="n.x" :cy="n.y" r="14" fill="#0d1424" stroke="rgba(34,211,238,0.55)" stroke-width="1.5" />
+                    <circle :cx="n.x" :cy="n.y" r="22" fill="rgba(143,193,204,0.06)" class="sg-friend-pulse" />
+                    <circle :cx="n.x" :cy="n.y" r="14" fill="#0d1424" stroke="rgba(143,193,204,0.55)" stroke-width="1.5" />
                     <image
                         v-if="n.friendData?.avatar"
                         :href="n.friendData.avatar"
@@ -1228,12 +1228,12 @@ watch(
                     <circle
                         v-if="store.onlineUserIds.has(n.friendData?.id)"
                         :cx="n.x + 10" :cy="n.y + 10"
-                        r="4" fill="#22c55e" stroke="#060918" stroke-width="1.5"
+                        r="4" fill="#83c896" stroke="#0a0a0d" stroke-width="1.5"
                     />
                     <text
                         :x="n.x" :y="n.y + 24"
                         text-anchor="middle" dominant-baseline="middle"
-                        fill="rgba(34,211,238,0.7)" font-size="9" font-family="'Segoe UI', sans-serif"
+                        fill="rgba(143,193,204,0.7)" font-size="9" font-family="'Segoe UI', sans-serif"
                     >{{ (n.friendData?.nickname || n.friendData?.username || '').slice(0, 9) }}</text>
                 </g>
 
@@ -1259,7 +1259,7 @@ watch(
                         :cx="node.x" :cy="node.y"
                         :r="guildNodeRadius(gid) + 20"
                         fill="none"
-                        stroke="rgba(251,191,36,0.75)"
+                        stroke="rgba(227,194,109,0.75)"
                         stroke-width="2"
                         class="sg-typing-ripple"
                     />
@@ -1269,7 +1269,7 @@ watch(
                         :cx="node.x" :cy="node.y"
                         :r="guildNodeRadius(gid) + 24"
                         fill="none"
-                        stroke="rgba(34,211,238,0.6)"
+                        stroke="rgba(143,193,204,0.6)"
                         stroke-width="1.5"
                         class="sg-voice-pulse"
                     />
@@ -1279,7 +1279,7 @@ watch(
                         :cx="node.x" :cy="node.y"
                         :r="guildNodeRadius(gid) + 13"
                         fill="none"
-                        stroke="rgba(239,68,68,0.85)"
+                        stroke="rgba(255,180,171,0.85)"
                         stroke-width="2.5"
                         class="sg-mention-ring"
                     />
@@ -1289,7 +1289,7 @@ watch(
                         :cx="node.x" :cy="node.y"
                         :r="guildNodeRadius(gid) + 10"
                         fill="none"
-                        stroke="rgba(239,68,68,0.9)"
+                        stroke="rgba(255,180,171,0.9)"
                         stroke-width="3.5"
                         class="sg-mention-flash"
                     />
@@ -1312,7 +1312,7 @@ watch(
                     <circle
                         :cx="node.x" :cy="node.y"
                         :r="guildNodeRadius(gid)"
-                        fill="#1a1740"
+                        fill="#1c2233"
                         :stroke="guildPalette(gid).hex"
                         stroke-opacity="0.7"
                         stroke-width="1.5"
@@ -1347,8 +1347,8 @@ watch(
                             :cx="node.x + (guildNodeRadius(gid) + 9) * Math.cos(satelliteAngles.get(gid) || 0)"
                             :cy="node.y + (guildNodeRadius(gid) + 9) * Math.sin(satelliteAngles.get(gid) || 0)"
                             :r="store.mentionGuildIds.has(gid) ? 7 : 5"
-                            :fill="store.mentionGuildIds.has(gid) ? '#ef4444' : '#f59e0b'"
-                            :stroke="store.mentionGuildIds.has(gid) ? '#fca5a5' : '#060918'"
+                            :fill="store.mentionGuildIds.has(gid) ? '#ffb4ab' : '#e3c26d'"
+                            :stroke="store.mentionGuildIds.has(gid) ? '#fca5a5' : '#0a0a0d'"
                             stroke-width="1.5"
                             :class="store.mentionGuildIds.has(gid) ? 'sg-mention-satellite-dot' : 'sg-satellite-dot'"
                         />
@@ -1365,7 +1365,7 @@ watch(
                             :cx="node.x + (guildNodeRadius(gid) + 9) * Math.cos((satelliteAngles.get(gid) || 0) + Math.PI)"
                             :cy="node.y + (guildNodeRadius(gid) + 9) * Math.sin((satelliteAngles.get(gid) || 0) + Math.PI)"
                             :r="store.mentionGuildIds.has(gid) ? 3.5 : 3"
-                            :fill="store.mentionGuildIds.has(gid) ? '#ef4444' : '#f59e0b'"
+                            :fill="store.mentionGuildIds.has(gid) ? '#ffb4ab' : '#e3c26d'"
                             opacity="0.5"
                         />
                     </g>
@@ -1374,8 +1374,8 @@ watch(
                 <!-- Center: user node -->
                 <g class="sg-user-node" v-if="userNode">
                     <circle :cx="userNode.x" :cy="userNode.y" r="52" fill="url(#sg-user-glow)" class="sg-pulse-outer" />
-                    <circle :cx="userNode.x" :cy="userNode.y" r="38" fill="rgba(99,102,241,0.18)" class="sg-pulse-inner" />
-                    <circle :cx="userNode.x" :cy="userNode.y" r="28" fill="#1a1740" stroke="#818cf8" stroke-width="2" />
+                    <circle :cx="userNode.x" :cy="userNode.y" r="38" fill="rgba(179,198,243,0.18)" class="sg-pulse-inner" />
+                    <circle :cx="userNode.x" :cy="userNode.y" r="28" fill="#1c2233" stroke="#b3c6f3" stroke-width="2" />
                     <image
                         v-if="store.user?.avatar"
                         :href="store.user.avatar"
@@ -1457,10 +1457,10 @@ watch(
     flex: 1;
     overflow: hidden;
     background:
-        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(79,70,229,0.18) 0%, transparent 65%),
-        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(14,116,144,0.15) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 40% at 90% 35%, rgba(190,24,93,0.10) 0%, transparent 55%),
-        radial-gradient(ellipse 70% 60% at 50% 55%, #0d0a2e 0%, #060918 55%, #020510 100%);
+        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(51,70,108,0.22) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(90,125,133,0.14) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 90% 35%, rgba(163,105,126,0.08) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 60% at 50% 55%, #121216 0%, #0a0a0d 55%, #060607 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1508,7 +1508,7 @@ watch(
 
 .sg-guild-node:hover,
 .sg-guild-node:focus-visible {
-    filter: brightness(1.35) drop-shadow(0 0 16px var(--guild-hex, rgba(139,92,246,0.65)));
+    filter: brightness(1.35) drop-shadow(0 0 16px var(--guild-hex, rgba(179,198,243,0.65)));
 }
 
 .sg-guild-node:hover .sg-guild-bg {
@@ -1532,7 +1532,7 @@ watch(
 
 .sg-friend-node:hover,
 .sg-friend-node:focus-visible {
-    filter: brightness(1.4) drop-shadow(0 0 10px rgba(34,211,238,0.7));
+    filter: brightness(1.4) drop-shadow(0 0 10px rgba(143,193,204,0.7));
 }
 
 .sg-friend-pulse {
@@ -1555,7 +1555,7 @@ watch(
 
 /* ── Unread satellite ──────────────────────────────────────── */
 .sg-satellite-dot {
-    filter: drop-shadow(0 0 4px #f59e0b);
+    filter: drop-shadow(0 0 4px #e3c26d);
 }
 
 /* ── User center node ──────────────────────────────────────── */
@@ -1586,9 +1586,9 @@ watch(
     z-index: 100;
     min-width: 200px;
     max-width: 240px;
-    background: rgba(13, 10, 36, 0.92);
-    border: 1px solid color-mix(in srgb, var(--tip-color, #818cf8) 40%, transparent);
-    border-radius: 12px;
+    background: rgba(14, 14, 16, 0.92);
+    border: 1px solid color-mix(in srgb, var(--tip-color, #b3c6f3) 40%, transparent);
+    border-radius: var(--radius);
     padding: 12px 14px;
     pointer-events: auto;
     backdrop-filter: blur(12px);
@@ -1605,7 +1605,7 @@ watch(
 .sg-tip-icon {
     width: 36px;
     height: 36px;
-    border-radius: 8px;
+    border-radius: var(--radius);
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -1644,8 +1644,8 @@ watch(
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #22c55e;
-    box-shadow: 0 0 5px #22c55e;
+    background: #83c896;
+    box-shadow: 0 0 5px #83c896;
     flex-shrink: 0;
 }
 
@@ -1662,14 +1662,17 @@ watch(
 }
 
 .sg-tip-stat-label {
+    font-family: var(--font-mono);
     font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     color: rgba(255,255,255,0.38);
 }
 
 .sg-tip-stat-val {
     font-size: 17px;
     font-weight: 700;
-    color: var(--tip-color, #818cf8);
+    color: var(--tip-color, #b3c6f3);
 }
 
 .sg-tip-action {
@@ -1681,7 +1684,7 @@ watch(
 }
 
 .sg-tip-action:hover {
-    color: var(--tip-color, #818cf8);
+    color: var(--tip-color, #b3c6f3);
 }
 
 /* Tooltip badges (typing / voice) */
@@ -1693,22 +1696,23 @@ watch(
 }
 
 .sg-tip-badge {
+    font-family: var(--font-mono);
     font-size: 10px;
     padding: 2px 7px;
-    border-radius: 20px;
+    border-radius: var(--radius-lg);
     border: 1px solid rgba(255,255,255,0.12);
     background: rgba(255,255,255,0.05);
     color: rgba(255,255,255,0.65);
 }
 
 .sg-tip-badge--typing {
-    border-color: rgba(251,191,36,0.4);
-    color: rgba(251,191,36,0.9);
+    border-color: rgba(227,194,109,0.4);
+    color: rgba(227,194,109,0.9);
 }
 
 .sg-tip-badge--voice {
-    border-color: rgba(34,211,238,0.4);
-    color: rgba(34,211,238,0.9);
+    border-color: rgba(143,193,204,0.4);
+    color: rgba(143,193,204,0.9);
 }
 
 /* Tooltip transitions */
@@ -1761,22 +1765,22 @@ watch(
 .sg-zoom-btn {
     width: 32px;
     height: 32px;
-    background: rgba(13, 10, 36, 0.85);
-    border: 1px solid rgba(139, 92, 246, 0.35);
-    border-radius: 6px;
+    background: rgba(14, 14, 16, 0.85);
+    border: 1px solid rgba(179, 198, 243, 0.35);
+    border-radius: var(--radius);
     color: rgba(255, 255, 255, 0.65);
     font-size: 16px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    transition: none;
     line-height: 1;
 }
 
 .sg-zoom-btn:hover {
-    background: rgba(99, 102, 241, 0.28);
-    border-color: rgba(139, 92, 246, 0.8);
+    background: rgba(179, 198, 243, 0.28);
+    border-color: rgba(179, 198, 243, 0.8);
     color: white;
 }
 
@@ -1886,13 +1890,13 @@ watch(
 
 /* ── Mention satellite dot ─────────────────────────────────── */
 .sg-mention-satellite-dot {
-    filter: drop-shadow(0 0 6px #ef4444) drop-shadow(0 0 2px #fff);
+    filter: drop-shadow(0 0 6px #ffb4ab) drop-shadow(0 0 2px #fff);
 }
 
 /* ── Atmosphere: night mode ────────────────────────────────── */
 .galaxy-view[data-atmosphere='night'] {
     background:
-        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(30,20,80,0.30) 0%, transparent 65%),
+        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(20,25,50,0.30) 0%, transparent 65%),
         radial-gradient(ellipse 60% 45% at 85% 78%, rgba(5,40,80,0.22) 0%, transparent 60%),
         radial-gradient(ellipse 70% 60% at 50% 55%, #060418 0%, #020210 55%, #000108 100%);
     filter: brightness(0.82) saturate(0.8);
@@ -1901,18 +1905,18 @@ watch(
 /* ── Atmosphere: dawn ──────────────────────────────────────── */
 .galaxy-view[data-atmosphere='dawn'] {
     background:
-        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(120,60,180,0.20) 0%, transparent 65%),
-        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(230,80,40,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse 70% 60% at 50% 55%, #0d0a2e 0%, #060918 55%, #020510 100%);
+        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(179,165,217,0.10) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(217,185,138,0.10) 0%, transparent 60%),
+        radial-gradient(ellipse 70% 60% at 50% 55%, #121216 0%, #0a0a0d 55%, #060607 100%);
     filter: brightness(0.95) saturate(1.1);
 }
 
 /* ── Atmosphere: dusk ──────────────────────────────────────── */
 .galaxy-view[data-atmosphere='dusk'] {
     background:
-        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(180,60,100,0.22) 0%, transparent 65%),
-        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(80,20,120,0.20) 0%, transparent 60%),
-        radial-gradient(ellipse 70% 60% at 50% 55%, #0d0a2e 0%, #060918 55%, #020510 100%);
+        radial-gradient(ellipse 80% 55% at 20% 15%, rgba(217,165,181,0.12) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 45% at 85% 78%, rgba(51,70,108,0.20) 0%, transparent 60%),
+        radial-gradient(ellipse 70% 60% at 50% 55%, #121216 0%, #0a0a0d 55%, #060607 100%);
     filter: brightness(1.02) saturate(1.15);
 }
 

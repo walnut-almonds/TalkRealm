@@ -304,13 +304,14 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
 .tab-btn:hover { color: var(--text-primary, #dcddde); }
 .tab-btn.active { color: var(--text-primary, #dcddde); border-bottom-color: var(--accent, #5865f2); }
 .badge {
-    background: #ed4245;
+    background: var(--accent-container);
     color: #fff;
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
+    font-family: var(--font-mono);
     font-size: 10px;
     padding: 1px 5px;
     margin-left: 4px;
-    font-weight: 700;
+    font-weight: 500;
 }
 
 /* ── Section header ── */
@@ -331,7 +332,7 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
     width: 100%;
     background: var(--bg-primary, #36393f);
     border: 1px solid var(--border-color, #40444b);
-    border-radius: 4px;
+    border-radius: var(--radius);
     padding: 6px 8px;
     color: var(--text-primary, #dcddde);
     font-size: 13px;
@@ -361,7 +362,7 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
     align-items: center;
     gap: 8px;
     padding: 5px 4px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     cursor: pointer;
     color: var(--text-muted, #8e9297);
     transition: background 0.1s, color 0.1s;
@@ -381,7 +382,7 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
     align-items: center;
     gap: 8px;
     padding: 7px 12px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     margin: 1px 6px;
     cursor: pointer;
     color: var(--text-muted, #8e9297);
@@ -412,8 +413,8 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
 .flex-1 { flex: 1; min-width: 0; }
 .muted-text { font-size: 11px; color: var(--text-muted, #8e9297); }
 .empty-hint { padding: 10px 16px; font-size: 12px; color: var(--text-muted, #8e9297); text-align: center; }
-.error-text { color: #ed4245; font-size: 12px; margin: 4px 0; }
-.success-text { color: #43b581; font-size: 12px; margin: 4px 0; }
+.error-text { color: var(--danger); font-size: 12px; margin: 4px 0; }
+.success-text { color: var(--success); font-size: 12px; margin: 4px 0; }
 
 .icon-btn {
     background: none;
@@ -421,18 +422,18 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
     color: var(--text-muted, #8e9297);
     cursor: pointer;
     padding: 3px 5px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-size: 13px;
     transition: color 0.15s, background 0.15s;
 }
 .icon-btn:hover { color: var(--text-primary, #dcddde); background: var(--bg-hover, #393c43); }
-.icon-btn.danger:hover { color: #ed4245; }
-.icon-btn.accent:hover { color: #43b581; }
+.icon-btn.danger:hover { color: var(--danger); }
+.icon-btn.accent:hover { color: var(--success); }
 .add-btn {
     background: var(--accent, #5865f2);
     color: #fff;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius);
     padding: 3px 8px;
     font-size: 11px;
     font-weight: 600;
@@ -440,7 +441,7 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
     white-space: nowrap;
     transition: background 0.15s;
 }
-.add-btn:hover { background: #4752c4; }
+.add-btn:hover { background: var(--accent-hover); }
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
