@@ -148,9 +148,9 @@ async function changePassword() {
           <div class="form-group">
             <label>{{ t('settings.provider') }}</label>
             <select v-model="gifProvider">
-              <option value="auto">Auto（優先 Tenor v2，失敗 fallback v1）</option>
-              <option value="tenor-v2">Tenor v2（需 API Key）</option>
-              <option value="tenor-v1">Tenor v1（相容模式）</option>
+              <option value="auto">{{ t('settings.gifProviderAuto') }}</option>
+              <option value="tenor-v2">{{ t('settings.gifProviderV2') }}</option>
+              <option value="tenor-v1">{{ t('settings.gifProviderV1') }}</option>
             </select>
           </div>
           <div class="form-group">
