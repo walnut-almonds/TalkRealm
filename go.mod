@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/livekit/protocol v1.45.5-0.20260423163244-347de5a2ef78
+	github.com/longbridgeapp/opencc v0.3.13
 	github.com/minio/minio-go/v7 v7.1.0
 	github.com/redis/go-redis/v9 v9.19.0
 	github.com/spf13/viper v1.18.2
@@ -66,6 +67,8 @@ require (
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lithammer/shortuuid/v4 v4.2.0 // indirect
+	github.com/liuzl/cedar-go v0.0.0-20170805034717-80a9c64b256d // indirect
+	github.com/liuzl/da v0.0.0-20180704015230-14771aad5b1d // indirect
 	github.com/livekit/mageutil v0.0.0-20250511045019-0f1ff63f7731 // indirect
 	github.com/livekit/psrpc v0.7.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect

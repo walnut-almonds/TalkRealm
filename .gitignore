@@ -65,3 +65,6 @@ Thumbs.db
 
 web/node_modules
 web/dist
+
+# Raw dictionary sources for scripts/buildwords (downloaded, not committed)
+data/raw/
