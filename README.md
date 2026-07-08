@@ -1,6 +1,6 @@
 # TalkRealm
 
-一個開源的即時通訊平台，提供文字聊天、語音通話、視訊分享等功能，介面風格參考 Discord。
+一個開源的即時通訊平台，提供文字聊天、語音通話、視訊分享等功能。
 
 [![Go](https://img.shields.io/badge/Go-1.26.1-00ADD8?logo=go)](https://go.dev/)
 [![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vue.js)](https://vuejs.org/)
@@ -40,7 +40,7 @@
 - **狀態管理**：[Pinia](https://pinia.vuejs.org/)
 - **建置工具**：[Vite](https://vitejs.dev/)
 - **語音 SDK**：[livekit-client](https://github.com/livekit/client-sdk-js)
-- **樣式**：自訂 CSS（Dark Theme，Discord 風格）
+- **樣式**：自訂 CSS（Dark Theme）
 
 ## 系統架構
 

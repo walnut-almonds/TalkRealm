@@ -2980,14 +2980,32 @@ select {
         font-size: 14px;
     }
 
-    /* ── Channel sidebar: slide-in from left, covers nav-rail ── */
-    .channels-sidebar {
+    /* ── Nav rail joins the left drawer:
+       when a chat view is showing, the rail hides off-canvas and
+       slides in together with the channel/DM sidebar. On views
+       without a sidebar (e.g. Home) it stays in the normal flow. ── */
+    .app-shell:has(.channels-sidebar, .dm-sidebar) .nav-rail {
         position: fixed;
         left: 0;
         top: 0;
         bottom: 0;
-        width: min(300px, 85vw);
         transform: translateX(-100%);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 501;
+    }
+
+    .app-shell:has(.channels-sidebar.mobile-open, .dm-sidebar.mobile-open) .nav-rail {
+        transform: translateX(0);
+    }
+
+    /* ── Channel sidebar: slides in beside the nav rail ── */
+    .channels-sidebar {
+        position: fixed;
+        left: 56px;
+        top: 0;
+        bottom: 0;
+        width: min(300px, 85vw - 56px);
+        transform: translateX(calc(-100% - 56px));
         transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         z-index: 501;
         box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
@@ -3049,8 +3067,9 @@ select {
     }
 
     /* Image attachments: cap width to viewport */
+    /* Chat is full-width on mobile now (nav rail lives in the drawer) */
     .message-attachment--image {
-        max-width: calc(100vw - 56px - 32px);
+        max-width: calc(100vw - 32px);
     }
 
     /* ── Auth page: full-width card ──────────────────────── */

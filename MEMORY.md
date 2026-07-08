@@ -62,6 +62,8 @@ cd web && npm run check:i18n  # 掃描 t/$t key 使用並檢查 locale key 完�
 - **Windows 開發環境**：`.tool-versions` 的 swag 需用 `go:github.com/swaggo/swag/cmd/swag` backend（aqua backend 不支援 windows）；Makefile 的 setup scripts 需以 `bash ./scripts/...` 呼叫（直接執行 `.sh` 會被 Windows 丟給 WSL）；`go test -race` 需 cgo + gcc，Windows 無 gcc 時 Makefile 以 `ifeq ($(OS),Windows_NT)` 跳過 `-race`。mise reshim 在 claude 執行中會因 claude.exe shim 被鎖而整批失敗；缺 shim 時可直接複製任一既有 shim（全是同一顆通用 exe，靠檔名辨識）：`cp shims/go.exe shims/<tool>.exe`（已補 golangci-lint/swag/kubectl/k9s）。
 - **Status 顯示規則（invisible/idle/dnd）**：`Status` 欄位是使用者自選偏好；對「其他人」顯示時 invisible 一律映射為 offline（`ListGuildMembers` 的 switch、`user_service.publicStatus()`）。WS identify 廣播 presence 時經 `Manager.userLookup`（`SetUserLookup(userRepo)` 注入）查偏好：invisible 不廣播、idle/dnd/busy/away 廣播自選值。前端 `handleUserStatus` 只有收到 `offline` 才從 `onlineUserIds` 移除。已知限制：透過 REST 改 status 不會即時廣播 presence，需等下次成員清單載入。注意：message/friendship 等 Preload("User") 的 JSON 仍會帶原始 status（含 invisible），尚未清洗。
 
+- **手機版左側抽屜（Discord-style）**：nav-rail 在聊天頁（DOM 有 `.channels-sidebar` 或 `.dm-sidebar` 時）透過 `main.css` mobile 區塊的 `.app-shell:has(...)` 規則變 fixed off-canvas，與 sidebar 一起滑入（sidebar `left:56px`、closed transform 是 `translateX(calc(-100% - 56px))`）；HomeView 無 sidebar 時 rail 留在 flow 內。注意 mobile 樣式分兩處：`channels-sidebar`/`members-sidebar` 在 `main.css`，`dm-sidebar` 在 `DMSidebar.vue` 的 scoped style，改抽屜行為要兩邊同步。
+
 ## Decisions
 - **前端視覺系統：Kinetic Noir（TalkRealm Edition）**，規範見根目錄 `DESIGN.md`（改編自 walnut-almonds.github.io 的同名系統）。要點：近黑 surface 階梯（#0e0e0e→#2a2a2a）、唯一裝飾色 slate-blue `--accent: #b3c6f3`、直角（`--radius: 0px`；頭像/presence 圓點例外——「人=圓、地方=方」）、1px hairline 取代陰影、Geist Mono 做系統性文字（分類標題/時間戳/徽章）、按鈕 hover 即時反白。tokens 在 `web/src/styles/main.css` `:root`（`--accent`/`--accent-hover`/`--brand` 已定義，元件的 var() fallback 不再吃到 Discord 色）；字體在 `web/index.html` 載入（Hanken Grotesk + Noto Sans TC + Geist Mono）。`web/css/styles.css` 是 pre-Vue 舊版，未套用新主題。新樣式禁用 Discord 特徵：blurple、圓→方 morph、紫色漸層。Social Galaxy 首頁（`web/src/views/HomeView.vue`，SVG 實作）已同步換色：`GUILD_PALETTE` 8 色是去飽和「noir 星座」色系、星雲/時段氛圍（data-atmosphere day/night/dawn/dusk）漸層降飽和；新增 guild 色一律走 muted pastel，不可回填飽和色。
 - MQ 選擇 NATS JetStream（輕量，適合小團隊），備選 Kafka
@@ -70,6 +72,9 @@ cd web && npm run check:i18n  # 掃描 t/$t key 使用並檢查 locale key 完�
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-07-08
+ — 手機版左側抽屜改為 Discord-style（nav-rail 併入抽屜，見 Pitfalls）
+
 2026-07-06
  — 前端視覺系統改版為 Kinetic Noir（見 Decisions 與 `DESIGN.md`）
 

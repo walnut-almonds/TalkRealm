@@ -445,14 +445,15 @@ const pendingCount = computed(() => friendStore.incomingRequests.length)
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
+    /* Sits beside the nav rail, which slides in with it (see main.css) */
     .dm-sidebar {
         position: fixed;
-        left: 0;
+        left: 56px;
         top: 0;
         bottom: 0;
-        width: min(300px, 85vw);
+        width: min(300px, 85vw - 56px);
         height: 100%;
-        transform: translateX(-100%);
+        transform: translateX(calc(-100% - 56px));
         transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         z-index: 501;
         box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
