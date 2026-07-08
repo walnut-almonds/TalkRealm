@@ -99,6 +99,10 @@ func AutoMigrate() error {
 		&model.Friendship{},
 		&model.ChannelReadState{},
 		&model.MessageMention{},
+		&model.Word{},
+		&model.LearnStat{},
+		&model.LearnWordRecord{},
+		&model.LearnDailyScore{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
