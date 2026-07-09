@@ -400,6 +400,7 @@ export default {
         modeWheelDesc: '用給定字母拼出所有單字',
         typeAnswer: '輸入答案…',
         submit: '送出',
+        clear: '清除',
         levelComplete: '過關！',
         backToHub: '返回',
         streakDays: '天連續',

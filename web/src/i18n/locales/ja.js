@@ -400,6 +400,7 @@ export default {
         modeWheelDesc: '与えられた文字で単語を作る',
         typeAnswer: '答えを入力…',
         submit: '送信',
+        clear: 'クリア',
         levelComplete: 'クリア！',
         backToHub: '戻る',
         streakDays: '日連続',

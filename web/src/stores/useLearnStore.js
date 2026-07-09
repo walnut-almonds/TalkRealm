@@ -31,11 +31,14 @@ export const useLearnStore = defineStore('learn', {
                 const out = await api.post(EP.LEARN_GUESS(this.level.level_id), { slot, word })
                 this.lastOutcome = out
                 if (out.correct) {
-                    const s = this.level.slots[slot]
-                    s.solved = true
-                    s.word = out.word
-                    s.masked = out.word
-                    s.definition = out.definition || s.definition
+                    // wheel 模式送 slot=-1，後端在 out.slot 回傳實際命中的格
+                    const s = this.level.slots[out.slot]
+                    if (s) {
+                        s.solved = true
+                        s.word = out.word
+                        s.masked = out.word
+                        s.definition = out.definition || s.definition
+                    }
                 }
                 if (out.completed) this.loadStats()
                 return out

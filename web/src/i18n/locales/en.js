@@ -397,6 +397,7 @@ export default {
         modeWheelDesc: 'Form words from a set of letters',
         typeAnswer: 'Type your answer…',
         submit: 'Submit',
+        clear: 'Clear',
         levelComplete: 'Level complete!',
         backToHub: 'Back',
         streakDays: 'day streak',

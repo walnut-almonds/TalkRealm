@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
 import WordFill from '@/components/learn/WordFill.vue'
+import LetterWheel from '@/components/learn/LetterWheel.vue'
 
 const learn = useLearnStore()
 const { t } = useI18n()
@@ -28,7 +29,8 @@ function exitGame() {
 
 <template>
   <div class="learn-view">
-    <WordFill v-if="playing && learn.level" @exit="exitGame" />
+    <WordFill v-if="playing && learn.level?.mode === 'fill'" @exit="exitGame" />
+    <LetterWheel v-else-if="playing && learn.level?.mode === 'wheel'" @exit="exitGame" />
 
     <div v-else class="learn-hub">
       <header class="learn-hub__head">
@@ -57,7 +59,11 @@ function exitGame() {
             <span>{{ t('learn.modeFill') }}</span>
             <small>{{ t('learn.modeFillDesc') }}</small>
           </button>
-          <!-- Phase 2 解鎖：字母盤模式按鈕 -->
+          <button class="mode-btn" :disabled="learn.loading" @click="start('wheel')">
+            <i class="fas fa-circle-nodes"></i>
+            <span>{{ t('learn.modeWheel') }}</span>
+            <small>{{ t('learn.modeWheelDesc') }}</small>
+          </button>
         </div>
 
         <p v-if="learn.error" class="learn-error">{{ learn.error }}</p>
