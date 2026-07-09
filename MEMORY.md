@@ -16,12 +16,15 @@
 ```bash
 make check        # 全部檢查（lint + build + test）
 cd web && npm run check:i18n  # 掃描 t/$t key 使用並檢查 locale key 完整性
+go run ./scripts/seedwords    # 匯入 data/words.csv 到 words 表（冪等 upsert）
+go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字典，見 data/README.md）
 ```
 
 - **免後端視覺驗證**：`npx vite --port 5199` 起 dev server 後，用 chrome-devtools 的 `navigate_page` + `initScript` 攔截 `window.fetch`（mock `/api/v1/*` 回應）並塞 `talkrealm_token`/`talkrealm_last_guild`/`talkrealm_last_channel` 進 localStorage，即可渲染 Galaxy 首頁與聊天主畫面截圖。API 形狀：`{user}`, `{guilds}`, `{channels}`, `{members}`, `{messages}`（見 `web/src/api/index.js` 的 `EP`）。注意 reload 會失去 initScript，需重新 navigate；Windows 下背景 vite 停止後 port 可能殘留，需 `taskkill //PID`。
 
 ## Architecture Notes
 - `internal/server/server.go`：DI 組裝、路由設定的主入口
+- **Learn 模組（單字學習遊戲）**：`/api/v1/learn/*`；spec 在 `docs/superpowers/specs/2026-07-08-learn-vocab-game-design.md`（gitignored，本地）。模組邊界：learn 表（`words`/`learn_*`）只存 plain `user_id` 不建 GORM 關聯、排行榜顯示走 `LearnUserLookup` interface、Redis key 全帶 `learn:` 前綴——為未來拆獨立 service 預留。關卡含答案存 LevelStore（Redis，無 Redis 退記憶體）TTL 2h；每日挑戰用 SetNX 快取當日模板達成全站同題；anagram 索引（`learn_anagram.go`）lazy 建於首個 wheel 請求。
 - `internal/websocket/manager.go`：channel 訂閱索引（`channelSubscriptions map[uint]map[*Client]bool`）+ guild 訂閱索引（`guildSubscriptions map[uint]map[*Client]bool`），O(1) 廣播；jwtManager 注入用於 identify op；identify 後自動呼叫 `SubscribeClientToUserGuilds` 訂閱所有 guild
 - WS 協議：client→server op: `identify`, `heartbeat`, `subscribe`, `unsubscribe`, `typing_start`, `send_message`, `voice_state_update`；server→client op: `hello`, `ready`, `heartbeat_ack`, `message_create`, `message_update`, `message_delete`, `typing_start`, `presence_update`, `error`, `guild_update`, `guild_delete`, `guild_member_add`, `guild_member_remove`, `guild_member_update`, `channel_create`, `channel_update`, `channel_delete`, `voice_state_update`
 - WS 端點：`GET /api/v1/ws`（無需 JWT 中間件，由 identify op 驗證）
@@ -65,6 +68,10 @@ cd web && npm run check:i18n  # 掃描 t/$t key 使用並檢查 locale key 完�
 
 - **手機版左側抽屜（Discord-style）**：nav-rail 在聊天頁（DOM 有 `.channels-sidebar` 或 `.dm-sidebar` 時）透過 `main.css` mobile 區塊的 `.app-shell:has(...)` 規則變 fixed off-canvas，與 sidebar 一起滑入（sidebar `left:56px`、closed transform 是 `translateX(calc(-100% - 56px))`）；HomeView 無 sidebar 時 rail 留在 flow 內。注意 mobile 樣式分兩處：`channels-sidebar`/`members-sidebar` 在 `main.css`，`dm-sidebar` 在 `DMSidebar.vue` 的 scoped style，改抽屜行為要兩邊同步。
 
+- **GORM 欄位命名陷阱（連續大寫縮寫）**：`DefinitionZHTW` 會被 GORM naming 轉成 `definition_zhtw`（不是 `definition_zh_tw`；json tag 可以自訂但 DB 欄位名跟著 GORM）。手寫 SQL/`clause.AssignmentColumns` 的欄位字串必須用 GORM 實際命名。同理 `ContentZHTW` → `content_zhtw`。
+- **Postgres ON CONFLICT DO UPDATE 歧義**：`gorm.Expr("col + 1")` 在 DO UPDATE 內會報 42702（target 表與 excluded 都有該欄），必須帶表名：`gorm.Expr("learn_word_records.col + 1")`。mock repo 的單元測試測不出這類 SQL 錯誤，改 upsert 語句後要對真 DB 打一次。
+- **本機驗證埠衝突**：5432/8080 可能被同機其他專案容器（infra-postgres/lobby）占用；smoke test 可用臨時容器（如 5433）+ `configs/config.yaml`（gitignored）改埠。
+
 ## Decisions
 - **前端視覺系統：Kinetic Noir（TalkRealm Edition）**，規範見根目錄 `DESIGN.md`（改編自 walnut-almonds.github.io 的同名系統）。要點：近黑 surface 階梯（#0e0e0e→#2a2a2a）、唯一裝飾色 slate-blue `--accent: #b3c6f3`、直角（`--radius: 0px`；頭像/presence 圓點例外——「人=圓、地方=方」）、1px hairline 取代陰影、Geist Mono 做系統性文字（分類標題/時間戳/徽章）、按鈕 hover 即時反白。tokens 在 `web/src/styles/main.css` `:root`（`--accent`/`--accent-hover`/`--brand` 已定義，元件的 var() fallback 不再吃到 Discord 色）；字體在 `web/index.html` 載入（Hanken Grotesk + Noto Sans TC + Geist Mono）。`web/css/styles.css` 是 pre-Vue 舊版，未套用新主題。新樣式禁用 Discord 特徵：blurple、圓→方 morph、紫色漸層。Social Galaxy 首頁（`web/src/views/HomeView.vue`，SVG 實作）已同步換色：`GUILD_PALETTE` 8 色是去飽和「noir 星座」色系、星雲/時段氛圍（data-atmosphere day/night/dawn/dusk）漸層降飽和；新增 guild 色一律走 muted pastel，不可回填飽和色。
 - MQ 選擇 NATS JetStream（輕量，適合小團隊），備選 Kafka
@@ -73,6 +80,9 @@ cd web && npm run check:i18n  # 掃描 t/$t key 使用並檢查 locale key 完�
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-07-09
+ — 單字學習遊戲 v1 完成（Learn 分頁：釋義填字/字母盤/每日挑戰+排行榜；見 Architecture Notes 的 Learn 模組）；新增 GORM 縮寫欄位命名與 ON CONFLICT 歧義兩條 Pitfalls
+
 2026-07-08
  — 手機版左側抽屜改為 Discord-style（nav-rail 併入抽屜，見 Pitfalls）
 
