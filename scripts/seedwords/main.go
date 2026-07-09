@@ -58,8 +58,9 @@ func main() {
 		err := db.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "word"}},
 			DoUpdates: clause.AssignmentColumns([]string{
+				// 注意：GORM naming 把 DefinitionZHTW 轉成 definition_zhtw（無底線分隔）
 				"phonetic", "tier", "frequency", "length",
-				"definition_en", "definition_zh", "definition_zh_tw", "definition_ja",
+				"definition_en", "definition_zh", "definition_zhtw", "definition_ja",
 			}),
 		}).Create(&batch).Error
 		if err != nil {

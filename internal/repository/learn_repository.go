@@ -106,7 +106,8 @@ func (r *learnRepository) UpsertWordRecord(userID, wordID uint, correct bool) er
 	return r.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "user_id"}, {Name: "word_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			col:            gorm.Expr(col + " + 1"),
+			// ON CONFLICT DO UPDATE 內未加表名的欄位引用有歧義（target vs excluded），必須帶表名
+			col:            gorm.Expr("learn_word_records." + col + " + 1"),
 			"last_seen_at": time.Now().UTC(),
 		}),
 	}).Create(&model.LearnWordRecord{
