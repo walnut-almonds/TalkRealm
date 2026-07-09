@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,6 +26,9 @@ const (
 	levelTTL      = 2 * time.Hour
 	fillWordCount = 5
 	levelKeyFmt   = "learn:level:%s"
+
+	wheelMaxAnswers = 8
+	wheelMinAnswers = 3
 
 	// ModeFill / ModeWheel 關卡模式
 	ModeFill  = "fill"
@@ -115,6 +120,26 @@ type learnService struct {
 	repo  repository.LearnRepository
 	users LearnUserLookup
 	store LevelStore
+
+	idxOnce sync.Once
+	idx     *anagramIndex
+	idxErr  error
+}
+
+func (s *learnService) anagram() (*anagramIndex, error) {
+	// ponytail: lazy + sync.Once，首個 wheel 請求付一次建索引成本（<1s），之後常駐
+	s.idxOnce.Do(func() {
+		words, err := s.repo.AllWordsForIndex()
+		if err != nil {
+			s.idxErr = err
+
+			return
+		}
+
+		s.idx = buildAnagramIndex(words)
+	})
+
+	return s.idx, s.idxErr
 }
 
 // NewLearnService 建立單字學習服務
@@ -139,7 +164,7 @@ func (s *learnService) CreateLevel(
 	}
 
 	if mode == ModeWheel {
-		return nil, ErrLearnInvalidMode // ponytail: wheel 於 Task 7 實作
+		return s.createWheelLevel(userID, tier, locale)
 	}
 
 	return s.createFillLevel(userID, tier, locale)
@@ -180,6 +205,107 @@ func (s *learnService) createFillLevel(userID uint, tier int, locale string) (*L
 	return levelView(lv), nil
 }
 
+func (s *learnService) createWheelLevel(userID uint, tier int, locale string) (*LevelView, error) {
+	idx, err := s.anagram()
+	if err != nil {
+		return nil, err
+	}
+
+	// 抽底字候選（5–7 字母），找第一個子字夠多的
+	candidates, err := s.repo.RandomWordsByTier(tier, 20)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, base := range candidates {
+		if len(base.Word) < 5 || len(base.Word) > 7 {
+			continue
+		}
+
+		ids := idx.subWordIDs(base.Word)
+		if len(ids) < wheelMinAnswers {
+			continue
+		}
+
+		return s.buildWheelLevel(userID, tier, locale, base, ids, idx)
+	}
+
+	// 放寬：任何長度 ≥4 的候選、答案 ≥2
+	for _, base := range candidates {
+		if len(base.Word) < 4 {
+			continue
+		}
+
+		ids := idx.subWordIDs(base.Word)
+		if len(ids) >= 2 {
+			return s.buildWheelLevel(userID, tier, locale, base, ids, idx)
+		}
+	}
+
+	return nil, fmt.Errorf("no wheel puzzle available for tier %d", tier)
+}
+
+func (s *learnService) buildWheelLevel(
+	userID uint, tier int, locale string,
+	base *model.Word, ids []uint, idx *anagramIndex,
+) (*LevelView, error) {
+	answers := make([]*model.Word, 0, len(ids))
+	for _, id := range ids {
+		answers = append(answers, idx.words[id])
+	}
+
+	// 短字在前、常用字優先；上限 8 個，底字必收
+	sort.Slice(answers, func(i, j int) bool {
+		if len(answers[i].Word) != len(answers[j].Word) {
+			return len(answers[i].Word) < len(answers[j].Word)
+		}
+
+		return answers[i].Frequency < answers[j].Frequency
+	})
+
+	picked := []*model.Word{}
+
+	for _, a := range answers {
+		if a.ID == base.ID {
+			continue
+		}
+
+		if len(picked) < wheelMaxAnswers-1 {
+			picked = append(picked, a)
+		}
+	}
+
+	picked = append(picked, base) // 底字放最後（最長）
+
+	rng := newLevelRand()
+	letters := []byte(base.Word)
+	rng.Shuffle(len(letters), func(i, j int) { letters[i], letters[j] = letters[j], letters[i] })
+
+	lv := &learnLevel{
+		ID:        uuid.NewString(),
+		UserID:    userID,
+		Mode:      ModeWheel,
+		Tier:      tier,
+		Letters:   string(letters),
+		CreatedAt: time.Now().UTC(),
+	}
+
+	for _, w := range picked {
+		lv.WordIDs = append(lv.WordIDs, w.ID)
+		lv.Words = append(lv.Words, w.Word)
+		lv.Phonetics = append(lv.Phonetics, w.Phonetic)
+		lv.Defs = append(lv.Defs, definitionFor(w, locale))
+		lv.Masks = append(lv.Masks, nil)
+		lv.Solved = append(lv.Solved, false)
+	}
+
+	if err := s.saveLevel(lv); err != nil {
+		return nil, err
+	}
+
+	return levelView(lv), nil
+}
+
 // Guess 作答一格
 func (s *learnService) Guess(
 	userID uint, levelID string, req *LearnGuessRequest,
@@ -193,6 +319,27 @@ func (s *learnService) Guess(
 		return nil, ErrLearnLevelNotFound
 	}
 
+	guess := strings.ToLower(strings.TrimSpace(req.Word))
+
+	if lv.Mode == ModeWheel {
+		slot := -1
+
+		for i, w := range lv.Words {
+			if w == guess {
+				slot = i
+
+				break
+			}
+		}
+
+		if slot == -1 {
+			// wheel 猜錯無對應 word_id，不寫 word record
+			return &GuessOutcome{Correct: false, Slot: -1}, nil
+		}
+
+		req.Slot = slot // 收斂到共用路徑
+	}
+
 	slot := req.Slot
 	if slot < 0 || slot >= len(lv.Words) {
 		return nil, ErrLearnLevelNotFound
@@ -202,11 +349,12 @@ func (s *learnService) Guess(
 		return nil, ErrLearnSlotSolved
 	}
 
-	guess := strings.ToLower(strings.TrimSpace(req.Word))
 	correct := guess == lv.Words[slot]
 
-	if err := s.repo.UpsertWordRecord(userID, lv.WordIDs[slot], correct); err != nil {
-		return nil, err
+	if lv.Mode == ModeFill || correct {
+		if err := s.repo.UpsertWordRecord(userID, lv.WordIDs[slot], correct); err != nil {
+			return nil, err
+		}
 	}
 
 	out := &GuessOutcome{Correct: correct, Slot: slot}
