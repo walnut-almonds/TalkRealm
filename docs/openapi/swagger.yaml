@@ -367,6 +367,20 @@ definitions:
         description: 'text, image, file (預設: text)'
         type: string
     type: object
+  service.DailyView:
+    properties:
+      date:
+        type: string
+      level:
+        allOf:
+        - $ref: '#/definitions/service.LevelView'
+        description: 未 played 時
+      played:
+        type: boolean
+      score:
+        description: played 時
+        type: integer
+    type: object
   service.GameStatus:
     properties:
       has_guessed:
@@ -417,6 +431,32 @@ definitions:
         type: boolean
       similarity_score:
         type: number
+    type: object
+  service.LeaderboardEntry:
+    properties:
+      avatar:
+        type: string
+      rank:
+        type: integer
+      score:
+        type: integer
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  service.LeaderboardView:
+    properties:
+      date:
+        type: string
+      me:
+        allOf:
+        - $ref: '#/definitions/service.LeaderboardEntry'
+        description: 未完成時 nil
+      top:
+        items:
+          $ref: '#/definitions/service.LeaderboardEntry'
+        type: array
     type: object
   service.LearnGuessRequest:
     properties:
@@ -1756,6 +1796,30 @@ paths:
       summary: 查詢邀請碼資訊
       tags:
       - GuildInvite
+  /api/v1/learn/daily:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.DailyView'
+      summary: 取得每日挑戰
+      tags:
+      - Learn
+  /api/v1/learn/daily/leaderboard:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.LeaderboardView'
+      summary: 取得每日排行榜
+      tags:
+      - Learn
   /api/v1/learn/levels:
     post:
       consumes:

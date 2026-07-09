@@ -39,6 +39,14 @@ func (m *mockLearnService) Stats(userID uint) (*service.LearnStatsView, error) {
 	return m.statsFn(userID)
 }
 
+func (m *mockLearnService) DailyLevel(userID uint, locale string) (*service.DailyView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 daily handler 測試
+}
+
+func (m *mockLearnService) DailyLeaderboard(userID uint) (*service.LeaderboardView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 daily handler 測試
+}
+
 func setupLearnRouter(svc service.LearnService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 

@@ -97,6 +97,45 @@ func (h *LearnHandler) Guess(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
+// GetDaily 今日挑戰
+//
+//	@Summary	取得每日挑戰
+//	@Tags		Learn
+//	@Produce	json
+//	@Success	200	{object}	service.DailyView
+//	@Router		/api/v1/learn/daily [get]
+func (h *LearnHandler) GetDaily(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	locale := c.Query("locale")
+
+	d, err := h.learnService.DailyLevel(userID, locale)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, d)
+}
+
+// GetDailyLeaderboard 每日排行榜
+//
+//	@Summary	取得每日排行榜
+//	@Tags		Learn
+//	@Produce	json
+//	@Success	200	{object}	service.LeaderboardView
+//	@Router		/api/v1/learn/daily/leaderboard [get]
+func (h *LearnHandler) GetDailyLeaderboard(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	lb, err := h.learnService.DailyLeaderboard(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, lb)
+}
+
 // GetStats 個人統計
 //
 //	@Summary	取得學習統計

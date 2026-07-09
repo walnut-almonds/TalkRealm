@@ -1682,6 +1682,44 @@
                 }
             }
         },
+        "/api/v1/learn/daily": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "取得每日挑戰",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.DailyView"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/daily/leaderboard": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "取得每日排行榜",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.LeaderboardView"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/learn/levels": {
             "post": {
                 "consumes": [
@@ -2830,6 +2868,29 @@
                 }
             }
         },
+        "service.DailyView": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "level": {
+                    "description": "未 played 時",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.LevelView"
+                        }
+                    ]
+                },
+                "played": {
+                    "type": "boolean"
+                },
+                "score": {
+                    "description": "played 時",
+                    "type": "integer"
+                }
+            }
+        },
         "service.GameStatus": {
             "type": "object",
             "properties": {
@@ -2904,6 +2965,48 @@
                 },
                 "similarity_score": {
                     "type": "number"
+                }
+            }
+        },
+        "service.LeaderboardEntry": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "rank": {
+                    "type": "integer"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.LeaderboardView": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "me": {
+                    "description": "未完成時 nil",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.LeaderboardEntry"
+                        }
+                    ]
+                },
+                "top": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.LeaderboardEntry"
+                    }
                 }
             }
         },

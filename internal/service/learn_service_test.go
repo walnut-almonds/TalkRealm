@@ -3,7 +3,9 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
 )
@@ -105,6 +107,7 @@ func TestDefinitionFor(t *testing.T) {
 type fakeLearnRepo struct {
 	words   []*model.Word
 	stats   map[uint]*model.LearnStat
+	daily   map[string]*model.LearnDailyScore
 	records int
 }
 
@@ -137,6 +140,17 @@ func (f *fakeLearnRepo) UpsertWordRecord(userID, wordID uint, correct bool) erro
 func (f *fakeLearnRepo) CreateDailyScore(
 	s *model.LearnDailyScore,
 ) (bool, error) {
+	if f.daily == nil {
+		f.daily = map[string]*model.LearnDailyScore{}
+	}
+
+	key := fmt.Sprintf("%d:%s", s.UserID, s.Date)
+	if _, ok := f.daily[key]; ok {
+		return false, nil
+	}
+
+	f.daily[key] = s
+
 	return true, nil
 }
 
@@ -148,6 +162,10 @@ func (f *fakeLearnRepo) UserDailyRank(
 	userID uint,
 	date string,
 ) (*model.LearnDailyScore, int, error) {
+	if sc, ok := f.daily[fmt.Sprintf("%d:%s", userID, date)]; ok {
+		return sc, 1, nil
+	}
+
 	return nil, 0, nil
 }
 
@@ -282,5 +300,77 @@ func TestCreateLevelValidation(t *testing.T) {
 
 	if _, err := svc.CreateLevel(7, ModeFill, 9, "en"); !errors.Is(err, ErrLearnInvalidTier) {
 		t.Errorf("tier: %v", err)
+	}
+}
+
+// --- 每日挑戰（Task 9）---
+
+func TestDailyLevelSameForAllUsers(t *testing.T) {
+	svc, _ := newTestService(testWords())
+
+	d1, err := svc.DailyLevel(7, "en")
+	if err != nil {
+		t.Fatalf("DailyLevel u7: %v", err)
+	}
+
+	d2, err := svc.DailyLevel(8, "en")
+	if err != nil {
+		t.Fatalf("DailyLevel u8: %v", err)
+	}
+
+	if d1.Played || d2.Played {
+		t.Fatal("fresh users should not be played")
+	}
+
+	// 兩人拿到不同 level instance、但同一組題目（masked 相同）
+	if d1.Level.LevelID == d2.Level.LevelID {
+		t.Error("instances must be per-user")
+	}
+
+	for i := range d1.Level.Slots {
+		if d1.Level.Slots[i].Masked != d2.Level.Slots[i].Masked {
+			t.Error("daily puzzle must be identical for all users")
+		}
+	}
+}
+
+func TestDailyCompletionRecordsScore(t *testing.T) {
+	svc, repo := newTestService(testWords())
+	_ = repo
+
+	d, err := svc.DailyLevel(7, "en")
+	if err != nil {
+		t.Fatalf("DailyLevel: %v", err)
+	}
+
+	// 全部答對
+	for i, w := range []string{"star", "moon"} {
+		if _, err := svc.Guess(
+			7,
+			d.Level.LevelID,
+			&LearnGuessRequest{Slot: i, Word: w},
+		); err != nil {
+			t.Fatalf("guess %d: %v", i, err)
+		}
+	}
+
+	// 再取 daily → played=true
+	d2, err := svc.DailyLevel(7, "en")
+	if err != nil {
+		t.Fatalf("DailyLevel after: %v", err)
+	}
+
+	if !d2.Played || d2.Level != nil {
+		t.Errorf("after completion: %+v", d2)
+	}
+}
+
+func TestDailyTimeBonus(t *testing.T) {
+	if got := dailyTimeBonus(10 * time.Second); got != 290 {
+		t.Errorf("bonus(10s) = %d want 290", got)
+	}
+
+	if got := dailyTimeBonus(400 * time.Second); got != 0 {
+		t.Errorf("bonus(400s) = %d want 0", got)
 	}
 }

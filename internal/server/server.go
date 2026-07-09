@@ -396,6 +396,8 @@ func (s *Server) setupRoutes() {
 				learn.POST("/levels", s.learnHandler.CreateLevel)
 				learn.POST("/levels/:id/guess", s.learnHandler.Guess)
 				learn.GET("/stats", s.learnHandler.GetStats)
+				learn.GET("/daily", s.learnHandler.GetDaily)
+				learn.GET("/daily/leaderboard", s.learnHandler.GetDailyLeaderboard)
 			}
 		}
 

@@ -30,6 +30,11 @@ const (
 	wheelMaxAnswers = 8
 	wheelMinAnswers = 3
 
+	dateFmt       = "2006-01-02"
+	dailyTier     = 3
+	dailyKeyFmt   = "learn:daily:%s"
+	dailyBonusCap = 300
+
 	// ModeFill / ModeWheel 關卡模式
 	ModeFill  = "fill"
 	ModeWheel = "wheel"
@@ -91,11 +96,43 @@ type LearnStatsView struct {
 	RecentWords  []RecentWordView `json:"recent_words"`
 }
 
+// DailyView 每日挑戰狀態
+type DailyView struct {
+	Date   string     `json:"date"`
+	Played bool       `json:"played"`
+	Score  int        `json:"score,omitempty"` // played 時
+	Level  *LevelView `json:"level,omitempty"` // 未 played 時
+}
+
+// LeaderboardEntry 排行榜單列
+type LeaderboardEntry struct {
+	Rank     int    `json:"rank"`
+	UserID   uint   `json:"user_id"`
+	Username string `json:"username"`
+	Avatar   string `json:"avatar"`
+	Score    int    `json:"score"`
+}
+
+// LeaderboardView 當日排行榜
+type LeaderboardView struct {
+	Date string             `json:"date"`
+	Top  []LeaderboardEntry `json:"top"`
+	Me   *LeaderboardEntry  `json:"me,omitempty"` // 未完成時 nil
+}
+
+// dailyTemplate 每日題目模板（全站共用）
+type dailyTemplate struct {
+	WordIDs []uint  `json:"word_ids"`
+	Masks   [][]int `json:"masks"`
+}
+
 // LearnService 單字學習服務介面
 type LearnService interface {
 	CreateLevel(userID uint, mode string, tier int, locale string) (*LevelView, error)
 	Guess(userID uint, levelID string, req *LearnGuessRequest) (*GuessOutcome, error)
 	Stats(userID uint) (*LearnStatsView, error)
+	DailyLevel(userID uint, locale string) (*DailyView, error)
+	DailyLeaderboard(userID uint) (*LeaderboardView, error)
 }
 
 // learnLevel 進行中關卡（含答案，只存 LevelStore）
@@ -386,19 +423,206 @@ func (s *learnService) Guess(
 	return out, nil
 }
 
-// onLevelCompleted 完成關卡：更新 XP 與 streak（daily 計分於 Task 9 加入）
+// onLevelCompleted 完成關卡：更新 XP 與 streak；daily 關卡另記當日分數
 func (s *learnService) onLevelCompleted(userID uint, lv *learnLevel) error {
 	stats, err := s.repo.GetOrCreateStats(userID)
 	if err != nil {
 		return err
 	}
 
-	today := time.Now().UTC().Format("2006-01-02")
+	today := time.Now().UTC().Format(dateFmt)
 	stats.Streak = nextStreak(stats.LastPlayedDate, today, stats.Streak)
 	stats.LastPlayedDate = today
 	stats.XP += lv.XP
 
-	return s.repo.SaveStats(stats)
+	if err := s.repo.SaveStats(stats); err != nil {
+		return err
+	}
+
+	if lv.Daily != "" {
+		elapsed := time.Now().UTC().Sub(lv.CreatedAt)
+
+		// 唯一鍵擋重複；重玩不覆寫首次分數
+		_, err := s.repo.CreateDailyScore(&model.LearnDailyScore{
+			UserID:        userID,
+			Date:          lv.Daily,
+			Score:         lv.XP + dailyTimeBonus(elapsed),
+			CompletedInMs: elapsed.Milliseconds(),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// dailyTimeBonus spec §5：300 秒內完成才有時間加成，逐秒遞減
+func dailyTimeBonus(elapsed time.Duration) int {
+	b := dailyBonusCap - int(elapsed.Seconds())
+	if b < 0 {
+		return 0
+	}
+
+	return b
+}
+
+// DailyLevel 取得今日挑戰：已完成回分數；未完成發個人關卡 instance
+func (s *learnService) DailyLevel(userID uint, locale string) (*DailyView, error) {
+	date := time.Now().UTC().Format(dateFmt)
+
+	existing, _, err := s.repo.UserDailyRank(userID, date)
+	if err != nil {
+		return nil, err
+	}
+
+	if existing != nil {
+		return &DailyView{Date: date, Played: true, Score: existing.Score}, nil
+	}
+
+	tpl, err := s.dailyTemplate(date)
+	if err != nil {
+		return nil, err
+	}
+
+	words, err := s.repo.WordsByIDs(tpl.WordIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// WordsByIDs 不保序，依模板順序重排
+	byID := map[uint]*model.Word{}
+	for _, w := range words {
+		byID[w.ID] = w
+	}
+
+	lv := &learnLevel{
+		ID:        uuid.NewString(),
+		UserID:    userID,
+		Mode:      ModeFill,
+		Tier:      dailyTier,
+		Daily:     date,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	for i, id := range tpl.WordIDs {
+		w := byID[id]
+		if w == nil {
+			return nil, fmt.Errorf("daily word %d missing", id)
+		}
+
+		lv.WordIDs = append(lv.WordIDs, w.ID)
+		lv.Words = append(lv.Words, w.Word)
+		lv.Phonetics = append(lv.Phonetics, w.Phonetic)
+		lv.Defs = append(lv.Defs, definitionFor(w, locale))
+		lv.Masks = append(lv.Masks, tpl.Masks[i])
+		lv.Solved = append(lv.Solved, false)
+	}
+
+	if err := s.saveLevel(lv); err != nil {
+		return nil, err
+	}
+
+	return &DailyView{Date: date, Played: false, Level: levelView(lv)}, nil
+}
+
+// dailyTemplate 取得（或首次生成）當日題目模板；SetNX 保證全站同題
+func (s *learnService) dailyTemplate(date string) (*dailyTemplate, error) {
+	key := fmt.Sprintf(dailyKeyFmt, date)
+
+	if b, err := s.store.Get(key); err != nil {
+		return nil, err
+	} else if b != nil {
+		var tpl dailyTemplate
+		if err := json.Unmarshal(b, &tpl); err != nil {
+			return nil, err
+		}
+
+		return &tpl, nil
+	}
+
+	words, err := s.repo.RandomWordsByTier(dailyTier, fillWordCount)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(words) == 0 {
+		return nil, fmt.Errorf("no words for daily challenge")
+	}
+
+	rng := newLevelRand()
+	tpl := &dailyTemplate{}
+
+	for _, w := range words {
+		tpl.WordIDs = append(tpl.WordIDs, w.ID)
+		tpl.Masks = append(tpl.Masks, maskPositions(rng, len(w.Word), dailyTier))
+	}
+
+	b, err := json.Marshal(tpl)
+	if err != nil {
+		return nil, err
+	}
+
+	ok, err := s.store.SetNX(key, b, 26*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok { // 併發下別人先寫入：改用他的
+		return s.dailyTemplate(date)
+	}
+
+	return tpl, nil
+}
+
+// DailyLeaderboard 當日排行榜（top 10 + 自己）
+func (s *learnService) DailyLeaderboard(userID uint) (*LeaderboardView, error) {
+	date := time.Now().UTC().Format(dateFmt)
+
+	top, err := s.repo.TopDailyScores(date, 10)
+	if err != nil {
+		return nil, err
+	}
+
+	view := &LeaderboardView{Date: date}
+
+	for i, sc := range top {
+		view.Top = append(view.Top, s.leaderboardEntry(i+1, sc))
+	}
+
+	me, rank, err := s.repo.UserDailyRank(userID, date)
+	if err != nil {
+		return nil, err
+	}
+
+	if me != nil {
+		e := s.leaderboardEntry(rank, me)
+		view.Me = &e
+	}
+
+	return view, nil
+}
+
+func (s *learnService) leaderboardEntry(rank int, sc *model.LearnDailyScore) LeaderboardEntry {
+	e := LeaderboardEntry{Rank: rank, UserID: sc.UserID, Score: sc.Score}
+
+	// 模組邊界：顯示資訊走 UserLookup，查不到就只顯示 ID
+	if s.users != nil {
+		if u, err := s.users.GetByID(sc.UserID); err == nil {
+			e.Username = displayName(u)
+			e.Avatar = u.Avatar
+		}
+	}
+
+	return e
+}
+
+func displayName(u *model.User) string {
+	if u.Nickname != "" {
+		return u.Nickname
+	}
+
+	return u.Username
 }
 
 // Stats 個人統計
@@ -446,12 +670,12 @@ func nextStreak(last, today string, cur int) int {
 		return cur
 	}
 
-	t, err := time.Parse("2006-01-02", today)
+	t, err := time.Parse(dateFmt, today)
 	if err != nil {
 		return 1
 	}
 
-	if last == t.AddDate(0, 0, -1).Format("2006-01-02") {
+	if last == t.AddDate(0, 0, -1).Format(dateFmt) {
 		return cur + 1
 	}
 
