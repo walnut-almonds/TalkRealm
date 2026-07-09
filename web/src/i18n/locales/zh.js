@@ -405,6 +405,7 @@ export default {
         backToHub: '返回',
         streakDays: '天连续',
         daily: '每日挑战',
+        dailyStart: '开始今日挑战',
         dailyPlayed: '今日已完成',
         leaderboard: '排行榜',
         rank: '名次',

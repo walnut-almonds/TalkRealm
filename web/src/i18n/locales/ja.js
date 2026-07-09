@@ -405,6 +405,7 @@ export default {
         backToHub: '戻る',
         streakDays: '日連続',
         daily: 'デイリーチャレンジ',
+        dailyStart: '今日のパズルに挑戦',
         dailyPlayed: '本日クリア済み',
         leaderboard: 'ランキング',
         rank: '順位',

@@ -7,6 +7,8 @@ export const useLearnStore = defineStore('learn', {
         level: null,        // LevelView：{ level_id, mode, tier, slots[] }
         stats: null,        // { xp, streak, words_learned }
         lastOutcome: null,  // 最近一次 GuessOutcome
+        daily: null,        // { date, played, score?, level? }
+        leaderboard: null,  // { date, top[], me? }
         loading: false,
         error: '',
     }),
@@ -40,7 +42,13 @@ export const useLearnStore = defineStore('learn', {
                         s.definition = out.definition || s.definition
                     }
                 }
-                if (out.completed) this.loadStats()
+                if (out.completed) {
+                    this.loadStats()
+                    if (this.daily) {
+                        this.loadDaily()
+                        this.loadLeaderboard()
+                    }
+                }
                 return out
             } catch (e) {
                 // 410 = 關卡過期
@@ -53,6 +61,25 @@ export const useLearnStore = defineStore('learn', {
             try {
                 this.stats = await api.get(EP.LEARN_STATS)
             } catch { /* stats 非關鍵，靜默失敗 */ }
+        },
+        async loadDaily() {
+            try {
+                this.daily = await api.get(`${EP.LEARN_DAILY}?locale=${getLocale()}`)
+            } catch (e) { this.error = e.message }
+        },
+        async startDaily() {
+            await this.loadDaily()
+            if (this.daily && !this.daily.played) {
+                this.level = this.daily.level
+                this.lastOutcome = null
+                return true
+            }
+            return false
+        },
+        async loadLeaderboard() {
+            try {
+                this.leaderboard = await api.get(EP.LEARN_LEADERBOARD)
+            } catch { /* 非關鍵 */ }
         },
     },
 })

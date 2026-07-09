@@ -14,11 +14,15 @@ const tiers = [1, 2, 3, 4, 5]
 // check-i18n-keys 只認字面 key，動態 tier key 走查表
 const tierKeys = ['learn.tier1', 'learn.tier2', 'learn.tier3', 'learn.tier4', 'learn.tier5']
 
-onMounted(() => learn.loadStats())
+onMounted(() => { learn.loadStats(); learn.loadDaily(); learn.loadLeaderboard() })
 
 async function start(mode) {
     await learn.startLevel(mode, tier.value)
     if (learn.level) playing.value = true
+}
+
+async function startDaily() {
+    if (await learn.startDaily()) playing.value = true
 }
 
 function exitGame() {
@@ -40,6 +44,40 @@ function exitGame() {
           <span class="stat"><b>{{ learn.stats.streak }}</b> {{ t('learn.streakDays') }}</span>
         </div>
       </header>
+
+      <section class="learn-card daily-card">
+        <div class="daily-head">
+          <h3>{{ t('learn.daily') }}</h3>
+          <span class="daily-date">{{ learn.daily?.date }}</span>
+        </div>
+        <button
+          v-if="learn.daily && !learn.daily.played"
+          class="mode-btn"
+          @click="startDaily"
+        >
+          <i class="fas fa-calendar-day"></i>
+          <span>{{ t('learn.dailyStart') }}</span>
+        </button>
+        <p v-else-if="learn.daily?.played" class="daily-done">
+          {{ t('learn.dailyPlayed') }} — <b class="mono">{{ learn.daily.score }}</b> {{ t('learn.score') }}
+        </p>
+
+        <div v-if="learn.leaderboard?.top?.length" class="lb">
+          <h4>{{ t('learn.leaderboard') }}</h4>
+          <ol class="lb-list">
+            <li v-for="e in learn.leaderboard.top" :key="e.user_id" class="lb-row">
+              <span class="lb-rank mono">{{ e.rank }}</span>
+              <img v-if="e.avatar" :src="e.avatar" class="lb-avatar" />
+              <span class="lb-name">{{ e.username || `#${e.user_id}` }}</span>
+              <span class="lb-score mono">{{ e.score }}</span>
+            </li>
+          </ol>
+          <p v-if="learn.leaderboard.me" class="lb-me">
+            {{ t('learn.rank') }} <b class="mono">{{ learn.leaderboard.me.rank }}</b>
+            · <b class="mono">{{ learn.leaderboard.me.score }}</b> {{ t('learn.score') }}
+          </p>
+        </div>
+      </section>
 
       <section class="learn-card">
         <h3>{{ t('learn.difficulty') }}</h3>
@@ -99,4 +137,13 @@ function exitGame() {
 .mode-btn:hover { border-color: var(--accent); }
 .mode-btn small { color: var(--text-muted); }
 .learn-error { color: var(--danger); font-size: 13px; }
+.daily-head { display: flex; justify-content: space-between; align-items: baseline; }
+.daily-date, .mono { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.daily-done b, .lb-me b { color: var(--accent); }
+.lb-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.lb-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); }
+.lb-rank { width: 20px; text-align: right; }
+.lb-avatar { width: 20px; height: 20px; border-radius: 50%; } /* 人=圓 */
+.lb-name { flex: 1; font-size: 13px; }
+.lb-me { margin-top: 8px; font-size: 13px; }
 </style>

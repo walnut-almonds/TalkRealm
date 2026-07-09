@@ -402,6 +402,7 @@ export default {
         backToHub: 'Back',
         streakDays: 'day streak',
         daily: 'Daily Challenge',
+        dailyStart: 'Play today\'s puzzle',
         dailyPlayed: 'Completed today',
         leaderboard: 'Leaderboard',
         rank: 'Rank',
