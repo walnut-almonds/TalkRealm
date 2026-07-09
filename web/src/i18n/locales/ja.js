@@ -384,5 +384,30 @@ export default {
         zoomIn: 'ズームイン',
         zoomOut: 'ズームアウト',
         reset: 'リセット'
+    },
+    learn: {
+        hubTitle: '単語クエスト',
+        difficulty: '難易度',
+        tier1: '基礎',
+        tier2: '中級',
+        tier3: '上級',
+        tier4: 'アカデミック',
+        tier5: 'エキスパート',
+        chooseMode: 'モード',
+        modeFill: '意味当て',
+        modeFillDesc: '意味とヒント文字から単語を入力',
+        modeWheel: 'レターホイール',
+        modeWheelDesc: '与えられた文字で単語を作る',
+        typeAnswer: '答えを入力…',
+        submit: '送信',
+        levelComplete: 'クリア！',
+        backToHub: '戻る',
+        streakDays: '日連続',
+        daily: 'デイリーチャレンジ',
+        dailyPlayed: '本日クリア済み',
+        leaderboard: 'ランキング',
+        rank: '順位',
+        score: 'スコア',
+        expired: 'レベルの有効期限が切れました'
     }
 }

@@ -56,6 +56,12 @@ export const EP = {
     FRIENDS_REQUESTS_OUTGOING: '/api/v1/friends/requests/outgoing',
     FRIEND_ACCEPT: (userId) => `/api/v1/friends/${userId}/accept`,
     FRIEND_REMOVE: (userId) => `/api/v1/friends/${userId}`,
+    // Learn
+    LEARN_LEVELS: '/api/v1/learn/levels',
+    LEARN_GUESS: (id) => `/api/v1/learn/levels/${id}/guess`,
+    LEARN_STATS: '/api/v1/learn/stats',
+    LEARN_DAILY: '/api/v1/learn/daily',
+    LEARN_LEADERBOARD: '/api/v1/learn/daily/leaderboard',
 }
 
 export const STORAGE_KEYS = {

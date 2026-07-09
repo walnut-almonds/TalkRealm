@@ -384,5 +384,30 @@ export default {
         zoomIn: '放大',
         zoomOut: '缩小',
         reset: '重置'
+    },
+    learn: {
+        hubTitle: '单词任务',
+        difficulty: '难度',
+        tier1: '基础',
+        tier2: '进阶',
+        tier3: '中高级',
+        tier4: '学术',
+        tier5: '专家',
+        chooseMode: '模式',
+        modeFill: '释义填字',
+        modeFillDesc: '看释义与提示字母，直接打出单词',
+        modeWheel: '字母盘',
+        modeWheelDesc: '用给定字母拼出所有单词',
+        typeAnswer: '输入答案…',
+        submit: '提交',
+        levelComplete: '过关！',
+        backToHub: '返回',
+        streakDays: '天连续',
+        daily: '每日挑战',
+        dailyPlayed: '今日已完成',
+        leaderboard: '排行榜',
+        rank: '名次',
+        score: '分数',
+        expired: '关卡已过期，请开新关'
     }
 }

@@ -381,5 +381,30 @@ export default {
         zoomIn: 'Zoom in',
         zoomOut: 'Zoom out',
         reset: 'Reset'
+    },
+    learn: {
+        hubTitle: 'Word Quest',
+        difficulty: 'Difficulty',
+        tier1: 'Basic',
+        tier2: 'Intermediate',
+        tier3: 'Advanced',
+        tier4: 'Academic',
+        tier5: 'Expert',
+        chooseMode: 'Mode',
+        modeFill: 'Definition Fill',
+        modeFillDesc: 'Type the word from its definition and revealed letters',
+        modeWheel: 'Letter Wheel',
+        modeWheelDesc: 'Form words from a set of letters',
+        typeAnswer: 'Type your answer…',
+        submit: 'Submit',
+        levelComplete: 'Level complete!',
+        backToHub: 'Back',
+        streakDays: 'day streak',
+        daily: 'Daily Challenge',
+        dailyPlayed: 'Completed today',
+        leaderboard: 'Leaderboard',
+        rank: 'Rank',
+        score: 'Score',
+        expired: 'Level expired, start a new one'
     }
 }

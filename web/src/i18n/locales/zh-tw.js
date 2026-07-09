@@ -384,5 +384,30 @@ export default {
         zoomIn: '放大',
         zoomOut: '縮小',
         reset: '重設'
+    },
+    learn: {
+        hubTitle: '單字任務',
+        difficulty: '難度',
+        tier1: '基礎',
+        tier2: '進階',
+        tier3: '中高級',
+        tier4: '學術',
+        tier5: '專家',
+        chooseMode: '模式',
+        modeFill: '釋義填字',
+        modeFillDesc: '看釋義與提示字母，直接打出單字',
+        modeWheel: '字母盤',
+        modeWheelDesc: '用給定字母拼出所有單字',
+        typeAnswer: '輸入答案…',
+        submit: '送出',
+        levelComplete: '過關！',
+        backToHub: '返回',
+        streakDays: '天連續',
+        daily: '每日挑戰',
+        dailyPlayed: '今日已完成',
+        leaderboard: '排行榜',
+        rank: '名次',
+        score: '分數',
+        expired: '關卡已過期，請開新關'
     }
 }
