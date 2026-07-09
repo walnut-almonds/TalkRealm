@@ -40,6 +40,7 @@ type Server struct {
 	rdb                *goredis.Client
 	guildMemberRepo    repository.GuildMemberRepository
 	unreadHandler      *handler.UnreadHandler
+	learnHandler       *handler.LearnHandler
 }
 
 // New 創建新的伺服器實例
@@ -178,6 +179,20 @@ func New(cfg *config.Config) (*Server, error) {
 	// 互動統計 Handler
 	interactionHandler := handler.NewInteractionHandler(messageRepo, guildMemberRepo)
 
+	// 單字學習服務（模組邊界：learn 只依賴 userRepo 的 GetByID，經 interface 注入）
+	learnRepo := repository.NewLearnRepository(db)
+
+	var levelStore service.LevelStore
+	if rdb != nil {
+		levelStore = service.NewRedisLevelStore(rdb)
+	} else {
+		// ponytail: 單機降級；多實例部署必須有 Redis
+		levelStore = service.NewMemoryLevelStore()
+	}
+
+	learnService := service.NewLearnService(learnRepo, userRepo, levelStore)
+	learnHandler := handler.NewLearnHandler(learnService)
+
 	s := &Server{
 		config:             cfg,
 		router:             router,
@@ -197,6 +212,7 @@ func New(cfg *config.Config) (*Server, error) {
 		friendHandler:      friendHandler,
 		interactionHandler: interactionHandler,
 		unreadHandler:      unreadHandler,
+		learnHandler:       learnHandler,
 	}
 
 	// 設定路由
@@ -372,6 +388,14 @@ func (s *Server) setupRoutes() {
 				dm.DELETE("/messages/:id", s.dmHandler.DeleteDMMessage)
 				dm.GET("/messages/:id/translation", s.dmHandler.GetDMTranslation)
 				dm.GET("/messages/:id/translation/ensure", s.dmHandler.EnsureDMTranslation)
+			}
+
+			// 單字學習
+			learn := protected.Group("/learn")
+			{
+				learn.POST("/levels", s.learnHandler.CreateLevel)
+				learn.POST("/levels/:id/guess", s.learnHandler.Guess)
+				learn.GET("/stats", s.learnHandler.GetStats)
 			}
 		}
 

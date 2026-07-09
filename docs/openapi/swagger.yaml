@@ -49,6 +49,19 @@ definitions:
     required:
     - last_message_id
     type: object
+  handler.createLevelReq:
+    properties:
+      locale:
+        description: 前端 i18n locale；空值 fallback en
+        type: string
+      mode:
+        type: string
+      tier:
+        type: integer
+    required:
+    - mode
+    - tier
+    type: object
   model.Channel:
     properties:
       created_at:
@@ -365,6 +378,25 @@ definitions:
       similarity_score:
         type: number
     type: object
+  service.GuessOutcome:
+    properties:
+      completed:
+        type: boolean
+      correct:
+        type: boolean
+      definition:
+        type: string
+      phonetic:
+        type: string
+      slot:
+        type: integer
+      total_xp:
+        type: integer
+      word:
+        type: string
+      xp_awarded:
+        type: integer
+    type: object
   service.GuessRequest:
     properties:
       guess_content:
@@ -385,6 +417,43 @@ definitions:
         type: boolean
       similarity_score:
         type: number
+    type: object
+  service.LearnGuessRequest:
+    properties:
+      slot:
+        type: integer
+      word:
+        type: string
+    required:
+    - word
+    type: object
+  service.LearnStatsView:
+    properties:
+      recent_words:
+        items:
+          $ref: '#/definitions/service.RecentWordView'
+        type: array
+      streak:
+        type: integer
+      words_learned:
+        type: integer
+      xp:
+        type: integer
+    type: object
+  service.LevelView:
+    properties:
+      letters:
+        type: string
+      level_id:
+        type: string
+      mode:
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/service.SlotView'
+        type: array
+      tier:
+        type: integer
     type: object
   service.LoginRequest:
     properties:
@@ -459,6 +528,15 @@ definitions:
       username:
         type: string
     type: object
+  service.RecentWordView:
+    properties:
+      correct:
+        type: boolean
+      definition:
+        type: string
+      word:
+        type: string
+    type: object
   service.RegisterRequest:
     properties:
       email:
@@ -478,6 +556,19 @@ definitions:
     - email
     - password
     - username
+    type: object
+  service.SlotView:
+    properties:
+      definition:
+        type: string
+      length:
+        type: integer
+      masked:
+        type: string
+      solved:
+        type: boolean
+      word:
+        type: string
     type: object
   service.UpdateChannelRequest:
     properties:
@@ -1665,6 +1756,77 @@ paths:
       summary: 查詢邀請碼資訊
       tags:
       - GuildInvite
+  /api/v1/learn/levels:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 模式與難度
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createLevelReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.LevelView'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 生成單字關卡
+      tags:
+      - Learn
+  /api/v1/learn/levels/{id}/guess:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 關卡 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 作答內容
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.LearnGuessRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.GuessOutcome'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 提交單字作答
+      tags:
+      - Learn
+  /api/v1/learn/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.LearnStatsView'
+      summary: 取得學習統計
+      tags:
+      - Learn
   /api/v1/messages/{id}:
     delete:
       description: 刪除自己的訊息，或管理員刪除任何訊息

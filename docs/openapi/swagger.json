@@ -1682,6 +1682,116 @@
                 }
             }
         },
+        "/api/v1/learn/levels": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "生成單字關卡",
+                "parameters": [
+                    {
+                        "description": "模式與難度",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createLevelReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.LevelView"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/levels/{id}/guess": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "提交單字作答",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "關卡 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "作答內容",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.LearnGuessRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.GuessOutcome"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/stats": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "取得學習統計",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.LearnStatsView"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/messages/{id}": {
             "get": {
                 "description": "取得指定 ID 的訊息詳情",
@@ -2254,6 +2364,25 @@
                 }
             }
         },
+        "handler.createLevelReq": {
+            "type": "object",
+            "required": [
+                "mode",
+                "tier"
+            ],
+            "properties": {
+                "locale": {
+                    "description": "前端 i18n locale；空值 fallback en",
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "tier": {
+                    "type": "integer"
+                }
+            }
+        },
         "model.Channel": {
             "type": "object",
             "properties": {
@@ -2718,6 +2847,35 @@
                 }
             }
         },
+        "service.GuessOutcome": {
+            "type": "object",
+            "properties": {
+                "completed": {
+                    "type": "boolean"
+                },
+                "correct": {
+                    "type": "boolean"
+                },
+                "definition": {
+                    "type": "string"
+                },
+                "phonetic": {
+                    "type": "string"
+                },
+                "slot": {
+                    "type": "integer"
+                },
+                "total_xp": {
+                    "type": "integer"
+                },
+                "word": {
+                    "type": "string"
+                },
+                "xp_awarded": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.GuessRequest": {
             "type": "object",
             "required": [
@@ -2746,6 +2904,63 @@
                 },
                 "similarity_score": {
                     "type": "number"
+                }
+            }
+        },
+        "service.LearnGuessRequest": {
+            "type": "object",
+            "required": [
+                "word"
+            ],
+            "properties": {
+                "slot": {
+                    "type": "integer"
+                },
+                "word": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.LearnStatsView": {
+            "type": "object",
+            "properties": {
+                "recent_words": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.RecentWordView"
+                    }
+                },
+                "streak": {
+                    "type": "integer"
+                },
+                "words_learned": {
+                    "type": "integer"
+                },
+                "xp": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.LevelView": {
+            "type": "object",
+            "properties": {
+                "letters": {
+                    "type": "string"
+                },
+                "level_id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "slots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.SlotView"
+                    }
+                },
+                "tier": {
+                    "type": "integer"
                 }
             }
         },
@@ -2859,6 +3074,20 @@
                 }
             }
         },
+        "service.RecentWordView": {
+            "type": "object",
+            "properties": {
+                "correct": {
+                    "type": "boolean"
+                },
+                "definition": {
+                    "type": "string"
+                },
+                "word": {
+                    "type": "string"
+                }
+            }
+        },
         "service.RegisterRequest": {
             "type": "object",
             "required": [
@@ -2883,6 +3112,26 @@
                     "type": "string",
                     "maxLength": 32,
                     "minLength": 3
+                }
+            }
+        },
+        "service.SlotView": {
+            "type": "object",
+            "properties": {
+                "definition": {
+                    "type": "string"
+                },
+                "length": {
+                    "type": "integer"
+                },
+                "masked": {
+                    "type": "string"
+                },
+                "solved": {
+                    "type": "boolean"
+                },
+                "word": {
+                    "type": "string"
                 }
             }
         },
