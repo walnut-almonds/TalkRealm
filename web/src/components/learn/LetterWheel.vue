@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
+import { maskSegments } from './mask.js'
 
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
@@ -40,7 +41,11 @@ async function submit() {
     <div v-if="!done" class="wheel__slots">
       <div v-for="(slot, i) in learn.level.slots" :key="i" :class="['wh-slot', { solved: slot.solved }]">
         <span class="wh-word">
-          <span v-for="(ch, j) in slot.masked" :key="j" class="wh-char">{{ ch === '_' ? '' : ch }}</span>
+          <span
+            v-for="(seg, j) in maskSegments(slot.masked, learn.hardMode && !slot.solved)"
+            :key="j"
+            :class="['wh-char', { gap: seg.gap }]"
+          >{{ seg.ch }}</span>
         </span>
         <span v-if="slot.solved" class="wh-def">{{ slot.definition }}</span>
       </div>
@@ -81,6 +86,8 @@ async function submit() {
     border: 1px solid var(--border);
     font-family: var(--font-mono); font-size: 16px; text-transform: lowercase;
 }
+/* 困難模式：一段連續缺字只給一個固定寬度格 */
+.wh-char.gap { width: 60px; }
 .wh-slot.solved .wh-char { border-color: var(--accent); }
 .wh-def { font-size: 12px; color: var(--text-muted); }
 .wheel__play { display: flex; flex-direction: column; gap: 14px; align-items: center; }

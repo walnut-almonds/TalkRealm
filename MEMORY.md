@@ -73,6 +73,7 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - **本機驗證埠衝突**：5432/8080 可能被同機其他專案容器（infra-postgres/lobby）占用；smoke test 可用臨時容器（如 5433）+ `configs/config.yaml`（gitignored）改埠。
 
 ## Decisions
+- **設定架構：齒輪只有一顆**。全站唯一設定入口在 NavRail 底部（`nav-foot`，呼叫 MainLayout `provide('openModal')` 開 `UserSettingsModal`）；modal 內用 section 分區（帳號/GIF/學習/密碼），新功能設定加 section、不新增齒輪。「改了立刻想看效果」的偏好做成功能內 inline 控制項（如 Learn 困難模式 toggle，hub 與遊戲中各一顆，同一份狀態）。純本機顯示偏好存 localStorage（`talkrealm_learn_hard`，state 在 `useLearnStore.hardMode`），需跨裝置/影響計分時才升級後端。困難模式渲染：`components/learn/mask.js` 的 `maskSegments()` 把連續 `_` 收成單一 gap 格。
 - **前端視覺系統：Kinetic Noir（TalkRealm Edition）**，規範見根目錄 `DESIGN.md`（改編自 walnut-almonds.github.io 的同名系統）。要點：近黑 surface 階梯（#0e0e0e→#2a2a2a）、唯一裝飾色 slate-blue `--accent: #b3c6f3`、直角（`--radius: 0px`；頭像/presence 圓點例外——「人=圓、地方=方」）、1px hairline 取代陰影、Geist Mono 做系統性文字（分類標題/時間戳/徽章）、按鈕 hover 即時反白。tokens 在 `web/src/styles/main.css` `:root`（`--accent`/`--accent-hover`/`--brand` 已定義，元件的 var() fallback 不再吃到 Discord 色）；字體在 `web/index.html` 載入（Hanken Grotesk + Noto Sans TC + Geist Mono）。`web/css/styles.css` 是 pre-Vue 舊版，未套用新主題。新樣式禁用 Discord 特徵：blurple、圓→方 morph、紫色漸層。Social Galaxy 首頁（`web/src/views/HomeView.vue`，SVG 實作）已同步換色：`GUILD_PALETTE` 8 色是去飽和「noir 星座」色系、星雲/時段氛圍（data-atmosphere day/night/dawn/dusk）漸層降飽和；新增 guild 色一律走 muted pastel，不可回填飽和色。
 - MQ 選擇 NATS JetStream（輕量，適合小團隊），備選 Kafka
 - 物件儲存選 Minio（self-hosted S3-compatible），生產可換 AWS S3
@@ -80,6 +81,9 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-07-13
+ — 設定入口收斂到 NavRail 底部齒輪；Learn 困難模式（隱藏底線數）上線（見 Decisions 設定架構條目）
+
 2026-07-09
  — 單字學習遊戲 v1 完成（Learn 分頁：釋義填字/字母盤/每日挑戰+排行榜；見 Architecture Notes 的 Learn 模組）；新增 GORM 縮寫欄位命名與 ON CONFLICT 歧義兩條 Pitfalls
 

@@ -33,8 +33,20 @@ function exitGame() {
 
 <template>
   <div class="learn-view">
-    <WordFill v-if="playing && learn.level?.mode === 'fill'" @exit="exitGame" />
-    <LetterWheel v-else-if="playing && learn.level?.mode === 'wheel'" @exit="exitGame" />
+    <div v-if="playing && learn.level" class="learn-game">
+      <div class="learn-game__bar">
+        <button
+          :class="['hard-toggle', { on: learn.hardMode }]"
+          :title="t('learn.hardModeDesc')"
+          @click="learn.setHardMode(!learn.hardMode)"
+        >
+          <i class="fas fa-eye-slash"></i>
+          <span>{{ t('learn.hardMode') }}</span>
+        </button>
+      </div>
+      <WordFill v-if="learn.level.mode === 'fill'" @exit="exitGame" />
+      <LetterWheel v-else @exit="exitGame" />
+    </div>
 
     <div v-else class="learn-hub">
       <header class="learn-hub__head">
@@ -89,6 +101,14 @@ function exitGame() {
             @click="tier = tv"
           >{{ t(tierKeys[tv - 1]) }}</button>
         </div>
+        <button
+          :class="['hard-toggle', { on: learn.hardMode }]"
+          @click="learn.setHardMode(!learn.hardMode)"
+        >
+          <i class="fas fa-eye-slash"></i>
+          <span>{{ t('learn.hardMode') }}</span>
+          <small>{{ t('learn.hardModeDesc') }}</small>
+        </button>
 
         <h3>{{ t('learn.chooseMode') }}</h3>
         <div class="mode-row">
@@ -112,6 +132,16 @@ function exitGame() {
 
 <style scoped>
 .learn-view { height: 100%; overflow-y: auto; }
+.learn-game__bar { max-width: 560px; margin: 0 auto; padding: 16px 16px 0; display: flex; justify-content: flex-end; }
+.hard-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; background: transparent; color: var(--text-muted);
+    border: 1px solid var(--border); cursor: pointer;
+    font-family: var(--font-mono); font-size: 12px;
+    align-self: flex-start;
+}
+.hard-toggle.on { border-color: var(--accent); color: var(--accent); }
+.hard-toggle small { color: var(--text-muted); font-size: 11px; }
 .learn-hub { max-width: 640px; margin: 0 auto; padding: 32px 16px; display: flex; flex-direction: column; gap: 24px; }
 .learn-hub__head { display: flex; justify-content: space-between; align-items: baseline; }
 .learn-stats { display: flex; gap: 16px; font-family: var(--font-mono); font-size: 13px; color: var(--text-muted); }

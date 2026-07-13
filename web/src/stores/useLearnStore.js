@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { api, EP } from '@/api/index.js'
 import { getLocale } from '@/i18n/index.js'
 
+const HARD_MODE_KEY = 'talkrealm_learn_hard'
+
 export const useLearnStore = defineStore('learn', {
     state: () => ({
         level: null,        // LevelView：{ level_id, mode, tier, slots[] }
@@ -11,8 +13,14 @@ export const useLearnStore = defineStore('learn', {
         leaderboard: null,  // { date, top[], me? }
         loading: false,
         error: '',
+        // 純本機顯示偏好：隱藏底線數量（不影響計分）
+        hardMode: localStorage.getItem(HARD_MODE_KEY) === '1',
     }),
     actions: {
+        setHardMode(v) {
+            this.hardMode = v
+            localStorage.setItem(HARD_MODE_KEY, v ? '1' : '0')
+        },
         async startLevel(mode, tier) {
             this.loading = true
             this.error = ''

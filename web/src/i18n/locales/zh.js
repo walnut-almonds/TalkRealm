@@ -58,7 +58,8 @@ export default {
         profileSaveFailed: '更新失败',
         passwordSaved: '密码已更新',
         passwordSaveFailed: '更改密码失败',
-        passwordRequired: '请填写旧密码和新密码'
+        passwordRequired: '请填写旧密码和新密码',
+        learn: '学习'
     },
     chat: {
         ...en.chat,
@@ -292,7 +293,8 @@ export default {
         home: '首页',
         privateMessages: '私讯',
         createGuild: '创建社群',
-        joinGuild: '加入社群'
+        joinGuild: '加入社群',
+        settings: '设置'
     },
     typing: {
         one: '{user1} 正在输入...',
@@ -410,6 +412,8 @@ export default {
         leaderboard: '排行榜',
         rank: '名次',
         score: '分数',
-        expired: '关卡已过期，请开新关'
+        expired: '关卡已过期，请开新关',
+        hardMode: '困难模式',
+        hardModeDesc: '不显示缺几个字母'
     }
 }

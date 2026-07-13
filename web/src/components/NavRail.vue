@@ -1,11 +1,12 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useDMStore } from '@/stores/useDMStore.js'
 
 const emit = defineEmits(['create-guild', 'join-guild'])
+const openModal = inject('openModal', () => {})
 const store = useAppStore()
 const dm = useDMStore()
 const { t } = useI18n()
@@ -97,5 +98,13 @@ function openDM() {
         </button>
       </div>
     </Transition>
+
+    <!-- 全站唯一的設定入口 -->
+    <div class="nav-foot">
+      <button class="nav-section-btn" :title="t('settings.title')" @click="openModal('userSettings')">
+        <i class="fas fa-gear"></i>
+        <span class="nav-section-label">{{ t('nav.settings') }}</span>
+      </button>
+    </div>
   </nav>
 </template>

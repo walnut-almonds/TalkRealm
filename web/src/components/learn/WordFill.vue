@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
+import { maskSegments } from './mask.js'
 
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
@@ -49,9 +50,11 @@ async function submit() {
         @click="selectSlot(i)"
       >
         <span class="wf-slot__word">
-          <span v-for="(ch, j) in slot.masked" :key="j" class="wf-char">
-            {{ ch === '_' ? '' : ch }}
-          </span>
+          <span
+            v-for="(seg, j) in maskSegments(slot.masked, learn.hardMode && !slot.solved)"
+            :key="j"
+            :class="['wf-char', { gap: seg.gap }]"
+          >{{ seg.ch }}</span>
         </span>
         <span class="wf-slot__def">{{ slot.definition }}</span>
       </button>
@@ -96,6 +99,8 @@ async function submit() {
     border-bottom: 1px solid var(--border-strong);
     font-family: var(--font-mono); font-size: 18px; text-transform: lowercase;
 }
+/* 困難模式：一段連續缺字只給一條固定寬度長底線 */
+.wf-char.gap { width: 64px; }
 .wf-slot__def { font-size: 13px; color: var(--text-muted); }
 .wordfill__input { display: flex; gap: 8px; }
 .wordfill__input input {

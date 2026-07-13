@@ -58,7 +58,8 @@ export default {
         profileSaveFailed: 'プロフィール更新に失敗しました',
         passwordSaved: 'パスワードを更新しました',
         passwordSaveFailed: 'パスワード変更に失敗しました',
-        passwordRequired: '現在のパスワードと新しいパスワードを入力してください'
+        passwordRequired: '現在のパスワードと新しいパスワードを入力してください',
+        learn: '学習'
     },
     chat: {
         ...en.chat,
@@ -292,7 +293,8 @@ export default {
         home: 'ホーム',
         privateMessages: 'ダイレクトメッセージ',
         createGuild: 'サーバーを作成',
-        joinGuild: 'サーバーに参加'
+        joinGuild: 'サーバーに参加',
+        settings: '設定'
     },
     typing: {
         one: '{user1} が入力中...',
@@ -410,6 +412,8 @@ export default {
         leaderboard: 'ランキング',
         rank: '順位',
         score: 'スコア',
-        expired: 'レベルの有効期限が切れました'
+        expired: 'レベルの有効期限が切れました',
+        hardMode: 'ハードモード',
+        hardModeDesc: '欠けている文字数を隠す'
     }
 }

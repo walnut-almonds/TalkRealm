@@ -508,6 +508,12 @@ select {
     opacity: 1;
 }
 
+.nav-foot {
+    margin-top: auto;
+    padding-top: 8px;
+    flex-shrink: 0;
+}
+
 .nav-separator {
     width: 40px;
     height: 2px;

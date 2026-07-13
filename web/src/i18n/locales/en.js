@@ -83,7 +83,8 @@ export default {
         profileSaveFailed: 'Failed to update profile',
         passwordSaved: 'Password updated',
         passwordSaveFailed: 'Failed to change password',
-        passwordRequired: 'Please fill in both old and new password'
+        passwordRequired: 'Please fill in both old and new password',
+        learn: 'Learning'
     },
     chat: {
         unknownUser: 'Unknown',
@@ -289,7 +290,8 @@ export default {
         home: 'Home',
         privateMessages: 'Direct messages',
         createGuild: 'Create guild',
-        joinGuild: 'Join guild'
+        joinGuild: 'Join guild',
+        settings: 'Settings'
     },
     typing: {
         one: '{user1} is typing...',
@@ -407,6 +409,8 @@ export default {
         leaderboard: 'Leaderboard',
         rank: 'Rank',
         score: 'Score',
-        expired: 'Level expired, start a new one'
+        expired: 'Level expired, start a new one',
+        hardMode: 'Hard mode',
+        hardModeDesc: 'Hide how many letters are missing'
     }
 }

@@ -4,9 +4,11 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { api } from '@/api/index.js'
 import { getLocale, setLocale } from '@/i18n/index.js'
+import { useLearnStore } from '@/stores/useLearnStore.js'
 
 const emit = defineEmits(['close'])
 const store = useAppStore()
+const learn = useLearnStore()
 const { t } = useI18n()
 
 const displayName = ref('')
@@ -162,6 +164,22 @@ async function changePassword() {
             <input v-model="gifClientKey" placeholder="talkrealm-web" />
           </div>
           <div class="form-hint">{{ t('settings.gifHint') }}</div>
+        </div>
+
+        <hr style="border-color:var(--border-color);margin:16px 0" />
+
+        <div class="settings-section">
+          <h3>{{ t('settings.learn') }}</h3>
+          <label class="form-group" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              :checked="learn.hardMode"
+              style="width:auto"
+              @change="learn.setHardMode($event.target.checked)"
+            />
+            <span>{{ t('learn.hardMode') }}</span>
+          </label>
+          <div class="form-hint">{{ t('learn.hardModeDesc') }}</div>
         </div>
 
         <hr style="border-color:var(--border-color);margin:16px 0" />
