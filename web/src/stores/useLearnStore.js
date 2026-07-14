@@ -26,6 +26,7 @@ export const useLearnStore = defineStore('learn', {
             this.loading = true
             this.error = ''
             this.lastOutcome = null
+            this.crossword = null // 清掉另一模式的殘留狀態，避免畫面判斷式比對到舊資料
             try {
                 this.level = await api.post(EP.LEARN_LEVELS, {
                     mode, tier, locale: getLocale(),
@@ -70,6 +71,7 @@ export const useLearnStore = defineStore('learn', {
             this.loading = true
             this.error = ''
             this.lastOutcome = null
+            this.level = null // 清掉另一模式的殘留狀態，避免畫面判斷式比對到舊資料
             try {
                 this.crossword = await api.post(EP.LEARN_CROSSWORD, { tier, locale: getLocale() })
             } catch (e) {
@@ -112,6 +114,7 @@ export const useLearnStore = defineStore('learn', {
             await this.loadDaily()
             if (this.daily && !this.daily.played) {
                 this.level = this.daily.level
+                this.crossword = null // 清掉另一模式的殘留狀態，避免畫面判斷式比對到舊資料
                 this.lastOutcome = null
                 return true
             }

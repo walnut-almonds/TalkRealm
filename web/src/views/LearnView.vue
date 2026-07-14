@@ -42,6 +42,10 @@ function exitGame() {
   <div class="learn-view">
     <div v-if="playing && (learn.level || learn.crossword)" class="learn-game">
       <div class="learn-game__bar">
+        <button class="exit-btn" @click="exitGame">
+          <i class="fas fa-arrow-left"></i>
+          <span>{{ t('learn.backToHub') }}</span>
+        </button>
         <button
           :class="['hard-toggle', { on: learn.hardMode }]"
           :title="t('learn.hardModeDesc')"
@@ -145,7 +149,14 @@ function exitGame() {
 
 <style scoped>
 .learn-view { height: 100%; overflow-y: auto; }
-.learn-game__bar { max-width: 560px; margin: 0 auto; padding: 16px 16px 0; display: flex; justify-content: flex-end; }
+.learn-game__bar { max-width: 560px; margin: 0 auto; padding: 16px 16px 0; display: flex; justify-content: space-between; gap: 8px; }
+.exit-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; background: transparent; color: var(--text-muted);
+    border: 1px solid var(--border); cursor: pointer;
+    font-family: var(--font-mono); font-size: 12px;
+}
+.exit-btn:hover { border-color: var(--accent); color: var(--accent); }
 .hard-toggle {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 8px 14px; background: transparent; color: var(--text-muted);
