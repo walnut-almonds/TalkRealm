@@ -185,6 +185,7 @@ type LearnService interface {
 	CreateCrosswordLevel(userID uint, tier int, locale string) (*CrosswordView, error)
 	Guess(userID uint, levelID string, req *LearnGuessRequest) (*GuessOutcome, error)
 	Hint(userID uint, levelID string, slot int) (*HintOutcome, error)
+	Reveal(userID uint, levelID string, slot int) (*GuessOutcome, error)
 	Stats(userID uint) (*LearnStatsView, error)
 	DailyLevel(userID uint, locale string) (*DailyView, error)
 	DailyLeaderboard(userID uint) (*LeaderboardView, error)
@@ -489,7 +490,7 @@ func (s *learnService) guessFillWheel(
 	out.Word = lv.Words[slot]
 	out.Phonetic = lv.Phonetics[slot]
 	out.Definition = lv.Defs[slot]
-	out.XPAwarded = wordXP(lv.Words[slot], lv.Tier, lv.Mode)
+	out.XPAwarded = hintDiscount(wordXP(lv.Words[slot], lv.Tier, lv.Mode), lv.HintTier[slot])
 	lv.XP += out.XPAwarded
 	out.Completed = allSolved(lv.Solved)
 
@@ -573,6 +574,69 @@ func advanceHint(tier, pos *int, word, def string, slot int) *HintOutcome {
 			Definition: def,
 		}
 	}
+}
+
+// Reveal 直接揭曉答案（0 XP、不寫入 learn_word_records）；依 Redis 信封的 Mode 分流
+func (s *learnService) Reveal(userID uint, levelID string, slot int) (*GuessOutcome, error) {
+	env, err := loadEnvelope(s.store, levelID)
+	if err != nil {
+		return nil, err
+	}
+
+	switch env.Mode {
+	case ModeCrossword:
+		return s.revealCrossword(userID, env, slot)
+	case ModeWheel:
+		return s.revealWheel(userID, env, slot)
+	default:
+		return nil, ErrLearnHintNotSupported
+	}
+}
+
+// revealWheel 處理 wheel 模式的揭曉答案
+func (s *learnService) revealWheel(
+	userID uint,
+	env *levelEnvelope,
+	slot int,
+) (*GuessOutcome, error) {
+	var lv learnLevel
+	if err := json.Unmarshal(env.Data, &lv); err != nil {
+		return nil, err
+	}
+
+	if lv.UserID != userID {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	if slot < 0 || slot >= len(lv.Words) {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	if lv.Solved[slot] {
+		return nil, ErrLearnSlotSolved
+	}
+
+	lv.Solved[slot] = true
+
+	out := &GuessOutcome{
+		Correct: true, Slot: slot,
+		Word: lv.Words[slot], Phonetic: lv.Phonetics[slot], Definition: lv.Defs[slot],
+	}
+	out.Completed = allSolved(lv.Solved)
+
+	if out.Completed {
+		out.TotalXP = lv.XP
+
+		if err := s.onLevelCompleted(userID, lv.XP, lv.Daily, lv.CreatedAt); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := s.saveLevel(&lv); err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }
 
 // onLevelCompleted 完成關卡：更新 XP 與 streak；daily 非空時另記當日分數。

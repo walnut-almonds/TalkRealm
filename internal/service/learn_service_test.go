@@ -520,3 +520,88 @@ func TestHintRejectsFillMode(t *testing.T) {
 		t.Errorf("expected ErrLearnHintNotSupported, got %v", err)
 	}
 }
+
+// TestGuessXPDiscountedByHintTier 用 wheelAnagramWords()（非計劃原文的 testWords()）：
+// ModeWheel 需要彼此有共同字母的字組，testWords()（star/moon）會讓 CreateLevel 在執行期失敗。
+// wheelAnagramWords() 底字為 star，picked 順序固定為 [art, rat, tar, star]（按長度、頻率排序），
+// 故 slot 0 恆為 "art"。
+func TestGuessXPDiscountedByHintTier(t *testing.T) {
+	const art = "art"
+
+	svc, _ := newTestService(wheelAnagramWords())
+
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel: %v", err)
+	}
+
+	base := wordXP(art, 2, ModeWheel) // 3*2=6
+
+	if _, err := svc.Hint(7, lv.LevelID, 0); err != nil { // tier1
+		t.Fatalf("Hint tier1: %v", err)
+	}
+
+	out, err := svc.Guess(7, lv.LevelID, &LearnGuessRequest{Word: art})
+	if err != nil {
+		t.Fatalf("Guess after hint1: %v", err)
+	}
+
+	want := hintDiscount(base, 1)
+	if !out.Correct || out.XPAwarded != want {
+		t.Errorf("XPAwarded = %d want %d (base=%d)", out.XPAwarded, want, base)
+	}
+}
+
+func TestRevealWheel(t *testing.T) {
+	svc, repo := newTestService(wheelAnagramWords())
+
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel: %v", err)
+	}
+
+	out, err := svc.Reveal(7, lv.LevelID, 0)
+	if err != nil {
+		t.Fatalf("Reveal: %v", err)
+	}
+
+	if !out.Correct || out.XPAwarded != 0 || out.Word == "" {
+		t.Errorf("reveal outcome: %+v", out)
+	}
+
+	if repo.records != 0 {
+		t.Errorf("reveal must not write learn_word_records, got %d", repo.records)
+	}
+
+	if _, err := svc.Reveal(7, lv.LevelID, 0); !errors.Is(err, ErrLearnSlotSolved) {
+		t.Errorf("expected ErrLearnSlotSolved on repeat reveal, got %v", err)
+	}
+}
+
+// TestRevealCompletesLevel 依 lv.Slots 動態算出格數（wheelAnagramWords() 產生 4 個 slot，
+// 不是計劃原文假設的 2 個 star/moon slot），逐格 Reveal 到全解為止。
+func TestRevealCompletesLevel(t *testing.T) {
+	svc, repo := newTestService(wheelAnagramWords())
+
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel: %v", err)
+	}
+
+	var out *GuessOutcome
+
+	for slot := range lv.Slots {
+		out, err = svc.Reveal(7, lv.LevelID, slot)
+		if err != nil {
+			t.Fatalf("Reveal slot %d: %v", slot, err)
+		}
+	}
+
+	if !out.Completed {
+		t.Errorf("expected completed after revealing all slots: %+v", out)
+	}
+
+	if repo.stats[7].XP != 0 {
+		t.Errorf("all-reveal level should award 0 total XP, got %d", repo.stats[7].XP)
+	}
+}

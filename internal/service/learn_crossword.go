@@ -472,6 +472,52 @@ func (s *learnService) hintCrossword(
 	return out, nil
 }
 
+// revealCrossword 處理 crossword 模式的揭曉答案
+func (s *learnService) revealCrossword(
+	userID uint,
+	env *levelEnvelope,
+	slot int,
+) (*GuessOutcome, error) {
+	var lv crosswordLevel
+	if err := json.Unmarshal(env.Data, &lv); err != nil {
+		return nil, err
+	}
+
+	if lv.UserID != userID {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	if slot < 0 || slot >= len(lv.Words) {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	if lv.Solved[slot] {
+		return nil, ErrLearnSlotSolved
+	}
+
+	lv.Solved[slot] = true
+
+	out := &GuessOutcome{
+		Correct: true, Slot: slot,
+		Word: lv.Words[slot], Phonetic: lv.Phonetics[slot], Definition: lv.Defs[slot],
+	}
+	out.Completed = allSolved(lv.Solved)
+
+	if out.Completed {
+		out.TotalXP = lv.XP
+
+		if err := s.onLevelCompleted(userID, lv.XP, "", lv.CreatedAt); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := saveEnvelope(s.store, lv.ID, ModeCrossword, &lv); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 // guessCrossword 處理 crossword 的作答：字母盤送字，後端找出命中哪個字
 func (s *learnService) guessCrossword(
 	userID uint, env *levelEnvelope, req *LearnGuessRequest,
@@ -517,7 +563,9 @@ func (s *learnService) guessCrossword(
 		Word:       lv.Words[slot],
 		Phonetic:   lv.Phonetics[slot],
 		Definition: lv.Defs[slot],
-		XPAwarded:  wordXP(lv.Words[slot], lv.Tier, ModeWheel), // 猜字機制同 wheel，套用同一套 XP 檔次
+		XPAwarded: hintDiscount(
+			wordXP(lv.Words[slot], lv.Tier, ModeWheel), lv.HintTier[slot],
+		), // 猜字機制同 wheel，套用同一套 XP 檔次
 	}
 	lv.XP += out.XPAwarded
 	out.Completed = allSolved(lv.Solved)

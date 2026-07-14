@@ -340,6 +340,57 @@ func TestHintCrosswordProgression(t *testing.T) {
 	}
 }
 
+func TestRevealCrossword(t *testing.T) {
+	const rat = "rat"
+
+	words := []*model.Word{
+		{
+			ID:             1,
+			Word:           "star",
+			Tier:           2,
+			Frequency:      100,
+			DefinitionEN:   "gas ball",
+			DefinitionZHTW: "星星",
+		},
+		{ID: 2, Word: rat, Tier: 2, Frequency: 200, DefinitionEN: "rodent", DefinitionZHTW: "老鼠"},
+		{
+			ID:             3,
+			Word:           "art",
+			Tier:           2,
+			Frequency:      150,
+			DefinitionEN:   "creative work",
+			DefinitionZHTW: "藝術",
+		},
+		{
+			ID:             4,
+			Word:           "tar",
+			Tier:           2,
+			Frequency:      300,
+			DefinitionEN:   "black goo",
+			DefinitionZHTW: "焦油",
+		},
+	}
+	svc, repo := newTestService(words)
+
+	cw, err := svc.CreateCrosswordLevel(7, 2, "en")
+	if err != nil {
+		t.Fatalf("CreateCrosswordLevel: %v", err)
+	}
+
+	out, err := svc.Reveal(7, cw.LevelID, 0)
+	if err != nil {
+		t.Fatalf("Reveal: %v", err)
+	}
+
+	if !out.Correct || out.XPAwarded != 0 {
+		t.Errorf("reveal outcome: %+v", out)
+	}
+
+	if repo.records != 0 {
+		t.Errorf("reveal must not write learn_word_records, got %d", repo.records)
+	}
+}
+
 func TestFillWheelUnaffectedByEnvelope(t *testing.T) {
 	// 信封改動的回歸驗證：fill 既有流程必須完全不受影響
 	svc, _ := newTestService(testWords())

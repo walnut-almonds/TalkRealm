@@ -52,6 +52,14 @@ func (m *mockLearnService) Hint(
 	return nil, nil //nolint:nilnil // 測試 stub，Task 4 補上正式實作
 }
 
+func (m *mockLearnService) Reveal(
+	userID uint,
+	levelID string,
+	slot int,
+) (*service.GuessOutcome, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，Task 4 補上正式實作
+}
+
 func (m *mockLearnService) Stats(userID uint) (*service.LearnStatsView, error) {
 	return m.statsFn(userID)
 }
