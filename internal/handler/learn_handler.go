@@ -193,3 +193,88 @@ func (h *LearnHandler) GetStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, stats)
 }
+
+type learnSlotReq struct {
+	Slot int `json:"slot"`
+}
+
+// Hint 讓指定 slot 的提示前進一階
+//
+//	@Summary	單字提示
+//	@Tags		Learn
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string			true	"關卡 ID"
+//	@Param		request	body		learnSlotReq	true	"slot 索引"
+//	@Success	200		{object}	service.HintOutcome
+//	@Failure	400		{object}	ErrorResponse
+//	@Failure	409		{object}	ErrorResponse
+//	@Failure	410		{object}	ErrorResponse
+//	@Router		/api/v1/learn/levels/{id}/hint [post]
+func (h *LearnHandler) Hint(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var req learnSlotReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	out, err := h.learnService.Hint(userID, c.Param("id"), req.Slot)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrLearnLevelNotFound):
+			c.JSON(http.StatusGone, gin.H{"error": "level expired"})
+		case errors.Is(err, service.ErrLearnSlotSolved):
+			c.JSON(http.StatusConflict, gin.H{"error": "slot already solved"})
+		case errors.Is(err, service.ErrLearnHintNotSupported):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, out)
+}
+
+// Reveal 直接揭曉答案（0 XP）
+//
+//	@Summary	揭曉答案
+//	@Tags		Learn
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string			true	"關卡 ID"
+//	@Param		request	body		learnSlotReq	true	"slot 索引"
+//	@Success	200		{object}	service.GuessOutcome
+//	@Failure	409		{object}	ErrorResponse
+//	@Failure	410		{object}	ErrorResponse
+//	@Router		/api/v1/learn/levels/{id}/reveal [post]
+func (h *LearnHandler) Reveal(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var req learnSlotReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	out, err := h.learnService.Reveal(userID, c.Param("id"), req.Slot)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrLearnLevelNotFound):
+			c.JSON(http.StatusGone, gin.H{"error": "level expired"})
+		case errors.Is(err, service.ErrLearnSlotSolved):
+			c.JSON(http.StatusConflict, gin.H{"error": "slot already solved"})
+		case errors.Is(err, service.ErrLearnHintNotSupported):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, out)
+}

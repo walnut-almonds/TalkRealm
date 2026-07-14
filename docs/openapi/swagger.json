@@ -1850,6 +1850,116 @@
                 }
             }
         },
+        "/api/v1/learn/levels/{id}/hint": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "單字提示",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "關卡 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "slot 索引",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.learnSlotReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.HintOutcome"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/levels/{id}/reveal": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "揭曉答案",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "關卡 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "slot 索引",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.learnSlotReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.GuessOutcome"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/learn/stats": {
             "get": {
                 "produces": [
@@ -2474,6 +2584,14 @@
                 }
             }
         },
+        "handler.learnSlotReq": {
+            "type": "object",
+            "properties": {
+                "slot": {
+                    "type": "integer"
+                }
+            }
+        },
         "model.Channel": {
             "type": "object",
             "properties": {
@@ -3074,6 +3192,23 @@
                 },
                 "similarity_score": {
                     "type": "number"
+                }
+            }
+        },
+        "service.HintOutcome": {
+            "type": "object",
+            "properties": {
+                "definition": {
+                    "type": "string"
+                },
+                "masked": {
+                    "type": "string"
+                },
+                "slot": {
+                    "type": "integer"
+                },
+                "tier": {
+                    "type": "integer"
                 }
             }
         },

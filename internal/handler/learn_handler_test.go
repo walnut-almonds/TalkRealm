@@ -16,6 +16,8 @@ type mockLearnService struct {
 	createLevelFn     func(userID uint, mode string, tier int, locale string) (*service.LevelView, error)
 	createCrosswordFn func(userID uint, tier int, locale string) (*service.CrosswordView, error)
 	guessFn           func(userID uint, levelID string, req *service.LearnGuessRequest) (*service.GuessOutcome, error)
+	hintFn            func(userID uint, levelID string, slot int) (*service.HintOutcome, error)
+	revealFn          func(userID uint, levelID string, slot int) (*service.GuessOutcome, error)
 	statsFn           func(userID uint) (*service.LearnStatsView, error)
 }
 
@@ -49,7 +51,7 @@ func (m *mockLearnService) Hint(
 	levelID string,
 	slot int,
 ) (*service.HintOutcome, error) {
-	return nil, nil //nolint:nilnil // 測試 stub，Task 4 補上正式實作
+	return m.hintFn(userID, levelID, slot)
 }
 
 func (m *mockLearnService) Reveal(
@@ -57,7 +59,7 @@ func (m *mockLearnService) Reveal(
 	levelID string,
 	slot int,
 ) (*service.GuessOutcome, error) {
-	return nil, nil //nolint:nilnil // 測試 stub，Task 4 補上正式實作
+	return m.revealFn(userID, levelID, slot)
 }
 
 func (m *mockLearnService) Stats(userID uint) (*service.LearnStatsView, error) {
@@ -81,6 +83,8 @@ func setupLearnRouter(svc service.LearnService) *gin.Engine {
 	r.POST("/learn/levels", auth, h.CreateLevel)
 	r.POST("/learn/levels/crossword", auth, h.CreateCrossword)
 	r.POST("/learn/levels/:id/guess", auth, h.Guess)
+	r.POST("/learn/levels/:id/hint", auth, h.Hint)
+	r.POST("/learn/levels/:id/reveal", auth, h.Reveal)
 	r.GET("/learn/stats", auth, h.GetStats)
 
 	return r
@@ -211,5 +215,81 @@ func TestCreateCrosswordInvalidTier(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d", w.Code)
+	}
+}
+
+func TestHintOK(t *testing.T) {
+	svc := &mockLearnService{
+		hintFn: func(userID uint, levelID string, slot int) (*service.HintOutcome, error) {
+			if userID != 7 || levelID != "xyz" || slot != 0 {
+				t.Errorf("args: %d %s %d", userID, levelID, slot)
+			}
+
+			return &service.HintOutcome{Slot: 0, Tier: 1, Masked: "s___"}, nil
+		},
+	}
+
+	body, _ := json.Marshal(map[string]any{"slot": 0})
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/learn/levels/xyz/hint",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	setupLearnRouter(svc).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHintNotSupported(t *testing.T) {
+	svc := &mockLearnService{
+		hintFn: func(uint, string, int) (*service.HintOutcome, error) {
+			return nil, service.ErrLearnHintNotSupported
+		},
+	}
+
+	body, _ := json.Marshal(map[string]any{"slot": 0})
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/learn/levels/xyz/hint",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	setupLearnRouter(svc).ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d", w.Code)
+	}
+}
+
+func TestRevealOK(t *testing.T) {
+	svc := &mockLearnService{
+		revealFn: func(userID uint, levelID string, slot int) (*service.GuessOutcome, error) {
+			return &service.GuessOutcome{Correct: true, Slot: slot, Word: "star", XPAwarded: 0}, nil
+		},
+	}
+
+	body, _ := json.Marshal(map[string]any{"slot": 0})
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/learn/levels/xyz/reveal",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	setupLearnRouter(svc).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, body = %s", w.Code, w.Body.String())
 	}
 }
