@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	ErrLearnLevelNotFound = errors.New("learn level not found or expired")
-	ErrLearnInvalidMode   = errors.New("invalid mode: must be fill or wheel")
-	ErrLearnInvalidTier   = errors.New("invalid tier: must be 1..5")
-	ErrLearnSlotSolved    = errors.New("slot already solved")
+	ErrLearnLevelNotFound    = errors.New("learn level not found or expired")
+	ErrLearnInvalidMode      = errors.New("invalid mode: must be fill or wheel")
+	ErrLearnInvalidTier      = errors.New("invalid tier: must be 1..5")
+	ErrLearnSlotSolved       = errors.New("slot already solved")
+	ErrLearnHintNotSupported = errors.New("hint not supported for this mode")
 )
 
 const (
@@ -80,6 +81,14 @@ type GuessOutcome struct {
 	XPAwarded  int    `json:"xp_awarded"`
 	Completed  bool   `json:"completed"`
 	TotalXP    int    `json:"total_xp,omitempty"`
+}
+
+// HintOutcome 提示觸發結果
+type HintOutcome struct {
+	Slot       int    `json:"slot"`
+	Tier       int    `json:"tier"`
+	Masked     string `json:"masked,omitempty"`
+	Definition string `json:"definition,omitempty"`
 }
 
 // RecentWordView 最近作答的字
@@ -175,6 +184,7 @@ type LearnService interface {
 	CreateLevel(userID uint, mode string, tier int, locale string) (*LevelView, error)
 	CreateCrosswordLevel(userID uint, tier int, locale string) (*CrosswordView, error)
 	Guess(userID uint, levelID string, req *LearnGuessRequest) (*GuessOutcome, error)
+	Hint(userID uint, levelID string, slot int) (*HintOutcome, error)
 	Stats(userID uint) (*LearnStatsView, error)
 	DailyLevel(userID uint, locale string) (*DailyView, error)
 	DailyLeaderboard(userID uint) (*LeaderboardView, error)
@@ -498,6 +508,73 @@ func (s *learnService) guessFillWheel(
 	return out, nil
 }
 
+// Hint 讓指定 slot 的提示前進一階；依 Redis 信封的 Mode 分流
+func (s *learnService) Hint(userID uint, levelID string, slot int) (*HintOutcome, error) {
+	env, err := loadEnvelope(s.store, levelID)
+	if err != nil {
+		return nil, err
+	}
+
+	switch env.Mode {
+	case ModeCrossword:
+		return s.hintCrossword(userID, env, slot)
+	case ModeWheel:
+		return s.hintWheel(userID, env, slot)
+	default:
+		return nil, ErrLearnHintNotSupported
+	}
+}
+
+// hintWheel 處理 wheel 模式的提示前進
+func (s *learnService) hintWheel(userID uint, env *levelEnvelope, slot int) (*HintOutcome, error) {
+	var lv learnLevel
+	if err := json.Unmarshal(env.Data, &lv); err != nil {
+		return nil, err
+	}
+
+	if lv.UserID != userID {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	if slot < 0 || slot >= len(lv.Words) {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	if lv.Solved[slot] {
+		return nil, ErrLearnSlotSolved
+	}
+
+	out := advanceHint(&lv.HintTier[slot], &lv.HintPos[slot], lv.Words[slot], lv.Defs[slot], slot)
+
+	if err := s.saveLevel(&lv); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+// advanceHint 讓提示前進一階：0→1 隨機揭一個字母；1→2 顯示釋義；已在 2 原樣回傳
+func advanceHint(tier, pos *int, word, def string, slot int) *HintOutcome {
+	switch *tier {
+	case 0:
+		*pos = newLevelRand().Intn(len(word))
+		*tier = 1
+
+		return &HintOutcome{Slot: slot, Tier: 1, Masked: maskWithHint(word, *pos)}
+	case 1:
+		*tier = 2
+
+		return &HintOutcome{Slot: slot, Tier: 2, Masked: maskWithHint(word, *pos), Definition: def}
+	default:
+		return &HintOutcome{
+			Slot:       slot,
+			Tier:       *tier,
+			Masked:     maskWithHint(word, *pos),
+			Definition: def,
+		}
+	}
+}
+
 // onLevelCompleted 完成關卡：更新 XP 與 streak；daily 非空時另記當日分數。
 // 簽名用原生型別（不吃 *learnLevel），fill/wheel/crossword 都能呼叫。
 func (s *learnService) onLevelCompleted(
@@ -814,7 +891,11 @@ func levelView(lv *learnLevel) *LevelView {
 			slot.Definition = lv.Defs[i]
 			slot.Masked = maskedWord(word, lv.Masks[i])
 		} else {
-			slot.Masked = strings.Repeat("_", len(word))
+			slot.Masked = maskWithHint(word, lv.HintPos[i])
+
+			if lv.HintTier[i] >= 2 {
+				slot.Definition = lv.Defs[i]
+			}
 		}
 
 		if lv.Solved[i] {

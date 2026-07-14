@@ -199,6 +199,40 @@ func testWords() []*model.Word {
 	}
 }
 
+// wheelAnagramWords 供 wheel 模式測試使用：彼此互為 anagram 子字，
+// 與 testWords()（star/moon，無交集）不同，findWheelBase 才找得到謎面。
+func wheelAnagramWords() []*model.Word {
+	const rat = "rat"
+
+	return []*model.Word{
+		{
+			ID:             1,
+			Word:           "star",
+			Tier:           2,
+			Frequency:      100,
+			DefinitionEN:   "gas ball",
+			DefinitionZHTW: "星星",
+		},
+		{ID: 2, Word: rat, Tier: 2, Frequency: 200, DefinitionEN: "rodent", DefinitionZHTW: "老鼠"},
+		{
+			ID:             3,
+			Word:           "art",
+			Tier:           2,
+			Frequency:      150,
+			DefinitionEN:   "creative work",
+			DefinitionZHTW: "藝術",
+		},
+		{
+			ID:             4,
+			Word:           "tar",
+			Tier:           2,
+			Frequency:      300,
+			DefinitionEN:   "black goo",
+			DefinitionZHTW: "焦油",
+		},
+	}
+}
+
 func TestFillLevelFlow(t *testing.T) {
 	svc, repo := newTestService(testWords())
 
@@ -403,5 +437,86 @@ func TestHintDiscount(t *testing.T) {
 		if got := hintDiscount(tt.xp, tt.tier); got != tt.want {
 			t.Errorf("hintDiscount(%d,%d) = %d want %d", tt.xp, tt.tier, got, tt.want)
 		}
+	}
+}
+
+func TestHintWheelProgression(t *testing.T) {
+	svc, _ := newTestService(wheelAnagramWords())
+
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel: %v", err)
+	}
+
+	out, err := svc.Hint(7, lv.LevelID, 0)
+	if err != nil {
+		t.Fatalf("Hint tier1: %v", err)
+	}
+
+	if out.Tier != 1 || out.Definition != "" {
+		t.Errorf("tier1 outcome: %+v", out)
+	}
+
+	revealed := 0
+
+	for _, ch := range out.Masked {
+		if ch != '_' {
+			revealed++
+		}
+	}
+
+	if revealed != 1 {
+		t.Errorf("tier1 masked %q should reveal exactly 1 letter", out.Masked)
+	}
+
+	out2, err := svc.Hint(7, lv.LevelID, 0)
+	if err != nil {
+		t.Fatalf("Hint tier2: %v", err)
+	}
+
+	if out2.Tier != 2 || out2.Definition == "" {
+		t.Errorf("tier2 outcome: %+v", out2)
+	}
+
+	out3, err := svc.Hint(7, lv.LevelID, 0)
+	if err != nil {
+		t.Fatalf("Hint tier2 repeat: %v", err)
+	}
+
+	if out3.Tier != 2 {
+		t.Errorf("hint beyond tier2 should stay at 2: %+v", out3)
+	}
+}
+
+func TestHintRejectsSolvedSlot(t *testing.T) {
+	const rat = "rat"
+
+	svc, _ := newTestService(wheelAnagramWords())
+
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel: %v", err)
+	}
+
+	out, err := svc.Guess(7, lv.LevelID, &LearnGuessRequest{Word: rat})
+	if err != nil {
+		t.Fatalf("Guess: %v", err)
+	}
+
+	if _, err := svc.Hint(7, lv.LevelID, out.Slot); !errors.Is(err, ErrLearnSlotSolved) {
+		t.Errorf("expected ErrLearnSlotSolved, got %v", err)
+	}
+}
+
+func TestHintRejectsFillMode(t *testing.T) {
+	svc, _ := newTestService(testWords())
+
+	lv, err := svc.CreateLevel(7, ModeFill, 2, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel: %v", err)
+	}
+
+	if _, err := svc.Hint(7, lv.LevelID, 0); !errors.Is(err, ErrLearnHintNotSupported) {
+		t.Errorf("expected ErrLearnHintNotSupported, got %v", err)
 	}
 }

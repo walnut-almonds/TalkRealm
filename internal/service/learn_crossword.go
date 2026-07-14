@@ -287,12 +287,14 @@ type crosswordLevel struct {
 
 // CrosswordSlot 單一答案在交叉字謎網格中的呈現（下發 client，不含未解出的答案）
 type CrosswordSlot struct {
-	Row    int    `json:"row"`
-	Col    int    `json:"col"`
-	Dir    string `json:"dir,omitempty"` // 空字串 = bonus 字，此時 row/col 無意義
-	Length int    `json:"length"`
-	Solved bool   `json:"solved"`
-	Word   string `json:"word,omitempty"`
+	Row        int    `json:"row"`
+	Col        int    `json:"col"`
+	Dir        string `json:"dir,omitempty"` // 空字串 = bonus 字，此時 row/col 無意義
+	Length     int    `json:"length"`
+	Masked     string `json:"masked"`
+	Definition string `json:"definition,omitempty"`
+	Solved     bool   `json:"solved"`
+	Word       string `json:"word,omitempty"`
 }
 
 // CrosswordView 交叉字謎關卡謎面
@@ -411,7 +413,10 @@ func crosswordView(lv *crosswordLevel) *CrosswordView {
 	}
 
 	for i, word := range lv.Words {
-		slot := CrosswordSlot{Length: len(word), Solved: lv.Solved[i]}
+		slot := CrosswordSlot{
+			Length: len(word), Solved: lv.Solved[i],
+			Masked: maskWithHint(word, lv.HintPos[i]),
+		}
 
 		if lv.Dir[i] != "" {
 			slot.Row = lv.Row[i]
@@ -419,14 +424,52 @@ func crosswordView(lv *crosswordLevel) *CrosswordView {
 			slot.Dir = lv.Dir[i]
 		}
 
+		if lv.HintTier[i] >= 2 {
+			slot.Definition = lv.Defs[i]
+		}
+
 		if lv.Solved[i] {
 			slot.Word = word
+			slot.Masked = word
+			slot.Definition = lv.Defs[i]
 		}
 
 		v.Words = append(v.Words, slot)
 	}
 
 	return v
+}
+
+// hintCrossword 處理 crossword 模式的提示前進
+func (s *learnService) hintCrossword(
+	userID uint,
+	env *levelEnvelope,
+	slot int,
+) (*HintOutcome, error) {
+	var lv crosswordLevel
+	if err := json.Unmarshal(env.Data, &lv); err != nil {
+		return nil, err
+	}
+
+	if lv.UserID != userID {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	if slot < 0 || slot >= len(lv.Words) {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	if lv.Solved[slot] {
+		return nil, ErrLearnSlotSolved
+	}
+
+	out := advanceHint(&lv.HintTier[slot], &lv.HintPos[slot], lv.Words[slot], lv.Defs[slot], slot)
+
+	if err := saveEnvelope(s.store, lv.ID, ModeCrossword, &lv); err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }
 
 // guessCrossword 處理 crossword 的作答：字母盤送字，後端找出命中哪個字

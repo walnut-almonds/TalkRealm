@@ -380,11 +380,15 @@ definitions:
     properties:
       col:
         type: integer
+      definition:
+        type: string
       dir:
         description: 空字串 = bonus 字，此時 row/col 無意義
         type: string
       length:
         type: integer
+      masked:
+        type: string
       row:
         type: integer
       solved:
