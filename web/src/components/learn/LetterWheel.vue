@@ -13,20 +13,13 @@ const tray = ref(null)
 const done = computed(() => learn.level?.slots.every(s => s.solved))
 
 async function onSubmit(word) {
+    // 回填 solved slot 的責任在 useLearnStore 的 guess() action，這裡只負責畫面回饋
     const out = await learn.guess(-1, word)
     tray.value.reset()
 
     if (!out) return
 
     tray.value.setFeedback(out.correct)
-
-    if (out.correct && out.slot >= 0) {
-        const s = learn.level.slots[out.slot]
-        s.solved = true
-        s.word = out.word
-        s.masked = out.word
-        s.definition = out.definition
-    }
 }
 </script>
 
