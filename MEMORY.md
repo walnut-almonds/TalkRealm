@@ -25,6 +25,7 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 ## Architecture Notes
 - `internal/server/server.go`：DI 組裝、路由設定的主入口
 - **Learn 模組（單字學習遊戲）**：`/api/v1/learn/*`；spec 在 `docs/superpowers/specs/2026-07-08-learn-vocab-game-design.md`（gitignored，本地）。模組邊界：learn 表（`words`/`learn_*`）只存 plain `user_id` 不建 GORM 關聯、排行榜顯示走 `LearnUserLookup` interface、Redis key 全帶 `learn:` 前綴——為未來拆獨立 service 預留。關卡含答案存 LevelStore（Redis，無 Redis 退記憶體）TTL 2h；每日挑戰用 SetNX 快取當日模板達成全站同題；anagram 索引（`learn_anagram.go`）lazy 建於首個 wheel 請求。
+- **Learn crossword 模式**（`internal/service/learn_crossword.go`，spec 見 `docs/superpowers/specs/2026-07-13-crossword-grid-mode-design.md`）：答案字互相交叉排成 2D 網格（Wordscapes 式自由形狀），獨立於 fill/wheel——`crosswordLevel` 是全新 struct，不與 `learnLevel` 共用；Redis 存值多包一層 `levelEnvelope{Mode, Data}` 信封辨識模式（`saveEnvelope`/`loadEnvelope`），`Guess` 依 `env.Mode` 分流到 `guessFillWheel`/`guessCrossword`。排版演算法是回溯搜尋 + branch-and-bound 剪枝 + 步數上限（20000）保底，找不出交叉的字會落到 bonus 列表。前端交叉格「提前顯示字母」完全是前端純渲染衍生（`crosswordGrid.js` 的 `buildCells`），後端不用額外算。前端 `LetterTray.vue` 是從 `LetterWheel.vue` 抽出的共用字母盤點選元件，`Crossword.vue` 與 `LetterWheel.vue` 都用它。
 - `internal/websocket/manager.go`：channel 訂閱索引（`channelSubscriptions map[uint]map[*Client]bool`）+ guild 訂閱索引（`guildSubscriptions map[uint]map[*Client]bool`），O(1) 廣播；jwtManager 注入用於 identify op；identify 後自動呼叫 `SubscribeClientToUserGuilds` 訂閱所有 guild
 - WS 協議：client→server op: `identify`, `heartbeat`, `subscribe`, `unsubscribe`, `typing_start`, `send_message`, `voice_state_update`；server→client op: `hello`, `ready`, `heartbeat_ack`, `message_create`, `message_update`, `message_delete`, `typing_start`, `presence_update`, `error`, `guild_update`, `guild_delete`, `guild_member_add`, `guild_member_remove`, `guild_member_update`, `channel_create`, `channel_update`, `channel_delete`, `voice_state_update`
 - WS 端點：`GET /api/v1/ws`（無需 JWT 中間件，由 identify op 驗證）
@@ -81,6 +82,9 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-07-14
+ — 新增 Learn crossword 交叉字謎網格模式（獨立於 fill/wheel，見 Architecture Notes）；已用真實瀏覽器完整驗證（2D 網格渲染、cross-reveal 提示、bonus 字列表、完關計分皆正常）
+
 2026-07-13
  — 設定入口收斂到 NavRail 底部齒輪；Learn 困難模式（隱藏底線數）上線（見 Decisions 設定架構條目）
 
