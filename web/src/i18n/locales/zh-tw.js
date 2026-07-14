@@ -403,6 +403,7 @@ export default {
         modeCrossword: '填字網格',
         modeCrosswordDesc: '拼出互相交叉的單字網格',
         bonusWords: '額外單字',
+        hintLetter: '揭露字母', hintDefinition: '顯示釋義', hintReveal: '揭曉答案',
         typeAnswer: '輸入答案…',
         submit: '送出',
         clear: '清除',

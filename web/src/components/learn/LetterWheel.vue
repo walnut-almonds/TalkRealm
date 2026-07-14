@@ -2,8 +2,8 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
-import { maskSegments } from './mask.js'
 import LetterTray from './LetterTray.vue'
+import HintList from './HintList.vue'
 
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
@@ -11,6 +11,10 @@ const { t } = useI18n()
 const tray = ref(null)
 
 const done = computed(() => learn.level?.slots.every(s => s.solved))
+const hintItems = computed(() => (learn.level?.slots || []).map((s, i) => ({
+    index: i, length: s.length, masked: s.masked, definition: s.definition,
+    solved: s.solved, hintTier: s.hint_tier || 0,
+})))
 
 async function onSubmit(word) {
     // 回填 solved slot 的責任在 useLearnStore 的 guess() action，這裡只負責畫面回饋
@@ -21,22 +25,19 @@ async function onSubmit(word) {
 
     tray.value.setFeedback(out.correct)
 }
+
+async function onHint(index) {
+    await learn.hint(index)
+}
+
+async function onReveal(index) {
+    await learn.reveal(index)
+}
 </script>
 
 <template>
   <div class="wheel">
-    <div v-if="!done" class="wheel__slots">
-      <div v-for="(slot, i) in learn.level.slots" :key="i" :class="['wh-slot', { solved: slot.solved }]">
-        <span class="wh-word">
-          <span
-            v-for="(seg, j) in maskSegments(slot.masked, learn.hardMode && !slot.solved)"
-            :key="j"
-            :class="['wh-char', { gap: seg.gap }]"
-          >{{ seg.ch }}</span>
-        </span>
-        <span v-if="slot.solved" class="wh-def">{{ slot.definition }}</span>
-      </div>
-    </div>
+    <HintList v-if="!done" :items="hintItems" @hint="onHint" @reveal="onReveal" />
 
     <LetterTray v-if="!done" ref="tray" :letters="learn.level.letters" @submit="onSubmit" />
 
@@ -51,18 +52,6 @@ async function onSubmit(word) {
 <style scoped>
 /* Kinetic Noir：直角、hairline、accent 唯一裝飾色、Geist Mono 計分 */
 .wheel { display: flex; flex-direction: column; gap: 20px; max-width: 480px; margin: 0 auto; padding: 24px 16px; }
-.wheel__slots { display: flex; flex-direction: column; gap: 8px; }
-.wh-slot { display: flex; align-items: baseline; gap: 12px; }
-.wh-word { display: flex; gap: 4px; }
-.wh-char {
-    width: 22px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid var(--border);
-    font-family: var(--font-mono); font-size: 16px; text-transform: lowercase;
-}
-/* 困難模式：一段連續缺字只給一個固定寬度格 */
-.wh-char.gap { width: 60px; }
-.wh-slot.solved .wh-char { border-color: var(--accent); }
-.wh-def { font-size: 12px; color: var(--text-muted); }
 .wh-btn {
     padding: 8px 18px; background: transparent; color: inherit;
     border: 1px solid var(--border); cursor: pointer;

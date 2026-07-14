@@ -3,9 +3,9 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
-import { maskSegments } from './mask.js'
 import { buildCells } from './crosswordGrid.js'
 import LetterTray from './LetterTray.vue'
+import HintList from './HintList.vue'
 
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
@@ -16,7 +16,10 @@ const words = computed(() => learn.crossword?.words || [])
 const rows = computed(() => learn.crossword?.rows || 0)
 const cols = computed(() => learn.crossword?.cols || 0)
 const cells = computed(() => buildCells(words.value, rows.value, cols.value))
-const bonusWords = computed(() => words.value.filter(w => !w.dir))
+const hintItems = computed(() => words.value.map((w, i) => ({
+    index: i, length: w.length, masked: w.masked, definition: w.definition,
+    solved: w.solved, hintTier: w.hint_tier || 0,
+})))
 const done = computed(() => words.value.length > 0 && words.value.every(w => w.solved))
 
 async function onSubmit(word) {
@@ -26,6 +29,14 @@ async function onSubmit(word) {
     if (!out) return
 
     tray.value.setFeedback(out.correct)
+}
+
+async function onHint(index) {
+    await learn.hintCrossword(index)
+}
+
+async function onReveal(index) {
+    await learn.revealCrossword(index)
 }
 </script>
 
@@ -45,18 +56,7 @@ async function onSubmit(word) {
       </template>
     </div>
 
-    <div v-if="!done && bonusWords.length" class="crossword__bonus">
-      <h4>{{ t('learn.bonusWords') }}</h4>
-      <div class="cw-bonus-row">
-        <div v-for="(w, i) in bonusWords" :key="i" class="cw-bonus-word">
-          <span
-            v-for="(seg, j) in maskSegments(w.solved ? w.word : '_'.repeat(w.length), learn.hardMode && !w.solved)"
-            :key="j"
-            :class="['cw-bonus-char', { gap: seg.gap }]"
-          >{{ seg.ch }}</span>
-        </div>
-      </div>
-    </div>
+    <HintList v-if="!done" :items="hintItems" @hint="onHint" @reveal="onReveal" />
 
     <LetterTray v-if="!done" ref="tray" :letters="learn.crossword?.letters || ''" @submit="onSubmit" />
 
@@ -77,15 +77,6 @@ async function onSubmit(word) {
 }
 .cw-cell.filled { border: 1px solid var(--border); }
 .cw-cell.empty { border: none; background: transparent; }
-.crossword__bonus { width: 100%; }
-.crossword__bonus h4 { font-size: 12px; color: var(--text-muted); margin: 0 0 8px; }
-.cw-bonus-row { display: flex; flex-wrap: wrap; gap: 10px; }
-.cw-bonus-word { display: flex; gap: 2px; }
-.cw-bonus-char {
-    width: 20px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
-    border-bottom: 1px solid var(--border); font-family: var(--font-mono); font-size: 14px; text-transform: lowercase;
-}
-.cw-bonus-char.gap { width: 60px; }
 .crossword__done { text-align: center; padding: 40px 0; }
 .cw-back { padding: 8px 18px; background: transparent; color: inherit; border: 1px solid var(--border); cursor: pointer; }
 .cw-back:hover { background: var(--accent); color: var(--bg-tertiary); }

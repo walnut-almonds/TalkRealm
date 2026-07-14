@@ -400,6 +400,7 @@ export default {
         modeCrossword: 'Crossword',
         modeCrosswordDesc: 'Form words that interlock in a shared grid',
         bonusWords: 'Bonus words',
+        hintLetter: 'Reveal a letter', hintDefinition: 'Show definition', hintReveal: 'Reveal answer',
         typeAnswer: 'Type your answer…',
         submit: 'Submit',
         clear: 'Clear',

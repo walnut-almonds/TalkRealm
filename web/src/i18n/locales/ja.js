@@ -403,6 +403,7 @@ export default {
         modeCrossword: 'クロスワード',
         modeCrosswordDesc: '交差する単語のグリッドを作る',
         bonusWords: 'ボーナス単語',
+        hintLetter: '文字を1つ表示', hintDefinition: '意味を見る', hintReveal: '答えを表示',
         typeAnswer: '答えを入力…',
         submit: '送信',
         clear: 'クリア',
