@@ -11,6 +11,7 @@ export const useLearnStore = defineStore('learn', {
         lastOutcome: null,  // 最近一次 GuessOutcome
         daily: null,        // { date, played, score?, level? }
         leaderboard: null,  // { date, top[], me? }
+        crossword: null,    // CrosswordView：{ level_id, tier, rows, cols, letters, words[] }
         loading: false,
         error: '',
         // 純本機顯示偏好：隱藏底線數量（不影響計分）
@@ -61,6 +62,38 @@ export const useLearnStore = defineStore('learn', {
             } catch (e) {
                 // 410 = 關卡過期
                 if (String(e.message).includes('expired')) this.level = null
+                this.error = e.message
+                return null
+            }
+        },
+        async startCrossword(tier) {
+            this.loading = true
+            this.error = ''
+            this.lastOutcome = null
+            try {
+                this.crossword = await api.post(EP.LEARN_CROSSWORD, { tier, locale: getLocale() })
+            } catch (e) {
+                this.error = e.message
+            } finally {
+                this.loading = false
+            }
+        },
+        async guessCrossword(word) {
+            if (!this.crossword) return null
+            try {
+                const out = await api.post(EP.LEARN_GUESS(this.crossword.level_id), { slot: -1, word })
+                this.lastOutcome = out
+                if (out.correct) {
+                    const s = this.crossword.words[out.slot]
+                    if (s) {
+                        s.solved = true
+                        s.word = out.word
+                    }
+                }
+                if (out.completed) this.loadStats()
+                return out
+            } catch (e) {
+                if (String(e.message).includes('expired')) this.crossword = null
                 this.error = e.message
                 return null
             }

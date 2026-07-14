@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
 import WordFill from '@/components/learn/WordFill.vue'
 import LetterWheel from '@/components/learn/LetterWheel.vue'
+import Crossword from '@/components/learn/Crossword.vue'
 
 const learn = useLearnStore()
 const { t } = useI18n()
@@ -25,15 +26,21 @@ async function startDaily() {
     if (await learn.startDaily()) playing.value = true
 }
 
+async function startCrosswordMode() {
+    await learn.startCrossword(tier.value)
+    if (learn.crossword) playing.value = true
+}
+
 function exitGame() {
     playing.value = false
     learn.level = null
+    learn.crossword = null
 }
 </script>
 
 <template>
   <div class="learn-view">
-    <div v-if="playing && learn.level" class="learn-game">
+    <div v-if="playing && (learn.level || learn.crossword)" class="learn-game">
       <div class="learn-game__bar">
         <button
           :class="['hard-toggle', { on: learn.hardMode }]"
@@ -44,8 +51,9 @@ function exitGame() {
           <span>{{ t('learn.hardMode') }}</span>
         </button>
       </div>
-      <WordFill v-if="learn.level.mode === 'fill'" @exit="exitGame" />
-      <LetterWheel v-else @exit="exitGame" />
+      <WordFill v-if="learn.level?.mode === 'fill'" @exit="exitGame" />
+      <LetterWheel v-else-if="learn.level?.mode === 'wheel'" @exit="exitGame" />
+      <Crossword v-else-if="learn.crossword" @exit="exitGame" />
     </div>
 
     <div v-else class="learn-hub">
@@ -121,6 +129,11 @@ function exitGame() {
             <i class="fas fa-circle-nodes"></i>
             <span>{{ t('learn.modeWheel') }}</span>
             <small>{{ t('learn.modeWheelDesc') }}</small>
+          </button>
+          <button class="mode-btn" :disabled="learn.loading" @click="startCrosswordMode">
+            <i class="fas fa-border-all"></i>
+            <span>{{ t('learn.modeCrossword') }}</span>
+            <small>{{ t('learn.modeCrosswordDesc') }}</small>
           </button>
         </div>
 

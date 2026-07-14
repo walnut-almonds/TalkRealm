@@ -62,6 +62,7 @@ export const EP = {
     LEARN_STATS: '/api/v1/learn/stats',
     LEARN_DAILY: '/api/v1/learn/daily',
     LEARN_LEADERBOARD: '/api/v1/learn/daily/leaderboard',
+    LEARN_CROSSWORD: '/api/v1/learn/levels/crossword',
 }
 
 export const STORAGE_KEYS = {
