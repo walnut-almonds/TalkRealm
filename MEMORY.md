@@ -25,7 +25,8 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 ## Architecture Notes
 - `internal/server/server.go`：DI 組裝、路由設定的主入口
 - **Learn 模組（單字學習遊戲）**：`/api/v1/learn/*`；spec 在 `docs/superpowers/specs/2026-07-08-learn-vocab-game-design.md`（gitignored，本地）。模組邊界：learn 表（`words`/`learn_*`）只存 plain `user_id` 不建 GORM 關聯、排行榜顯示走 `LearnUserLookup` interface、Redis key 全帶 `learn:` 前綴——為未來拆獨立 service 預留。關卡含答案存 LevelStore（Redis，無 Redis 退記憶體）TTL 2h；每日挑戰用 SetNX 快取當日模板達成全站同題；anagram 索引（`learn_anagram.go`）lazy 建於首個 wheel 請求。
-- **Learn crossword 模式**（`internal/service/learn_crossword.go`，spec 見 `docs/superpowers/specs/2026-07-13-crossword-grid-mode-design.md`）：答案字互相交叉排成 2D 網格（Wordscapes 式自由形狀），獨立於 fill/wheel——`crosswordLevel` 是全新 struct，不與 `learnLevel` 共用；Redis 存值多包一層 `levelEnvelope{Mode, Data}` 信封辨識模式（`saveEnvelope`/`loadEnvelope`），`Guess` 依 `env.Mode` 分流到 `guessFillWheel`/`guessCrossword`。排版演算法是回溯搜尋 + branch-and-bound 剪枝 + 步數上限（20000）保底，找不出交叉的字會落到 bonus 列表。前端交叉格「提前顯示字母」完全是前端純渲染衍生（`crosswordGrid.js` 的 `buildCells`），後端不用額外算。前端 `LetterTray.vue` 是從 `LetterWheel.vue` 抽出的共用字母盤點選元件，`Crossword.vue` 與 `LetterWheel.vue` 都用它。
+- **Learn crossword 模式**（`internal/service/learn_crossword.go`，spec 見 `docs/superpowers/specs/2026-07-13-crossword-grid-mode-design.md`）：答案字互相交叉排成 2D 網格（Wordscapes 式自由形狀），獨立於 fill/wheel——`crosswordLevel` 是全新 struct，不與 `learnLevel` 共用；Redis 存值多包一層 `levelEnvelope{Mode, Data}` 信封辨識模式（`saveEnvelope`/`loadEnvelope`），`Guess` 依 `env.Mode` 分流到 `guessFillWheel`/`guessCrossword`。排版演算法是回溯搜尋 + branch-and-bound 剪枝 + 步數上限（20000）保底，找不出交叉的字會落到 bonus 列表。前端交叉格「提前顯示字母」完全是前端純渲染衍生（`crosswordGrid.js` 的 `buildCells`，依 `masked` 欄位逐格取非底線字元），後端不用額外算。前端 `LetterTray.vue` 是從 `LetterWheel.vue` 抽出的共用字母盤點選元件，`Crossword.vue` 與 `LetterWheel.vue` 都用它。
+- **Learn 提示系統（hint/reveal）**：spec 見 `docs/superpowers/specs/2026-07-14-learn-hint-system-design.md`。三階提示梯（`maskWithHint`/`hintDiscount`/`advanceHint`，`internal/service/learn_service.go`）：`base=len(word)*tier`；tier0 原價；tier1（揭 1 字母）扣 1/4；tier2（顯示釋義）只剩 1/4；「揭曉答案」任何階段都可跳（0 XP，且不寫入 `learn_word_records`，不算學習信號）。`learnLevel`/`crosswordLevel` 各字都帶平行陣列 `HintTier[]`/`HintPos[]`，`Hint`/`Reveal` 依 envelope `Mode` 分流到 `hintWheel`/`hintCrossword`、`revealWheel`/`revealCrossword`，`Guess` 的 XP 計算統一套 `hintDiscount`。前端統一提示面板 `HintList.vue`（依 `hintTier` 顯示「揭字母/顯示釋義/揭曉答案」按鈕文案），`LetterWheel.vue`/`Crossword.vue` 都嵌入同一元件，各自把 `slots`/`words` 轉成 `hintItems` 餵給它。
 - `internal/websocket/manager.go`：channel 訂閱索引（`channelSubscriptions map[uint]map[*Client]bool`）+ guild 訂閱索引（`guildSubscriptions map[uint]map[*Client]bool`），O(1) 廣播；jwtManager 注入用於 identify op；identify 後自動呼叫 `SubscribeClientToUserGuilds` 訂閱所有 guild
 - WS 協議：client→server op: `identify`, `heartbeat`, `subscribe`, `unsubscribe`, `typing_start`, `send_message`, `voice_state_update`；server→client op: `hello`, `ready`, `heartbeat_ack`, `message_create`, `message_update`, `message_delete`, `typing_start`, `presence_update`, `error`, `guild_update`, `guild_delete`, `guild_member_add`, `guild_member_remove`, `guild_member_update`, `channel_create`, `channel_update`, `channel_delete`, `voice_state_update`
 - WS 端點：`GET /api/v1/ws`（無需 JWT 中間件，由 identify op 驗證）
@@ -35,6 +36,7 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - REST API 路由前綴：`/api/v1/`
 - WebSocket 端點：`GET /api/v1/ws`（token 透過 identify op 傳遞，不再放 query string）
 - 目前訊息分頁是 offset，計畫改為 cursor-based（before message_id）
+- **Learn words 表冪等 seeding**：`pkg/database/seed.go` 的 `SeedWords(csvPath)` 用 `ON CONFLICT(word) DO UPDATE` upsert（保留既有 `id`，不動 `learn_word_records.word_id`/Redis in-flight 關卡狀態），`cmd/server/main.go` 在 `AutoMigrate()` 後每次開機都無條件呼叫（讀不到 CSV 只 `logger.Warn`，非 fatal）；`Dockerfile` 對應 `COPY data/words.csv`。故意不用「CI 偵測 words.csv 變更才 TRUNCATE+INSERT」：TRUNCATE 會重置 auto-increment id，破壞既有 `word_id` 參照與進行中的關卡。`scripts/seedwords/main.go`（本機用）與開機路徑共用同一 `SeedWords`。
 
 ## Pitfalls
 - **OG 預覽對非 HTML 連結**：`GET /api/v1/og` 遇到 `image/*` 或其他非 `text/html` 內容時，現在改為回 `200`（image 會帶最小預覽 `{image:url}`，其他類型回空 OG）而非 `422`。可避免前端在訊息含 CDN 圖片連結（例如 `googleusercontent` avatar URL）時持續出現 console `Unprocessable Content`。
@@ -72,6 +74,8 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - **GORM 欄位命名陷阱（連續大寫縮寫）**：`DefinitionZHTW` 會被 GORM naming 轉成 `definition_zhtw`（不是 `definition_zh_tw`；json tag 可以自訂但 DB 欄位名跟著 GORM）。手寫 SQL/`clause.AssignmentColumns` 的欄位字串必須用 GORM 實際命名。同理 `ContentZHTW` → `content_zhtw`。
 - **Postgres ON CONFLICT DO UPDATE 歧義**：`gorm.Expr("col + 1")` 在 DO UPDATE 內會報 42702（target 表與 excluded 都有該欄），必須帶表名：`gorm.Expr("learn_word_records.col + 1")`。mock repo 的單元測試測不出這類 SQL 錯誤，改 upsert 語句後要對真 DB 打一次。
 - **本機驗證埠衝突**：5432/8080 可能被同機其他專案容器（infra-postgres/lobby）占用；smoke test 可用臨時容器（如 5433）+ `configs/config.yaml`（gitignored）改埠。
+- **`AllWordsForIndex()` 輕量 SELECT 誤用陷阱**：`internal/repository/learn_repository.go` 的 `AllWordsForIndex()` 為了 anagram 索引效能故意只 `Select("id","word","tier","frequency","length")`，回傳的 `model.Word` 沒有 `Phonetic`/`Definition*`。`buildWheelLevel`/`buildCrosswordLevel` 曾直接拿這份輕量物件當最終答案資料，導致 wheel/crossword 所有非底字答案的音標/釋義自上線起就一直是空字串（fill 模式與底字沒事，因為底字另外用 `RandomWordsByTier` 全欄位查）。修法：`picked` 選定後再用 `s.repo.WordsByIDs(pickedIDs)` 換回全欄位（`internal/service/learn_service.go`/`learn_crossword.go`）。`fakeLearnRepo.AllWordsForIndex()`（`learn_service_test.go`）原本直接回傳完整 fixture，等於白盒測試也測不出來——已改成如實剝掉 phonetic/definition 欄位以誠實模擬正式環境；日後改 `AllWordsForIndex` 相關邏輯前，先確認 fake 是否仍誠實反映真實 SELECT 範圍。
+- **`crosswordGrid.js` 的 `buildCells` 曾只認 `solved`**：交叉字謎前端只在單字整個解開（`word.solved && word.word`）時才把字母畫進網格格子，導致對網格字下「揭字母」提示時，提示清單顯示揭露字母、但網格格子仍是空的——兩處呈現不同步。後端 `masked` 欄位其實已經把提示揭露的字母也算進去（`maskWithHint`，底線代表未揭露）；修法是網格改吃 `masked` 逐格取非底線字元（不論是否 `solved`），而非只看 `solved`。
 
 ## Decisions
 - **設定架構：齒輪只有一顆**。全站唯一設定入口在 NavRail 底部（`nav-foot`，呼叫 MainLayout `provide('openModal')` 開 `UserSettingsModal`）；modal 內用 section 分區（帳號/GIF/學習/密碼），新功能設定加 section、不新增齒輪。「改了立刻想看效果」的偏好做成功能內 inline 控制項（如 Learn 困難模式 toggle，hub 與遊戲中各一顆，同一份狀態）。純本機顯示偏好存 localStorage（`talkrealm_learn_hard`，state 在 `useLearnStore.hardMode`），需跨裝置/影響計分時才升級後端。困難模式渲染：`components/learn/mask.js` 的 `maskSegments()` 把連續 `_` 收成單一 gap 格。
@@ -83,6 +87,8 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 
 ## Last Updated
 2026-07-14
+ — Learn wheel/crossword 三階提示系統（hint/reveal，見 Architecture Notes）上線，含前端統一 `HintList.vue`；真實瀏覽器驗證時額外發現並修復兩個既有 bug：(1) wheel/crossword 非底字答案音標/釋義自上線起一直是空字串（`AllWordsForIndex` 輕量 SELECT 誤用，見 Pitfalls），(2) crossword 網格對已提示但未解出的字不會 cross-reveal（`crosswordGrid.js` 只認 `solved`，見 Pitfalls）
+ — 生產環境 `words` 表冪等 seeding 上線（開機自動 upsert，見 Architecture Notes 新增條目）；修復 crossword 誤顯示前一次 wheel 介面的殘留 state race，並補上遊戲中退出按鈕
  — 新增 Learn crossword 交叉字謎網格模式（獨立於 fill/wheel，見 Architecture Notes）；已用真實瀏覽器完整驗證（2D 網格渲染、cross-reveal 提示、bonus 字列表、完關計分皆正常）
 
 2026-07-13
