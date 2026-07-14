@@ -382,6 +382,29 @@ func (s *learnService) buildWheelLevel(
 
 	picked = append(picked, base) // 底字放最後（最長）
 
+	// picked 目前只有 idx 的輕量欄位（無 phonetic/definition），
+	// 需重新取完整欄位才能填入最終謎面資料
+	pickedIDs := make([]uint, len(picked))
+	for i, w := range picked {
+		pickedIDs[i] = w.ID
+	}
+
+	fullWords, err := s.repo.WordsByIDs(pickedIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	byID := map[uint]*model.Word{}
+	for _, w := range fullWords {
+		byID[w.ID] = w
+	}
+
+	for i, w := range picked {
+		if full := byID[w.ID]; full != nil {
+			picked[i] = full
+		}
+	}
+
 	rng := newLevelRand()
 	letters := []byte(base.Word)
 	rng.Shuffle(len(letters), func(i, j int) { letters[i], letters[j] = letters[j], letters[i] })

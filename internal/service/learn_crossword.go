@@ -365,6 +365,29 @@ func (s *learnService) buildCrosswordLevel(
 
 	picked = append(picked, base)
 
+	// picked 目前只有 idx 的輕量欄位（無 phonetic/definition），
+	// 需重新取完整欄位才能填入最終謎面資料
+	pickedIDs := make([]uint, len(picked))
+	for i, w := range picked {
+		pickedIDs[i] = w.ID
+	}
+
+	fullWords, err := s.repo.WordsByIDs(pickedIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	byID := map[uint]*model.Word{}
+	for _, w := range fullWords {
+		byID[w.ID] = w
+	}
+
+	for i, w := range picked {
+		if full := byID[w.ID]; full != nil {
+			picked[i] = full
+		}
+	}
+
 	words := make([]string, len(picked))
 	for i, w := range picked {
 		words[i] = w.Word

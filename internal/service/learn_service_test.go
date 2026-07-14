@@ -119,7 +119,25 @@ func (f *fakeLearnRepo) RandomWordsByTier(tier, n int) ([]*model.Word, error) {
 	return f.words[:n], nil
 }
 func (f *fakeLearnRepo) WordsByIDs(ids []uint) ([]*model.Word, error) { return f.words, nil }
-func (f *fakeLearnRepo) AllWordsForIndex() ([]*model.Word, error)     { return f.words, nil }
+
+// AllWordsForIndex 忠實模擬正式環境的輕量 SELECT（只有 id/word/tier/frequency/length，
+// 不含 phonetic/definition）：buildWheelLevel/buildCrosswordLevel 若誤用這份資料當最終答案，
+// 音標/釋義就會是空字串，測試才抓得到。
+func (f *fakeLearnRepo) AllWordsForIndex() ([]*model.Word, error) {
+	lite := make([]*model.Word, len(f.words))
+	for i, w := range f.words {
+		lite[i] = &model.Word{
+			ID:        w.ID,
+			Word:      w.Word,
+			Tier:      w.Tier,
+			Frequency: w.Frequency,
+			Length:    w.Length,
+		}
+	}
+
+	return lite, nil
+}
+
 func (f *fakeLearnRepo) GetOrCreateStats(userID uint) (*model.LearnStat, error) {
 	if f.stats == nil {
 		f.stats = map[uint]*model.LearnStat{}
