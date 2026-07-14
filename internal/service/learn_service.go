@@ -126,6 +126,49 @@ type dailyTemplate struct {
 	Masks   [][]int `json:"masks"`
 }
 
+// levelEnvelope 包住不同模式的關卡 payload，讓 saveLevel/loadLevel 依 Mode 分流解析。
+// fill/wheel 用 learnLevel，crossword 用 crosswordLevel（各自獨立，互不干擾）。
+type levelEnvelope struct {
+	Mode string          `json:"mode"`
+	Data json.RawMessage `json:"data"`
+}
+
+// saveEnvelope 把任意關卡 payload 包信封存進 LevelStore
+func saveEnvelope(store LevelStore, id, mode string, data any) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	env := levelEnvelope{Mode: mode, Data: payload}
+
+	b, err := json.Marshal(env)
+	if err != nil {
+		return err
+	}
+
+	return store.Set(fmt.Sprintf(levelKeyFmt, id), b, levelTTL)
+}
+
+// loadEnvelope 從 LevelStore 讀信封（尚未解析出實際型別）
+func loadEnvelope(store LevelStore, id string) (*levelEnvelope, error) {
+	b, err := store.Get(fmt.Sprintf(levelKeyFmt, id))
+	if err != nil {
+		return nil, err
+	}
+
+	if b == nil {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	var env levelEnvelope
+	if err := json.Unmarshal(b, &env); err != nil {
+		return nil, err
+	}
+
+	return &env, nil
+}
+
 // LearnService 單字學習服務介面
 type LearnService interface {
 	CreateLevel(userID uint, mode string, tier int, locale string) (*LevelView, error)
@@ -248,26 +291,34 @@ func (s *learnService) createWheelLevel(userID uint, tier int, locale string) (*
 		return nil, err
 	}
 
-	// 抽底字候選（5–7 字母），找第一個子字夠多的
 	candidates, err := s.repo.RandomWordsByTier(tier, 20)
 	if err != nil {
 		return nil, err
 	}
 
+	base, ids, ok := findWheelBase(candidates, idx)
+	if !ok {
+		return nil, fmt.Errorf("no wheel puzzle available for tier %d", tier)
+	}
+
+	return s.buildWheelLevel(userID, tier, locale, base, ids, idx)
+}
+
+// findWheelBase 依既有規則找底字候選與其子字 ID 清單：優先 5–7 字母且答案數
+// >= wheelMinAnswers；找不到則放寬到 >=4 字母、答案數 >= 2。
+// wheel 與 crossword 共用同一套底字挑選規則。
+func findWheelBase(candidates []*model.Word, idx *anagramIndex) (*model.Word, []uint, bool) {
 	for _, base := range candidates {
 		if len(base.Word) < 5 || len(base.Word) > 7 {
 			continue
 		}
 
 		ids := idx.subWordIDs(base.Word)
-		if len(ids) < wheelMinAnswers {
-			continue
+		if len(ids) >= wheelMinAnswers {
+			return base, ids, true
 		}
-
-		return s.buildWheelLevel(userID, tier, locale, base, ids, idx)
 	}
 
-	// 放寬：任何長度 ≥4 的候選、答案 ≥2
 	for _, base := range candidates {
 		if len(base.Word) < 4 {
 			continue
@@ -275,11 +326,11 @@ func (s *learnService) createWheelLevel(userID uint, tier int, locale string) (*
 
 		ids := idx.subWordIDs(base.Word)
 		if len(ids) >= 2 {
-			return s.buildWheelLevel(userID, tier, locale, base, ids, idx)
+			return base, ids, true
 		}
 	}
 
-	return nil, fmt.Errorf("no wheel puzzle available for tier %d", tier)
+	return nil, nil, false
 }
 
 func (s *learnService) buildWheelLevel(
@@ -343,16 +394,29 @@ func (s *learnService) buildWheelLevel(
 	return levelView(lv), nil
 }
 
-// Guess 作答一格
+// Guess 作答一格；依 Redis 信封的 Mode 分流到 fill/wheel 或 crossword 邏輯
+// （crossword 分支由 Task 3 補上；本階段僅有 fill/wheel）
 func (s *learnService) Guess(
 	userID uint, levelID string, req *LearnGuessRequest,
 ) (*GuessOutcome, error) {
-	lv, err := s.loadLevel(levelID)
+	env, err := loadEnvelope(s.store, levelID)
 	if err != nil {
 		return nil, err
 	}
 
-	if lv == nil || lv.UserID != userID {
+	return s.guessFillWheel(userID, env, req)
+}
+
+// guessFillWheel 處理 fill/wheel 的作答（既有邏輯，未改變任何行為）
+func (s *learnService) guessFillWheel(
+	userID uint, env *levelEnvelope, req *LearnGuessRequest,
+) (*GuessOutcome, error) {
+	var lv learnLevel
+	if err := json.Unmarshal(env.Data, &lv); err != nil {
+		return nil, err
+	}
+
+	if lv.UserID != userID {
 		return nil, ErrLearnLevelNotFound
 	}
 
@@ -411,20 +475,26 @@ func (s *learnService) Guess(
 	if out.Completed {
 		out.TotalXP = lv.XP
 
-		if err := s.onLevelCompleted(userID, lv); err != nil {
+		if err := s.onLevelCompleted(userID, lv.XP, lv.Daily, lv.CreatedAt); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := s.saveLevel(lv); err != nil {
+	if err := s.saveLevel(&lv); err != nil {
 		return nil, err
 	}
 
 	return out, nil
 }
 
-// onLevelCompleted 完成關卡：更新 XP 與 streak；daily 關卡另記當日分數
-func (s *learnService) onLevelCompleted(userID uint, lv *learnLevel) error {
+// onLevelCompleted 完成關卡：更新 XP 與 streak；daily 非空時另記當日分數。
+// 簽名用原生型別（不吃 *learnLevel），fill/wheel/crossword 都能呼叫。
+func (s *learnService) onLevelCompleted(
+	userID uint,
+	xp int,
+	daily string,
+	createdAt time.Time,
+) error {
 	stats, err := s.repo.GetOrCreateStats(userID)
 	if err != nil {
 		return err
@@ -433,20 +503,20 @@ func (s *learnService) onLevelCompleted(userID uint, lv *learnLevel) error {
 	today := time.Now().UTC().Format(dateFmt)
 	stats.Streak = nextStreak(stats.LastPlayedDate, today, stats.Streak)
 	stats.LastPlayedDate = today
-	stats.XP += lv.XP
+	stats.XP += xp
 
 	if err := s.repo.SaveStats(stats); err != nil {
 		return err
 	}
 
-	if lv.Daily != "" {
-		elapsed := time.Now().UTC().Sub(lv.CreatedAt)
+	if daily != "" {
+		elapsed := time.Now().UTC().Sub(createdAt)
 
 		// 唯一鍵擋重複；重玩不覆寫首次分數
 		_, err := s.repo.CreateDailyScore(&model.LearnDailyScore{
 			UserID:        userID,
-			Date:          lv.Daily,
-			Score:         lv.XP + dailyTimeBonus(elapsed),
+			Date:          daily,
+			Score:         xp + dailyTimeBonus(elapsed),
 			CompletedInMs: elapsed.Milliseconds(),
 		})
 		if err != nil {
@@ -758,28 +828,5 @@ func maskedWord(word string, masks []int) string {
 // --- LevelStore helpers ---
 
 func (s *learnService) saveLevel(lv *learnLevel) error {
-	b, err := json.Marshal(lv)
-	if err != nil {
-		return err
-	}
-
-	return s.store.Set(fmt.Sprintf(levelKeyFmt, lv.ID), b, levelTTL)
-}
-
-func (s *learnService) loadLevel(id string) (*learnLevel, error) {
-	b, err := s.store.Get(fmt.Sprintf(levelKeyFmt, id))
-	if err != nil {
-		return nil, err
-	}
-
-	if b == nil {
-		return nil, ErrLearnLevelNotFound
-	}
-
-	var lv learnLevel
-	if err := json.Unmarshal(b, &lv); err != nil {
-		return nil, err
-	}
-
-	return &lv, nil
+	return saveEnvelope(s.store, lv.ID, lv.Mode, lv)
 }
