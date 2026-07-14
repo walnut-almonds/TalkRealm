@@ -194,6 +194,8 @@ type learnLevel struct {
 	Masks     [][]int   `json:"masks"`
 	Letters   string    `json:"letters"`
 	Solved    []bool    `json:"solved"`
+	HintTier  []int     `json:"hint_tier"` // 0=無, 1=揭字母, 2=看釋義；fill 模式恆為 0
+	HintPos   []int     `json:"hint_pos"`  // 已揭露的字母位置；-1=尚未揭露
 	XP        int       `json:"xp"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -278,6 +280,8 @@ func (s *learnService) createFillLevel(userID uint, tier int, locale string) (*L
 		lv.Defs = append(lv.Defs, definitionFor(w, locale))
 		lv.Masks = append(lv.Masks, maskPositions(rng, len(w.Word), tier))
 		lv.Solved = append(lv.Solved, false)
+		lv.HintTier = append(lv.HintTier, 0)
+		lv.HintPos = append(lv.HintPos, -1)
 	}
 
 	if err := s.saveLevel(lv); err != nil {
@@ -387,6 +391,8 @@ func (s *learnService) buildWheelLevel(
 		lv.Defs = append(lv.Defs, definitionFor(w, locale))
 		lv.Masks = append(lv.Masks, nil)
 		lv.Solved = append(lv.Solved, false)
+		lv.HintTier = append(lv.HintTier, 0)
+		lv.HintPos = append(lv.HintPos, -1)
 	}
 
 	if err := s.saveLevel(lv); err != nil {
@@ -592,6 +598,8 @@ func (s *learnService) DailyLevel(userID uint, locale string) (*DailyView, error
 		lv.Defs = append(lv.Defs, definitionFor(w, locale))
 		lv.Masks = append(lv.Masks, tpl.Masks[i])
 		lv.Solved = append(lv.Solved, false)
+		lv.HintTier = append(lv.HintTier, 0)
+		lv.HintPos = append(lv.HintPos, -1)
 	}
 
 	if err := s.saveLevel(lv); err != nil {
@@ -828,6 +836,30 @@ func maskedWord(word string, masks []int) string {
 	}
 
 	return string(b)
+}
+
+// maskWithHint 產生遮蔽字串：hintPos<0 回全底線；否則揭露該位置的字母
+func maskWithHint(word string, hintPos int) string {
+	if hintPos < 0 {
+		return strings.Repeat("_", len(word))
+	}
+
+	b := []byte(strings.Repeat("_", len(word)))
+	b[hintPos] = word[hintPos]
+
+	return string(b)
+}
+
+// hintDiscount 依提示階段調整可得 XP：0=原樣；1=扣 1/4；2=只剩 1/4
+func hintDiscount(xp, hintTier int) int {
+	switch hintTier {
+	case 1:
+		return xp - xp/4
+	case 2:
+		return xp / 4
+	default:
+		return xp
+	}
 }
 
 // --- LevelStore helpers ---

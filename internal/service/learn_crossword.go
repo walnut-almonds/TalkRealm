@@ -277,6 +277,8 @@ type crosswordLevel struct {
 	Col       []int     `json:"col"`
 	Dir       []string  `json:"dir"` // "h" / "v"；bonus 字為空字串
 	Solved    []bool    `json:"solved"`
+	HintTier  []int     `json:"hint_tier"` // 0=無, 1=揭字母, 2=看釋義
+	HintPos   []int     `json:"hint_pos"`  // 已揭露的字母位置；-1=尚未揭露
 	Rows      int       `json:"rows"`
 	Cols      int       `json:"cols"`
 	XP        int       `json:"xp"`
@@ -391,6 +393,8 @@ func (s *learnService) buildCrosswordLevel(
 		lv.Col = append(lv.Col, placements[i].Col)
 		lv.Dir = append(lv.Dir, placements[i].Dir)
 		lv.Solved = append(lv.Solved, false)
+		lv.HintTier = append(lv.HintTier, 0)
+		lv.HintPos = append(lv.HintPos, -1)
 	}
 
 	if err := saveEnvelope(s.store, lv.ID, ModeCrossword, lv); err != nil {

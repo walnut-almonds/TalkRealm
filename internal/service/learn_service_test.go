@@ -374,3 +374,34 @@ func TestDailyTimeBonus(t *testing.T) {
 		t.Errorf("bonus(400s) = %d want 0", got)
 	}
 }
+
+func TestMaskWithHint(t *testing.T) {
+	if got := maskWithHint("star", -1); got != "____" {
+		t.Errorf("no hint: got %q want ____", got)
+	}
+
+	if got := maskWithHint("star", 0); got != "s___" {
+		t.Errorf("hint pos 0: got %q want s___", got)
+	}
+
+	if got := maskWithHint("star", 3); got != "___r" {
+		t.Errorf("hint pos 3: got %q want ___r", got)
+	}
+}
+
+func TestHintDiscount(t *testing.T) {
+	tests := []struct {
+		xp, tier, want int
+	}{
+		{12, 0, 12},
+		{12, 1, 9},
+		{12, 2, 3},
+		{12, 3, 12}, // 未定義階段當作無折扣
+	}
+
+	for _, tt := range tests {
+		if got := hintDiscount(tt.xp, tt.tier); got != tt.want {
+			t.Errorf("hintDiscount(%d,%d) = %d want %d", tt.xp, tt.tier, got, tt.want)
+		}
+	}
+}
