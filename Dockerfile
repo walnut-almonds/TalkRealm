@@ -4,6 +4,7 @@ ARG APP
 
 COPY ${APP} /talk-realm/app
 COPY web/dist/ /talk-realm/web/dist/
+COPY data/words.csv /talk-realm/data/words.csv
 
 WORKDIR /talk-realm
 

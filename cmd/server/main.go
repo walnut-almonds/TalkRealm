@@ -28,6 +28,7 @@ func main() {
 	if err := logger.Init(cfg.Log.Level); err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
+
 	defer logger.Sync()
 
 	logger.Info("config", "config", cfg)
@@ -44,6 +45,13 @@ func main() {
 	// 執行資料庫遷移（可選，建議在生產環境使用專門的遷移腳本）
 	if err := database.AutoMigrate(); err != nil {
 		logger.Fatal("Failed to migrate database", "error", err)
+	}
+
+	// 補齊單字學習字表（冪等 upsert，字典檔缺失時僅警告不中止開機——Learn 非核心聊天功能）
+	if n, err := database.SeedWords("data/words.csv"); err != nil {
+		logger.Warn("Failed to seed learn words, Learn features may be degraded", "error", err)
+	} else {
+		logger.Info("Learn words seeded", "count", n)
 	}
 
 	// 創建伺服器
