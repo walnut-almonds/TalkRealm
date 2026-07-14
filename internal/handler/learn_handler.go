@@ -59,6 +59,45 @@ func (h *LearnHandler) CreateLevel(c *gin.Context) {
 	c.JSON(http.StatusOK, lv)
 }
 
+type createCrosswordReq struct {
+	Tier   int    `json:"tier"   binding:"required"`
+	Locale string `json:"locale"`
+}
+
+// CreateCrossword 生成交叉字謎網格關卡
+//
+//	@Summary	生成交叉字謎網格關卡
+//	@Tags		Learn
+//	@Accept		json
+//	@Produce	json
+//	@Param		request	body		createCrosswordReq	true	"難度"
+//	@Success	200		{object}	service.CrosswordView
+//	@Failure	400		{object}	ErrorResponse
+//	@Router		/api/v1/learn/levels/crossword [post]
+func (h *LearnHandler) CreateCrossword(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var req createCrosswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cw, err := h.learnService.CreateCrosswordLevel(userID, req.Tier, req.Locale)
+	if err != nil {
+		if errors.Is(err, service.ErrLearnInvalidTier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
+		return
+	}
+
+	c.JSON(http.StatusOK, cw)
+}
+
 // Guess 作答
 //
 //	@Summary	提交單字作答

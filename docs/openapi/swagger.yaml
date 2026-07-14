@@ -49,6 +49,15 @@ definitions:
     required:
     - last_message_id
     type: object
+  handler.createCrosswordReq:
+    properties:
+      locale:
+        type: string
+      tier:
+        type: integer
+    required:
+    - tier
+    type: object
   handler.createLevelReq:
     properties:
       locale:
@@ -366,6 +375,39 @@ definitions:
       type:
         description: 'text, image, file (預設: text)'
         type: string
+    type: object
+  service.CrosswordSlot:
+    properties:
+      col:
+        type: integer
+      dir:
+        description: 空字串 = bonus 字，此時 row/col 無意義
+        type: string
+      length:
+        type: integer
+      row:
+        type: integer
+      solved:
+        type: boolean
+      word:
+        type: string
+    type: object
+  service.CrosswordView:
+    properties:
+      cols:
+        type: integer
+      letters:
+        type: string
+      level_id:
+        type: string
+      rows:
+        type: integer
+      tier:
+        type: integer
+      words:
+        items:
+          $ref: '#/definitions/service.CrosswordSlot'
+        type: array
     type: object
   service.DailyView:
     properties:
@@ -1877,6 +1919,31 @@ paths:
           schema:
             $ref: '#/definitions/handler.ErrorResponse'
       summary: 提交單字作答
+      tags:
+      - Learn
+  /api/v1/learn/levels/crossword:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 難度
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createCrosswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.CrosswordView'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 生成交叉字謎網格關卡
       tags:
       - Learn
   /api/v1/learn/stats:

@@ -1759,6 +1759,45 @@
                 }
             }
         },
+        "/api/v1/learn/levels/crossword": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "生成交叉字謎網格關卡",
+                "parameters": [
+                    {
+                        "description": "難度",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createCrosswordReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.CrosswordView"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/learn/levels/{id}/guess": {
             "post": {
                 "consumes": [
@@ -2402,6 +2441,20 @@
                 }
             }
         },
+        "handler.createCrosswordReq": {
+            "type": "object",
+            "required": [
+                "tier"
+            ],
+            "properties": {
+                "locale": {
+                    "type": "string"
+                },
+                "tier": {
+                    "type": "integer"
+                }
+            }
+        },
         "handler.createLevelReq": {
             "type": "object",
             "required": [
@@ -2865,6 +2918,56 @@
                 "type": {
                     "description": "text, image, file (預設: text)",
                     "type": "string"
+                }
+            }
+        },
+        "service.CrosswordSlot": {
+            "type": "object",
+            "properties": {
+                "col": {
+                    "type": "integer"
+                },
+                "dir": {
+                    "description": "空字串 = bonus 字，此時 row/col 無意義",
+                    "type": "string"
+                },
+                "length": {
+                    "type": "integer"
+                },
+                "row": {
+                    "type": "integer"
+                },
+                "solved": {
+                    "type": "boolean"
+                },
+                "word": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.CrosswordView": {
+            "type": "object",
+            "properties": {
+                "cols": {
+                    "type": "integer"
+                },
+                "letters": {
+                    "type": "string"
+                },
+                "level_id": {
+                    "type": "string"
+                },
+                "rows": {
+                    "type": "integer"
+                },
+                "tier": {
+                    "type": "integer"
+                },
+                "words": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.CrosswordSlot"
+                    }
                 }
             }
         },

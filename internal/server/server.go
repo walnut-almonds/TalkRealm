@@ -394,6 +394,7 @@ func (s *Server) setupRoutes() {
 			learn := protected.Group("/learn")
 			{
 				learn.POST("/levels", s.learnHandler.CreateLevel)
+				learn.POST("/levels/crossword", s.learnHandler.CreateCrossword)
 				learn.POST("/levels/:id/guess", s.learnHandler.Guess)
 				learn.GET("/stats", s.learnHandler.GetStats)
 				learn.GET("/daily", s.learnHandler.GetDaily)

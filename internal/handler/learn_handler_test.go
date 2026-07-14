@@ -13,9 +13,10 @@ import (
 )
 
 type mockLearnService struct {
-	createLevelFn func(userID uint, mode string, tier int, locale string) (*service.LevelView, error)
-	guessFn       func(userID uint, levelID string, req *service.LearnGuessRequest) (*service.GuessOutcome, error)
-	statsFn       func(userID uint) (*service.LearnStatsView, error)
+	createLevelFn     func(userID uint, mode string, tier int, locale string) (*service.LevelView, error)
+	createCrosswordFn func(userID uint, tier int, locale string) (*service.CrosswordView, error)
+	guessFn           func(userID uint, levelID string, req *service.LearnGuessRequest) (*service.GuessOutcome, error)
+	statsFn           func(userID uint) (*service.LearnStatsView, error)
 }
 
 func (m *mockLearnService) CreateLevel(
@@ -25,6 +26,14 @@ func (m *mockLearnService) CreateLevel(
 	locale string,
 ) (*service.LevelView, error) {
 	return m.createLevelFn(userID, mode, tier, locale)
+}
+
+func (m *mockLearnService) CreateCrosswordLevel(
+	userID uint,
+	tier int,
+	locale string,
+) (*service.CrosswordView, error) {
+	return m.createCrosswordFn(userID, tier, locale)
 }
 
 func (m *mockLearnService) Guess(
@@ -37,14 +46,6 @@ func (m *mockLearnService) Guess(
 
 func (m *mockLearnService) Stats(userID uint) (*service.LearnStatsView, error) {
 	return m.statsFn(userID)
-}
-
-func (m *mockLearnService) CreateCrosswordLevel(
-	userID uint,
-	tier int,
-	locale string,
-) (*service.CrosswordView, error) {
-	return nil, nil //nolint:nilnil // 測試 stub，尚無 crossword handler 測試（Task 4 補上）
 }
 
 func (m *mockLearnService) DailyLevel(userID uint, locale string) (*service.DailyView, error) {
@@ -62,6 +63,7 @@ func setupLearnRouter(svc service.LearnService) *gin.Engine {
 	auth := authMiddleware(uint(7))
 	h := handler.NewLearnHandler(svc)
 	r.POST("/learn/levels", auth, h.CreateLevel)
+	r.POST("/learn/levels/crossword", auth, h.CreateCrossword)
 	r.POST("/learn/levels/:id/guess", auth, h.Guess)
 	r.GET("/learn/stats", auth, h.GetStats)
 
@@ -140,6 +142,58 @@ func TestGuessExpiredLevel(t *testing.T) {
 	setupLearnRouter(svc).ServeHTTP(w, req)
 
 	if w.Code != http.StatusGone { // 410（spec §5）
+		t.Errorf("status = %d", w.Code)
+	}
+}
+
+func TestCreateCrosswordOK(t *testing.T) {
+	svc := &mockLearnService{
+		createCrosswordFn: func(userID uint, tier int, locale string) (*service.CrosswordView, error) {
+			if userID != 7 || tier != 2 {
+				t.Errorf("args: %d %d", userID, tier)
+			}
+
+			return &service.CrosswordView{LevelID: "cw1", Tier: tier}, nil
+		},
+	}
+
+	body, _ := json.Marshal(map[string]any{"tier": 2})
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/learn/levels/crossword",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	setupLearnRouter(svc).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateCrosswordInvalidTier(t *testing.T) {
+	svc := &mockLearnService{
+		createCrosswordFn: func(uint, int, string) (*service.CrosswordView, error) {
+			return nil, service.ErrLearnInvalidTier
+		},
+	}
+
+	body, _ := json.Marshal(map[string]any{"tier": 9})
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		"/learn/levels/crossword",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	setupLearnRouter(svc).ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d", w.Code)
 	}
 }
