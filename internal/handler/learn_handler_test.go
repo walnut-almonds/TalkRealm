@@ -39,6 +39,14 @@ func (m *mockLearnService) Stats(userID uint) (*service.LearnStatsView, error) {
 	return m.statsFn(userID)
 }
 
+func (m *mockLearnService) CreateCrosswordLevel(
+	userID uint,
+	tier int,
+	locale string,
+) (*service.CrosswordView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 crossword handler 測試（Task 4 補上）
+}
+
 func (m *mockLearnService) DailyLevel(userID uint, locale string) (*service.DailyView, error) {
 	return nil, nil //nolint:nilnil // 測試 stub，尚無 daily handler 測試
 }

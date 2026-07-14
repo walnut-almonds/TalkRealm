@@ -1,8 +1,15 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/walnut-almonds/talkrealm/internal/model"
 )
 
 // crosswordPlacement 單一字在網格中的座標與方向
@@ -253,4 +260,232 @@ func normalizeCrossword(
 	}
 
 	return out, maxRow - minRow + 1, maxCol - minCol + 1
+}
+
+// crosswordLevel 進行中的交叉字謎關卡（含答案，只存 LevelStore；
+// 獨立於 learnLevel，不與 fill/wheel 共用結構）
+type crosswordLevel struct {
+	ID        string    `json:"id"`
+	UserID    uint      `json:"user_id"`
+	Tier      int       `json:"tier"`
+	Letters   string    `json:"letters"`
+	WordIDs   []uint    `json:"word_ids"`
+	Words     []string  `json:"words"`
+	Phonetics []string  `json:"phonetics"`
+	Defs      []string  `json:"defs"`
+	Row       []int     `json:"row"` // 平行陣列；-1 = bonus 字（未排進網格）
+	Col       []int     `json:"col"`
+	Dir       []string  `json:"dir"` // "h" / "v"；bonus 字為空字串
+	Solved    []bool    `json:"solved"`
+	Rows      int       `json:"rows"`
+	Cols      int       `json:"cols"`
+	XP        int       `json:"xp"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CrosswordSlot 單一答案在交叉字謎網格中的呈現（下發 client，不含未解出的答案）
+type CrosswordSlot struct {
+	Row    int    `json:"row"`
+	Col    int    `json:"col"`
+	Dir    string `json:"dir,omitempty"` // 空字串 = bonus 字，此時 row/col 無意義
+	Length int    `json:"length"`
+	Solved bool   `json:"solved"`
+	Word   string `json:"word,omitempty"`
+}
+
+// CrosswordView 交叉字謎關卡謎面
+type CrosswordView struct {
+	LevelID string          `json:"level_id"`
+	Tier    int             `json:"tier"`
+	Rows    int             `json:"rows"`
+	Cols    int             `json:"cols"`
+	Letters string          `json:"letters"`
+	Words   []CrosswordSlot `json:"words"`
+}
+
+// CreateCrosswordLevel 生成新的交叉字謎網格關卡
+func (s *learnService) CreateCrosswordLevel(
+	userID uint, tier int, locale string,
+) (*CrosswordView, error) {
+	if tier < 1 || tier > 5 {
+		return nil, ErrLearnInvalidTier
+	}
+
+	idx, err := s.anagram()
+	if err != nil {
+		return nil, err
+	}
+
+	candidates, err := s.repo.RandomWordsByTier(tier, 20)
+	if err != nil {
+		return nil, err
+	}
+
+	base, ids, ok := findWheelBase(candidates, idx)
+	if !ok {
+		return nil, fmt.Errorf("no crossword puzzle available for tier %d", tier)
+	}
+
+	return s.buildCrosswordLevel(userID, tier, locale, base, ids, idx)
+}
+
+func (s *learnService) buildCrosswordLevel(
+	userID uint, tier int, locale string,
+	base *model.Word, ids []uint, idx *anagramIndex,
+) (*CrosswordView, error) {
+	answers := make([]*model.Word, 0, len(ids))
+	for _, id := range ids {
+		answers = append(answers, idx.words[id])
+	}
+
+	// 短字在前、常用字優先；上限 8 個，底字必收（沿用 wheel 既有規則）
+	sort.Slice(answers, func(i, j int) bool {
+		if len(answers[i].Word) != len(answers[j].Word) {
+			return len(answers[i].Word) < len(answers[j].Word)
+		}
+
+		return answers[i].Frequency < answers[j].Frequency
+	})
+
+	picked := []*model.Word{}
+
+	for _, a := range answers {
+		if a.ID == base.ID {
+			continue
+		}
+
+		if len(picked) < wheelMaxAnswers-1 {
+			picked = append(picked, a)
+		}
+	}
+
+	picked = append(picked, base)
+
+	words := make([]string, len(picked))
+	for i, w := range picked {
+		words[i] = w.Word
+	}
+
+	placements, rows, cols := layoutCrossword(words)
+
+	rng := newLevelRand()
+	letters := []byte(base.Word)
+	rng.Shuffle(len(letters), func(i, j int) { letters[i], letters[j] = letters[j], letters[i] })
+
+	lv := &crosswordLevel{
+		ID:        uuid.NewString(),
+		UserID:    userID,
+		Tier:      tier,
+		Letters:   string(letters),
+		Rows:      rows,
+		Cols:      cols,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	for i, w := range picked {
+		lv.WordIDs = append(lv.WordIDs, w.ID)
+		lv.Words = append(lv.Words, w.Word)
+		lv.Phonetics = append(lv.Phonetics, w.Phonetic)
+		lv.Defs = append(lv.Defs, definitionFor(w, locale))
+		lv.Row = append(lv.Row, placements[i].Row)
+		lv.Col = append(lv.Col, placements[i].Col)
+		lv.Dir = append(lv.Dir, placements[i].Dir)
+		lv.Solved = append(lv.Solved, false)
+	}
+
+	if err := saveEnvelope(s.store, lv.ID, ModeCrossword, lv); err != nil {
+		return nil, err
+	}
+
+	return crosswordView(lv), nil
+}
+
+// crosswordView 轉成下發 client 的謎面（未解字絕不含答案）
+func crosswordView(lv *crosswordLevel) *CrosswordView {
+	v := &CrosswordView{
+		LevelID: lv.ID, Tier: lv.Tier, Rows: lv.Rows, Cols: lv.Cols, Letters: lv.Letters,
+	}
+
+	for i, word := range lv.Words {
+		slot := CrosswordSlot{Length: len(word), Solved: lv.Solved[i]}
+
+		if lv.Dir[i] != "" {
+			slot.Row = lv.Row[i]
+			slot.Col = lv.Col[i]
+			slot.Dir = lv.Dir[i]
+		}
+
+		if lv.Solved[i] {
+			slot.Word = word
+		}
+
+		v.Words = append(v.Words, slot)
+	}
+
+	return v
+}
+
+// guessCrossword 處理 crossword 的作答：字母盤送字，後端找出命中哪個字
+func (s *learnService) guessCrossword(
+	userID uint, env *levelEnvelope, req *LearnGuessRequest,
+) (*GuessOutcome, error) {
+	var lv crosswordLevel
+	if err := json.Unmarshal(env.Data, &lv); err != nil {
+		return nil, err
+	}
+
+	if lv.UserID != userID {
+		return nil, ErrLearnLevelNotFound
+	}
+
+	guess := strings.ToLower(strings.TrimSpace(req.Word))
+
+	slot := -1
+
+	for i, w := range lv.Words {
+		if w == guess {
+			slot = i
+
+			break
+		}
+	}
+
+	if slot == -1 {
+		return &GuessOutcome{Correct: false, Slot: -1}, nil
+	}
+
+	if lv.Solved[slot] {
+		return nil, ErrLearnSlotSolved
+	}
+
+	if err := s.repo.UpsertWordRecord(userID, lv.WordIDs[slot], true); err != nil {
+		return nil, err
+	}
+
+	lv.Solved[slot] = true
+
+	out := &GuessOutcome{
+		Correct:    true,
+		Slot:       slot,
+		Word:       lv.Words[slot],
+		Phonetic:   lv.Phonetics[slot],
+		Definition: lv.Defs[slot],
+		XPAwarded:  wordXP(lv.Words[slot], lv.Tier, ModeWheel), // 猜字機制同 wheel，套用同一套 XP 檔次
+	}
+	lv.XP += out.XPAwarded
+	out.Completed = allSolved(lv.Solved)
+
+	if out.Completed {
+		out.TotalXP = lv.XP
+
+		if err := s.onLevelCompleted(userID, lv.XP, "", lv.CreatedAt); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := saveEnvelope(s.store, lv.ID, ModeCrossword, &lv); err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }

@@ -1,7 +1,12 @@
 //nolint:testpackage // 白箱測試：需存取未匯出的排版演算法
 package service
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"github.com/walnut-almonds/talkrealm/internal/model"
+)
 
 func TestLayoutCrosswordNoLetterConflicts(t *testing.T) {
 	words := []string{"star", "art", "tar", "rat"}
@@ -133,5 +138,163 @@ func TestLayoutCrosswordSingleWord(t *testing.T) {
 
 	if rows != 1 || cols != 4 {
 		t.Errorf("dims = %dx%d want 1x4", rows, cols)
+	}
+}
+
+func TestCreateCrosswordLevel(t *testing.T) {
+	words := []*model.Word{
+		{
+			ID: 1, Word: "star", Tier: 2, Frequency: 100,
+			DefinitionEN: "gas ball", DefinitionZHTW: "星星",
+		},
+		{ID: 2, Word: "rat", Tier: 2, Frequency: 200, DefinitionEN: "rodent", DefinitionZHTW: "老鼠"},
+		{
+			ID: 3, Word: "art", Tier: 2, Frequency: 150,
+			DefinitionEN: "creative work", DefinitionZHTW: "藝術",
+		},
+		{
+			ID:             4,
+			Word:           "tar",
+			Tier:           2,
+			Frequency:      300,
+			DefinitionEN:   "black goo",
+			DefinitionZHTW: "焦油",
+		},
+	}
+	svc, _ := newTestService(words)
+
+	cw, err := svc.CreateCrosswordLevel(7, 2, "zh-tw")
+	if err != nil {
+		t.Fatalf("CreateCrosswordLevel: %v", err)
+	}
+
+	if cw.LevelID == "" || cw.Rows == 0 || cw.Cols == 0 || len(cw.Words) < 2 {
+		t.Fatalf("bad crossword view: %+v", cw)
+	}
+
+	placedCount := 0
+
+	for _, w := range cw.Words {
+		if w.Word != "" {
+			t.Error("answer leaked before solve")
+		}
+
+		if w.Dir != "" {
+			placedCount++
+		}
+	}
+
+	if placedCount == 0 {
+		t.Error("expected at least one word placed on the grid")
+	}
+}
+
+func TestGuessCrossword(t *testing.T) {
+	const rat = "rat"
+
+	words := []*model.Word{
+		{
+			ID: 1, Word: "star", Tier: 2, Frequency: 100,
+			DefinitionEN: "gas ball", DefinitionZHTW: "星星",
+		},
+		{ID: 2, Word: rat, Tier: 2, Frequency: 200, DefinitionEN: "rodent", DefinitionZHTW: "老鼠"},
+		{
+			ID: 3, Word: "art", Tier: 2, Frequency: 150,
+			DefinitionEN: "creative work", DefinitionZHTW: "藝術",
+		},
+		{
+			ID:             4,
+			Word:           "tar",
+			Tier:           2,
+			Frequency:      300,
+			DefinitionEN:   "black goo",
+			DefinitionZHTW: "焦油",
+		},
+	}
+	svc, repo := newTestService(words)
+
+	cw, err := svc.CreateCrosswordLevel(7, 2, "zh-tw")
+	if err != nil {
+		t.Fatalf("CreateCrosswordLevel: %v", err)
+	}
+
+	out, err := svc.Guess(7, cw.LevelID, &LearnGuessRequest{Slot: -1, Word: rat})
+	if err != nil {
+		t.Fatalf("Guess: %v", err)
+	}
+
+	if !out.Correct || out.Word != rat || out.Definition == "" {
+		t.Errorf("outcome: %+v", out)
+	}
+
+	if _, err := svc.Guess(
+		7, cw.LevelID, &LearnGuessRequest{Slot: -1, Word: rat},
+	); !errors.Is(err, ErrLearnSlotSolved) {
+		t.Errorf("expected ErrLearnSlotSolved, got %v", err)
+	}
+
+	out, _ = svc.Guess(7, cw.LevelID, &LearnGuessRequest{Slot: -1, Word: "zzz"})
+	if out == nil || out.Correct {
+		t.Errorf("zzz should be wrong: %+v", out)
+	}
+
+	if repo.records != 1 { // 只有猜對 rat 那次要記錄；猜錯的字沒有對應 word_id
+		t.Errorf("records = %d want 1", repo.records)
+	}
+}
+
+func TestGuessCrosswordCompletion(t *testing.T) {
+	words := []*model.Word{
+		{
+			ID:             1,
+			Word:           "cats",
+			Tier:           1,
+			Frequency:      50,
+			DefinitionEN:   "felines",
+			DefinitionZHTW: "貓咪",
+		},
+		{ID: 2, Word: "cat", Tier: 1, Frequency: 10, DefinitionEN: "feline", DefinitionZHTW: "貓"},
+	}
+	svc, repo := newTestService(words)
+
+	cw, err := svc.CreateCrosswordLevel(9, 1, "zh-tw")
+	if err != nil {
+		t.Fatalf("CreateCrosswordLevel: %v", err)
+	}
+
+	if len(cw.Words) != 2 {
+		t.Fatalf("expected 2 words in crossword, got %d: %+v", len(cw.Words), cw.Words)
+	}
+
+	if _, err := svc.Guess(9, cw.LevelID, &LearnGuessRequest{Slot: -1, Word: "cat"}); err != nil {
+		t.Fatalf("guess cat: %v", err)
+	}
+
+	out, err := svc.Guess(9, cw.LevelID, &LearnGuessRequest{Slot: -1, Word: "cats"})
+	if err != nil {
+		t.Fatalf("guess cats: %v", err)
+	}
+
+	if !out.Completed || out.TotalXP == 0 {
+		t.Errorf("completion outcome: %+v", out)
+	}
+
+	if repo.stats[9].XP != out.TotalXP {
+		t.Errorf("stats not updated: %+v", repo.stats[9])
+	}
+}
+
+func TestFillWheelUnaffectedByEnvelope(t *testing.T) {
+	// 信封改動的回歸驗證：fill 既有流程必須完全不受影響
+	svc, _ := newTestService(testWords())
+
+	lv, err := svc.CreateLevel(7, ModeFill, 2, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel: %v", err)
+	}
+
+	out, err := svc.Guess(7, lv.LevelID, &LearnGuessRequest{Slot: 0, Word: "star"})
+	if err != nil || !out.Correct {
+		t.Fatalf("guess: %v, out=%+v", err, out)
 	}
 }

@@ -35,9 +35,10 @@ const (
 	dailyKeyFmt   = "learn:daily:%s"
 	dailyBonusCap = 300
 
-	// ModeFill / ModeWheel 關卡模式
-	ModeFill  = "fill"
-	ModeWheel = "wheel"
+	// ModeFill / ModeWheel / ModeCrossword 關卡模式
+	ModeFill      = "fill"
+	ModeWheel     = "wheel"
+	ModeCrossword = "crossword"
 )
 
 // LearnUserLookup 提供排行榜顯示用的使用者查詢（模組邊界：不直接依賴 user repo 實作）
@@ -172,6 +173,7 @@ func loadEnvelope(store LevelStore, id string) (*levelEnvelope, error) {
 // LearnService 單字學習服務介面
 type LearnService interface {
 	CreateLevel(userID uint, mode string, tier int, locale string) (*LevelView, error)
+	CreateCrosswordLevel(userID uint, tier int, locale string) (*CrosswordView, error)
 	Guess(userID uint, levelID string, req *LearnGuessRequest) (*GuessOutcome, error)
 	Stats(userID uint) (*LearnStatsView, error)
 	DailyLevel(userID uint, locale string) (*DailyView, error)
@@ -395,13 +397,16 @@ func (s *learnService) buildWheelLevel(
 }
 
 // Guess 作答一格；依 Redis 信封的 Mode 分流到 fill/wheel 或 crossword 邏輯
-// （crossword 分支由 Task 3 補上；本階段僅有 fill/wheel）
 func (s *learnService) Guess(
 	userID uint, levelID string, req *LearnGuessRequest,
 ) (*GuessOutcome, error) {
 	env, err := loadEnvelope(s.store, levelID)
 	if err != nil {
 		return nil, err
+	}
+
+	if env.Mode == ModeCrossword {
+		return s.guessCrossword(userID, env, req)
 	}
 
 	return s.guessFillWheel(userID, env, req)
