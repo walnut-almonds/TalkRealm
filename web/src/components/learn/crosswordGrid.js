@@ -14,12 +14,14 @@ export function buildCells(words, rows, cols) {
     }
 
     for (const w of words) {
-        if (!w.dir || !w.solved || !w.word) continue
+        if (!w.dir || !w.masked) continue
 
         for (let k = 0; k < w.length; k++) {
+            if (w.masked[k] === '_') continue
+
             const r = w.dir === 'h' ? w.row : w.row + k
             const c = w.dir === 'h' ? w.col + k : w.col
-            cells[r][c].letter = w.word[k]
+            cells[r][c].letter = w.masked[k]
         }
     }
 
