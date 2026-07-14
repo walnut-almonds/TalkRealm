@@ -63,6 +63,8 @@ export const EP = {
     LEARN_DAILY: '/api/v1/learn/daily',
     LEARN_LEADERBOARD: '/api/v1/learn/daily/leaderboard',
     LEARN_CROSSWORD: '/api/v1/learn/levels/crossword',
+    LEARN_HINT: (id) => `/api/v1/learn/levels/${id}/hint`,
+    LEARN_REVEAL: (id) => `/api/v1/learn/levels/${id}/reveal`,
 }
 
 export const STORAGE_KEYS = {

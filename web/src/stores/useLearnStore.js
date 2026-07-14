@@ -67,6 +67,47 @@ export const useLearnStore = defineStore('learn', {
                 return null
             }
         },
+        async hint(slot) {
+            if (!this.level) return null
+            try {
+                const out = await api.post(EP.LEARN_HINT(this.level.level_id), { slot })
+                const s = this.level.slots[out.slot]
+                if (s) {
+                    s.hint_tier = out.tier
+                    if (out.masked) s.masked = out.masked
+                    if (out.definition) s.definition = out.definition
+                }
+                return out
+            } catch (e) {
+                this.error = e.message
+                return null
+            }
+        },
+        async reveal(slot) {
+            if (!this.level) return null
+            try {
+                const out = await api.post(EP.LEARN_REVEAL(this.level.level_id), { slot })
+                const s = this.level.slots[out.slot]
+                if (s) {
+                    s.solved = true
+                    s.word = out.word
+                    s.masked = out.word
+                    s.definition = out.definition
+                }
+                if (out.completed) {
+                    this.loadStats()
+                    if (this.daily) {
+                        this.loadDaily()
+                        this.loadLeaderboard()
+                    }
+                }
+                return out
+            } catch (e) {
+                if (String(e.message).includes('expired')) this.level = null
+                this.error = e.message
+                return null
+            }
+        },
         async startCrossword(tier) {
             this.loading = true
             this.error = ''
@@ -90,7 +131,44 @@ export const useLearnStore = defineStore('learn', {
                     if (s) {
                         s.solved = true
                         s.word = out.word
+                        s.masked = out.word
+                        s.definition = out.definition || s.definition
                     }
+                }
+                if (out.completed) this.loadStats()
+                return out
+            } catch (e) {
+                if (String(e.message).includes('expired')) this.crossword = null
+                this.error = e.message
+                return null
+            }
+        },
+        async hintCrossword(slot) {
+            if (!this.crossword) return null
+            try {
+                const out = await api.post(EP.LEARN_HINT(this.crossword.level_id), { slot })
+                const s = this.crossword.words[out.slot]
+                if (s) {
+                    s.hint_tier = out.tier
+                    if (out.masked) s.masked = out.masked
+                    if (out.definition) s.definition = out.definition
+                }
+                return out
+            } catch (e) {
+                this.error = e.message
+                return null
+            }
+        },
+        async revealCrossword(slot) {
+            if (!this.crossword) return null
+            try {
+                const out = await api.post(EP.LEARN_REVEAL(this.crossword.level_id), { slot })
+                const s = this.crossword.words[out.slot]
+                if (s) {
+                    s.solved = true
+                    s.word = out.word
+                    s.masked = out.word
+                    s.definition = out.definition
                 }
                 if (out.completed) this.loadStats()
                 return out
