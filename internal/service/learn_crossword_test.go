@@ -83,6 +83,58 @@ func TestLayoutCrosswordUnrelatedWordBecomesBonus(t *testing.T) {
 	}
 }
 
+func TestLayoutCrosswordAdjacencyRules(t *testing.T) {
+	// 同字母組的字彼此有大量交叉機會，最容易誘發平行貼齊；
+	// 驗證排出的版面遵守鄰接規則：頭尾留白、非交叉格側邊留白
+	words := []string{"spare", "pears", "reap", "rasp", "pare", "sear"}
+	placements, _, _ := layoutCrossword(words)
+
+	grid := map[[2]int]cwCell{}
+
+	for i, p := range placements {
+		if p.Row == -1 {
+			continue
+		}
+
+		applyPlacement(grid, words[i], p)
+	}
+
+	for i, p := range placements {
+		if p.Row == -1 {
+			continue
+		}
+
+		dr, dc := 0, 1
+		if p.Dir == "v" {
+			dr, dc = 1, 0
+		}
+
+		if _, ok := grid[[2]int{p.Row - dr, p.Col - dc}]; ok {
+			t.Errorf("%q head not padded: %+v", words[i], p)
+		}
+
+		n := len(words[i])
+		if _, ok := grid[[2]int{p.Row + dr*n, p.Col + dc*n}]; ok {
+			t.Errorf("%q tail not padded: %+v", words[i], p)
+		}
+
+		for k := 0; k < n; k++ {
+			r, c := p.Row+dr*k, p.Col+dc*k
+			if cell := grid[[2]int{r, c}]; cell.horiz && cell.vert {
+				continue // 交叉點，允許相碰
+			}
+
+			if _, ok := grid[[2]int{r - dc, c - dr}]; ok {
+				t.Errorf("%q cell (%d,%d) has side neighbor", words[i], r, c)
+			}
+
+			if _, ok := grid[[2]int{r + dc, c + dr}]; ok {
+				t.Errorf("%q cell (%d,%d) has side neighbor", words[i], r, c)
+			}
+		}
+	}
+}
+
 func TestLayoutCrosswordNormalizedOrigin(t *testing.T) {
 	words := []string{"star", "art", "rat", "tar"}
 	placements, rows, cols := layoutCrossword(words)

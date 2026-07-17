@@ -141,30 +141,54 @@ func candidatePlacements(word string, grid map[[2]int]cwCell, gridEmpty bool) []
 	return out
 }
 
-// validPlacement 檢查 word 放在 (row,col,dir) 是否與現有格子衝突
+// validPlacement 檢查 word 放在 (row,col,dir) 是否與現有格子衝突。
+// 除了交叉點的字母/方向檢查外，還強制鄰接規則：字與字只允許在交叉點相碰——
+// (1) 頭尾必須留白，避免與同向字連讀成一串（cat 貼上 s 變 cats）；
+// (2) 非交叉格垂直於字方向的兩側必須留白，避免平行字貼齊成表格狀、
+//
+//	或拼出非預期的字母串。這也是版面「離散感」的來源（Wordscapes 式）。
 func validPlacement(word string, row, col int, dir string, grid map[[2]int]cwCell) bool {
+	dr, dc := 0, 1
+	if dir == "v" {
+		dr, dc = 1, 0
+	}
+
+	// 頭尾留白
+	if _, ok := grid[[2]int{row - dr, col - dc}]; ok {
+		return false
+	}
+
+	if _, ok := grid[[2]int{row + dr*len(word), col + dc*len(word)}]; ok {
+		return false
+	}
+
 	for i := 0; i < len(word); i++ {
-		r, c := row, col
-		if dir == "h" {
-			c += i
-		} else {
-			r += i
-		}
+		r, c := row+dr*i, col+dc*i
 
 		existing, ok := grid[[2]int{r, c}]
-		if !ok {
+		if ok {
+			// 交叉點：字母須相同、同方向不可重疊
+			if existing.letter != word[i] {
+				return false
+			}
+
+			if dir == "h" && existing.horiz {
+				return false
+			}
+
+			if dir == "v" && existing.vert {
+				return false
+			}
+
 			continue
 		}
 
-		if existing.letter != word[i] {
+		// 非交叉格：兩側鄰格必須留白（(dc,dr) 恰為 (dr,dc) 的垂直方向）
+		if _, ok := grid[[2]int{r - dc, c - dr}]; ok {
 			return false
 		}
 
-		if dir == "h" && existing.horiz {
-			return false
-		}
-
-		if dir == "v" && existing.vert {
+		if _, ok := grid[[2]int{r + dc, c + dr}]; ok {
 			return false
 		}
 	}
