@@ -3,13 +3,14 @@
 export function buildCells(words, rows, cols) {
     const cells = Array.from({ length: rows }, () => Array.from({ length: cols }, () => null))
 
-    for (const w of words) {
+    for (const [i, w] of words.entries()) {
         if (!w.dir) continue // bonus 字，不在網格上
 
         for (let k = 0; k < w.length; k++) {
             const r = w.dir === 'h' ? w.row : w.row + k
             const c = w.dir === 'h' ? w.col + k : w.col
-            if (!cells[r][c]) cells[r][c] = { letter: '' }
+            if (!cells[r][c]) cells[r][c] = { letter: '', words: [] }
+            cells[r][c].words.push(i) // 交叉格會屬於兩個字，hover 時兩條都高亮
         }
     }
 

@@ -21,12 +21,14 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 ```
 
 - **免後端視覺驗證**：`npx vite --port 5199` 起 dev server 後，用 chrome-devtools 的 `navigate_page` + `initScript` 攔截 `window.fetch`（mock `/api/v1/*` 回應）並塞 `talkrealm_token`/`talkrealm_last_guild`/`talkrealm_last_channel` 進 localStorage，即可渲染 Galaxy 首頁與聊天主畫面截圖。API 形狀：`{user}`, `{guilds}`, `{channels}`, `{members}`, `{messages}`（見 `web/src/api/index.js` 的 `EP`）。注意 reload 會失去 initScript，需重新 navigate；Windows 下背景 vite 停止後 port 可能殘留，需 `taskkill //PID`。
+  - chrome-devtools MCP 未連線時可用 CLI：`npm i -g chrome-devtools-mcp` 後 mise 缺 shim（複製任一 shim 補上），但 batch shim 遇多行參數（如 `--initScript "$(cat mock.js)"`）會噴 `batch file arguments are invalid`——改直接呼叫 `~/AppData/Local/mise/installs/node/<ver>/chrome-devtools`（sh script，bash 可跑）。前端是 hash router，要開 `http://localhost:5199/#/learn` 而非 `/learn`。合成 PointerEvent 測拖曳時 `setPointerCapture` 會因無 active pointer 而 throw（LetterTray 已 try/catch），互動狀態的 DOM 斷言要等 ~100ms（Vue nextTick）再讀。
 
 ## Architecture Notes
 - `internal/server/server.go`：DI 組裝、路由設定的主入口
 - **Learn 模組（單字學習遊戲）**：`/api/v1/learn/*`；spec 在 `docs/superpowers/specs/2026-07-08-learn-vocab-game-design.md`（gitignored，本地）。模組邊界：learn 表（`words`/`learn_*`）只存 plain `user_id` 不建 GORM 關聯、排行榜顯示走 `LearnUserLookup` interface、Redis key 全帶 `learn:` 前綴——為未來拆獨立 service 預留。關卡含答案存 LevelStore（Redis，無 Redis 退記憶體）TTL 2h；每日挑戰用 SetNX 快取當日模板達成全站同題；anagram 索引（`learn_anagram.go`）lazy 建於首個 wheel 請求。
 - **Learn crossword 模式**（`internal/service/learn_crossword.go`，spec 見 `docs/superpowers/specs/2026-07-13-crossword-grid-mode-design.md`）：答案字互相交叉排成 2D 網格（Wordscapes 式自由形狀），獨立於 fill/wheel——`crosswordLevel` 是全新 struct，不與 `learnLevel` 共用；Redis 存值多包一層 `levelEnvelope{Mode, Data}` 信封辨識模式（`saveEnvelope`/`loadEnvelope`），`Guess` 依 `env.Mode` 分流到 `guessFillWheel`/`guessCrossword`。排版演算法是回溯搜尋 + branch-and-bound 剪枝 + 步數上限（20000）保底，找不出交叉的字會落到 bonus 列表。前端交叉格「提前顯示字母」完全是前端純渲染衍生（`crosswordGrid.js` 的 `buildCells`，依 `masked` 欄位逐格取非底線字元），後端不用額外算。前端 `LetterTray.vue` 是從 `LetterWheel.vue` 抽出的共用字母盤點選元件，`Crossword.vue` 與 `LetterWheel.vue` 都用它。
 - **Learn 提示系統（hint/reveal）**：spec 見 `docs/superpowers/specs/2026-07-14-learn-hint-system-design.md`。三階提示梯（`maskWithHint`/`hintDiscount`/`advanceHint`，`internal/service/learn_service.go`）：`base=len(word)*tier`；tier0 原價；tier1（揭 1 字母）扣 1/4；tier2（顯示釋義）只剩 1/4；「揭曉答案」任何階段都可跳（0 XP，且不寫入 `learn_word_records`，不算學習信號）。`learnLevel`/`crosswordLevel` 各字都帶平行陣列 `HintTier[]`/`HintPos[]`，`Hint`/`Reveal` 依 envelope `Mode` 分流到 `hintWheel`/`hintCrossword`、`revealWheel`/`revealCrossword`，`Guess` 的 XP 計算統一套 `hintDiscount`。前端統一提示面板 `HintList.vue`（依 `hintTier` 顯示「揭字母/顯示釋義/揭曉答案」按鈕文案），`LetterWheel.vue`/`Crossword.vue` 都嵌入同一元件，各自把 `slots`/`words` 轉成 `hintItems` 餵給它。
+- **Learn 前端互動（2026-07-17）**：`LetterTray.vue` 是圓形字母輪，支援拖曳連線（pointerdown 起手/滑入加選/滑回上一顆撤銷/放開即送出，Wordscapes 慣例）與點選並存——命中判定用字母中心距離（setPointerCapture 後 pointerenter 不會落在字母上），字母按鈕 `pointer-events:none` 只留鍵盤 click。crossword 網格與 `HintList` 雙向 hover 高亮：`crosswordGrid.js` 的 `buildCells` 每格帶 `words[]`（交叉格兩個字都亮），`Crossword.vue` 持 `activeIndexes` 綁兩邊（`HintList` 的 `activeIndexes` prop / `activate`/`deactivate` emit 是選配，wheel 不綁）。
 - `internal/websocket/manager.go`：channel 訂閱索引（`channelSubscriptions map[uint]map[*Client]bool`）+ guild 訂閱索引（`guildSubscriptions map[uint]map[*Client]bool`），O(1) 廣播；jwtManager 注入用於 identify op；identify 後自動呼叫 `SubscribeClientToUserGuilds` 訂閱所有 guild
 - WS 協議：client→server op: `identify`, `heartbeat`, `subscribe`, `unsubscribe`, `typing_start`, `send_message`, `voice_state_update`；server→client op: `hello`, `ready`, `heartbeat_ack`, `message_create`, `message_update`, `message_delete`, `typing_start`, `presence_update`, `error`, `guild_update`, `guild_delete`, `guild_member_add`, `guild_member_remove`, `guild_member_update`, `channel_create`, `channel_update`, `channel_delete`, `voice_state_update`
 - WS 端點：`GET /api/v1/ws`（無需 JWT 中間件，由 identify op 驗證）
@@ -86,6 +88,9 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-07-17
+ — Learn 前端互動改版：LetterTray 改圓形字母輪 + 拖曳連線（保留點選）、crossword 網格格子加底色/強邊框對比、網格↔提示列雙向 hover 高亮（見 Architecture Notes「Learn 前端互動」）；已用 chrome-devtools CLI + mock API 真瀏覽器驗證（拖曳送出/滑回撤銷/tap toggle/錯誤回饋/完關畫面）
+
 2026-07-14
  — Learn wheel/crossword 三階提示系統（hint/reveal，見 Architecture Notes）上線，含前端統一 `HintList.vue`；真實瀏覽器驗證時額外發現並修復兩個既有 bug：(1) wheel/crossword 非底字答案音標/釋義自上線起一直是空字串（`AllWordsForIndex` 輕量 SELECT 誤用，見 Pitfalls），(2) crossword 網格對已提示但未解出的字不會 cross-reveal（`crosswordGrid.js` 只認 `solved`，見 Pitfalls）
  — 生產環境 `words` 表冪等 seeding 上線（開機自動 upsert，見 Architecture Notes 新增條目）；修復 crossword 誤顯示前一次 wheel 介面的殘留 state race，並補上遊戲中退出按鈕

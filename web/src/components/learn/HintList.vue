@@ -6,15 +6,22 @@ import { maskSegments } from './mask.js'
 
 defineProps({
     items: { type: Array, required: true }, // [{ index, length, masked, definition, solved, hintTier }]
+    activeIndexes: { type: Array, default: () => [] }, // 與 crossword 網格雙向高亮用；wheel 不綁定
 })
-const emit = defineEmits(['hint', 'reveal'])
+const emit = defineEmits(['hint', 'reveal', 'activate', 'deactivate'])
 const learn = useLearnStore()
 const { t } = useI18n()
 </script>
 
 <template>
   <div class="hint-list">
-    <div v-for="item in items" :key="item.index" :class="['hl-row', { solved: item.solved }]">
+    <div
+      v-for="item in items"
+      :key="item.index"
+      :class="['hl-row', { solved: item.solved, active: activeIndexes.includes(item.index) }]"
+      @mouseenter="emit('activate', [item.index])"
+      @mouseleave="emit('deactivate')"
+    >
       <span class="hl-word">
         <span
           v-for="(seg, j) in maskSegments(item.masked, learn.hardMode && !item.solved)"
@@ -41,6 +48,7 @@ const { t } = useI18n()
 .hint-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .hl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); }
 .hl-row.solved { opacity: 0.55; }
+.hl-row.active { border-color: var(--accent); }
 .hl-word { display: flex; gap: 2px; }
 .hl-char {
     width: 20px; height: 26px; display: inline-flex; align-items: center; justify-content: center;

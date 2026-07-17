@@ -22,6 +22,11 @@ const hintItems = computed(() => words.value.map((w, i) => ({
 })))
 const done = computed(() => words.value.length > 0 && words.value.every(w => w.solved))
 
+// 網格格子 ↔ 提示列雙向高亮；用 mouseenter/leave（觸控 tap 會觸發相容 mouse 事件，同一份邏輯兩端可用）
+const activeIndexes = ref([])
+function activate(idxs) { activeIndexes.value = idxs }
+function deactivate() { activeIndexes.value = [] }
+
 async function onSubmit(word) {
     const out = await learn.guessCrossword(word)
     tray.value.reset()
@@ -51,12 +56,22 @@ async function onReveal(index) {
         <div
           v-for="(cell, c) in row"
           :key="c"
-          :class="['cw-cell', { filled: cell, empty: !cell }]"
+          :class="['cw-cell', { filled: cell, empty: !cell, active: cell && cell.words.some(i => activeIndexes.includes(i)) }]"
+          @mouseenter="cell && activate(cell.words)"
+          @mouseleave="deactivate()"
         >{{ cell?.letter }}</div>
       </template>
     </div>
 
-    <HintList v-if="!done" :items="hintItems" @hint="onHint" @reveal="onReveal" />
+    <HintList
+      v-if="!done"
+      :items="hintItems"
+      :active-indexes="activeIndexes"
+      @hint="onHint"
+      @reveal="onReveal"
+      @activate="activate"
+      @deactivate="deactivate"
+    />
 
     <LetterTray v-if="!done" ref="tray" :letters="learn.crossword?.letters || ''" @submit="onSubmit" />
 
@@ -75,7 +90,8 @@ async function onReveal(index) {
     display: flex; align-items: center; justify-content: center;
     font-family: var(--font-mono); font-size: 16px; text-transform: lowercase;
 }
-.cw-cell.filled { border: 1px solid var(--border); }
+.cw-cell.filled { border: 1px solid var(--border-strong); background: var(--bg-secondary); }
+.cw-cell.active { border-color: var(--accent); color: var(--accent); }
 .cw-cell.empty { border: none; background: transparent; }
 .crossword__done { text-align: center; padding: 40px 0; }
 .cw-back { padding: 8px 18px; background: transparent; color: inherit; border: 1px solid var(--border); cursor: pointer; }
