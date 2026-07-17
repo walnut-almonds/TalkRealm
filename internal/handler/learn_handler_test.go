@@ -74,6 +74,32 @@ func (m *mockLearnService) DailyLeaderboard(userID uint) (*service.LeaderboardVi
 	return nil, nil //nolint:nilnil // 測試 stub，尚無 daily handler 測試
 }
 
+func (m *mockLearnService) EnsureCampaignLevels() (int, error) { return 0, nil }
+
+func (m *mockLearnService) StartCampaignLevel(
+	userID uint, levelNo int, locale string,
+) (*service.CrosswordView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 campaign handler 測試
+}
+
+func (m *mockLearnService) CampaignOverview(
+	userID uint,
+) (*service.CampaignOverviewView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 campaign handler 測試
+}
+
+func (m *mockLearnService) CampaignLeaderboard(
+	userID uint, friends bool,
+) (*service.LeaderboardView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 campaign handler 測試
+}
+
+func (m *mockLearnService) WeeklyLeaderboard(
+	userID uint, friends bool,
+) (*service.LeaderboardView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 campaign handler 測試
+}
+
 func setupLearnRouter(svc service.LearnService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 

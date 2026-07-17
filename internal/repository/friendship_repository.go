@@ -23,6 +23,8 @@ type FriendshipRepository interface {
 	ListIncomingRequests(userID uint) ([]*model.Friendship, error)
 	// ListOutgoingRequests 列出使用者送出的待處理申請
 	ListOutgoingRequests(userID uint) ([]*model.Friendship, error)
+	// FriendIDs 列出所有已接受好友的 user id（輕量，learn 好友榜等場景用）
+	FriendIDs(userID uint) ([]uint, error)
 }
 
 type friendshipRepository struct {
@@ -98,6 +100,20 @@ func (r *friendshipRepository) ListFriends(userID uint) ([]*model.Friendship, er
 		Find(&friendships).Error
 
 	return friendships, err
+}
+
+func (r *friendshipRepository) FriendIDs(userID uint) ([]uint, error) {
+	var ids []uint
+
+	err := r.db.Model(&model.Friendship{}).
+		Where("(requester_id = ? OR addressee_id = ?) AND status = 'accepted'", userID, userID).
+		Select("CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END", userID).
+		Scan(&ids).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return ids, nil
 }
 
 func (r *friendshipRepository) ListIncomingRequests(userID uint) ([]*model.Friendship, error) {

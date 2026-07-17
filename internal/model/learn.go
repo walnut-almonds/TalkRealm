@@ -47,3 +47,31 @@ type LearnDailyScore struct {
 	CompletedInMs int64     `gorm:"not null"                                                      json:"completed_in_ms"`
 	CreatedAt     time.Time `                                                                     json:"created_at"`
 }
+
+// LearnCampaignLevel 固定關卡（開機冪等生成，發布後不可變——
+// 重生成會回溯改題，破壞既有進度與排行榜的可比性，只允許往後追加新關）
+type LearnCampaignLevel struct {
+	ID        uint      `gorm:"primarykey"           json:"id"`
+	LevelNo   int       `gorm:"not null;uniqueIndex" json:"level_no"`
+	Tier      int       `gorm:"not null"             json:"tier"`
+	Puzzle    string    `gorm:"type:text;not null"   json:"puzzle"` // campaignPuzzle JSON（含答案，不下發 client）
+	CreatedAt time.Time `                            json:"created_at"`
+}
+
+// LearnCampaignProgress 固定關卡首通紀錄（(user_id, level_no) unique，只記首次；重玩不刷榜）
+type LearnCampaignProgress struct {
+	ID        uint      `gorm:"primarykey"                              json:"id"`
+	UserID    uint      `gorm:"not null;uniqueIndex:idx_lcp_user_level" json:"user_id"`
+	LevelNo   int       `gorm:"not null;uniqueIndex:idx_lcp_user_level" json:"level_no"`
+	Score     int       `gorm:"not null"                                json:"score"`
+	CreatedAt time.Time `                                               json:"created_at"`
+}
+
+// LearnWeeklyXP 週 XP 累計（week 為 ISO 週如 "2026-W29"；每次完關累加，週榜用）
+type LearnWeeklyXP struct {
+	ID        uint      `gorm:"primarykey"                                                   json:"id"`
+	UserID    uint      `gorm:"not null;uniqueIndex:idx_lwx_user_week"                       json:"user_id"`
+	Week      string    `gorm:"type:varchar(8);not null;uniqueIndex:idx_lwx_user_week;index" json:"week"`
+	XP        int       `gorm:"not null"                                                     json:"xp"`
+	UpdatedAt time.Time `                                                                    json:"updated_at"`
+}

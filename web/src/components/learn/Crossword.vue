@@ -22,6 +22,17 @@ const hintItems = computed(() => words.value.map((w, i) => ({
 })))
 const done = computed(() => words.value.length > 0 && words.value.every(w => w.solved))
 
+// 固定關卡：完關後可直接接下一關（最後一關或非 campaign 時為 0 = 不顯示）
+const nextCampaign = computed(() => {
+    const no = learn.crossword?.campaign
+    if (!no || !learn.campaign) return 0
+    return no < learn.campaign.total ? no + 1 : 0
+})
+
+async function goNextCampaign() {
+    await learn.startCampaign(nextCampaign.value)
+}
+
 // 網格格子 ↔ 提示列雙向高亮；用 mouseenter/leave（觸控 tap 會觸發相容 mouse 事件，同一份邏輯兩端可用）
 const activeIndexes = ref([])
 function activate(idxs) { activeIndexes.value = idxs }
@@ -78,7 +89,12 @@ async function onReveal(index) {
     <div v-else class="crossword__done">
       <h3>{{ t('learn.levelComplete') }}</h3>
       <p class="cw-xp">+{{ learn.lastOutcome?.total_xp || 0 }} XP</p>
-      <button class="cw-back" @click="emit('exit')">{{ t('learn.backToHub') }}</button>
+      <div class="cw-done-actions">
+        <button v-if="nextCampaign" class="cw-back primary" @click="goNextCampaign">
+          {{ t('learn.nextLevel') }}
+        </button>
+        <button class="cw-back" @click="emit('exit')">{{ t('learn.backToHub') }}</button>
+      </div>
     </div>
   </div>
 </template>
@@ -94,7 +110,10 @@ async function onReveal(index) {
 .cw-cell.active { border-color: var(--accent); color: var(--accent); }
 .cw-cell.empty { border: none; background: transparent; }
 .crossword__done { text-align: center; padding: 40px 0; }
+.cw-done-actions { display: flex; gap: 8px; justify-content: center; }
 .cw-back { padding: 8px 18px; background: transparent; color: inherit; border: 1px solid var(--border); cursor: pointer; }
 .cw-back:hover { background: var(--accent); color: var(--bg-tertiary); }
+.cw-back.primary { border-color: var(--accent); color: var(--accent); }
+.cw-back.primary:hover { color: var(--bg-tertiary); }
 .cw-xp { font-family: var(--font-mono); font-size: 24px; color: var(--accent); }
 </style>

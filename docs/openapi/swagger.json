@@ -1682,6 +1682,104 @@
                 }
             }
         },
+        "/api/v1/learn/campaign": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "取得固定關卡總覽",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.CampaignOverviewView"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/campaign/leaderboard": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "取得固定關卡排行榜",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "friends 表示好友榜",
+                        "name": "scope",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.LeaderboardView"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/campaign/{no}": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "開始固定關卡",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "關卡編號",
+                        "name": "no",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "語系",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.startCampaignReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.CrosswordView"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/learn/daily": {
             "get": {
                 "produces": [
@@ -1710,6 +1808,33 @@
                     "Learn"
                 ],
                 "summary": "取得每日排行榜",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.LeaderboardView"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/leaderboard/weekly": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "取得本週 XP 排行榜",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "friends 表示好友榜",
+                        "name": "scope",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2592,6 +2717,14 @@
                 }
             }
         },
+        "handler.startCampaignReq": {
+            "type": "object",
+            "properties": {
+                "locale": {
+                    "type": "string"
+                }
+            }
+        },
         "model.Channel": {
             "type": "object",
             "properties": {
@@ -2931,6 +3064,38 @@
                 }
             }
         },
+        "service.CampaignLevelView": {
+            "type": "object",
+            "properties": {
+                "done": {
+                    "type": "boolean"
+                },
+                "level_no": {
+                    "type": "integer"
+                },
+                "score": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.CampaignOverviewView": {
+            "type": "object",
+            "properties": {
+                "furthest": {
+                    "description": "已通關的最大關卡編號；0 = 尚未通關任何關",
+                    "type": "integer"
+                },
+                "levels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.CampaignLevelView"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.ChannelUnreadCount": {
             "type": "object",
             "properties": {
@@ -3072,6 +3237,10 @@
         "service.CrosswordView": {
             "type": "object",
             "properties": {
+                "campaign": {
+                    "description": "\u003e0 = 固定關卡編號",
+                    "type": "integer"
+                },
                 "cols": {
                     "type": "integer"
                 },
@@ -3218,6 +3387,10 @@
                 "avatar": {
                     "type": "string"
                 },
+                "level": {
+                    "description": "關卡榜：已通關的最遠關卡",
+                    "type": "integer"
+                },
                 "rank": {
                     "type": "integer"
                 },
@@ -3239,7 +3412,7 @@
                     "type": "string"
                 },
                 "me": {
-                    "description": "未完成時 nil",
+                    "description": "未上榜（未完成/未得分）時 nil",
                     "allOf": [
                         {
                             "$ref": "#/definitions/service.LeaderboardEntry"
@@ -3251,6 +3424,9 @@
                     "items": {
                         "$ref": "#/definitions/service.LeaderboardEntry"
                     }
+                },
+                "week": {
+                    "type": "string"
                 }
             }
         },

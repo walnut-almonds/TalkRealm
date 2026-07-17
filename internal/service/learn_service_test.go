@@ -4,10 +4,12 @@ package service
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
+	"github.com/walnut-almonds/talkrealm/internal/repository"
 )
 
 func TestMaskPositions(t *testing.T) {
@@ -105,10 +107,13 @@ func TestDefinitionFor(t *testing.T) {
 // --- fill 模式端對端（mock repo + memory store）---
 
 type fakeLearnRepo struct {
-	words   []*model.Word
-	stats   map[uint]*model.LearnStat
-	daily   map[string]*model.LearnDailyScore
-	records int
+	words    []*model.Word
+	stats    map[uint]*model.LearnStat
+	daily    map[string]*model.LearnDailyScore
+	records  int
+	campaign map[int]*model.LearnCampaignLevel
+	progress map[string]*model.LearnCampaignProgress // "uid:no"
+	weekly   map[string]*model.LearnWeeklyXP         // "uid:week"
 }
 
 func (f *fakeLearnRepo) RandomWordsByTier(tier, n int) ([]*model.Word, error) {
@@ -187,9 +192,199 @@ func (f *fakeLearnRepo) UserDailyRank(
 	return nil, 0, nil
 }
 
+func (f *fakeLearnRepo) CampaignLevelNos() ([]int, error) {
+	nos := make([]int, 0, len(f.campaign))
+	for no := range f.campaign {
+		nos = append(nos, no)
+	}
+
+	sort.Ints(nos)
+
+	return nos, nil
+}
+
+func (f *fakeLearnRepo) CreateCampaignLevel(l *model.LearnCampaignLevel) error {
+	if f.campaign == nil {
+		f.campaign = map[int]*model.LearnCampaignLevel{}
+	}
+
+	f.campaign[l.LevelNo] = l
+
+	return nil
+}
+
+//nolint:nilnil // 忠實模擬真實 repo：nil = 關卡不存在
+func (f *fakeLearnRepo) CampaignLevelByNo(no int) (*model.LearnCampaignLevel, error) {
+	if l, ok := f.campaign[no]; ok {
+		return l, nil
+	}
+
+	return nil, nil
+}
+
+func (f *fakeLearnRepo) CampaignProgress(userID uint) ([]*model.LearnCampaignProgress, error) {
+	var ps []*model.LearnCampaignProgress
+
+	for _, p := range f.progress {
+		if p.UserID == userID {
+			ps = append(ps, p)
+		}
+	}
+
+	sort.Slice(ps, func(i, j int) bool { return ps[i].LevelNo < ps[j].LevelNo })
+
+	return ps, nil
+}
+
+func (f *fakeLearnRepo) CreateCampaignProgress(p *model.LearnCampaignProgress) (bool, error) {
+	if f.progress == nil {
+		f.progress = map[string]*model.LearnCampaignProgress{}
+	}
+
+	key := fmt.Sprintf("%d:%d", p.UserID, p.LevelNo)
+	if _, ok := f.progress[key]; ok {
+		return false, nil
+	}
+
+	f.progress[key] = p
+
+	return true, nil
+}
+
+func (f *fakeLearnRepo) CampaignTotals(
+	userIDs []uint,
+	limit int,
+) ([]*repository.CampaignTotal, error) {
+	byUser := map[uint]*repository.CampaignTotal{}
+
+	for _, p := range f.progress {
+		if len(userIDs) > 0 && !containsUint(userIDs, p.UserID) {
+			continue
+		}
+
+		tp := byUser[p.UserID]
+		if tp == nil {
+			tp = &repository.CampaignTotal{UserID: p.UserID}
+			byUser[p.UserID] = tp
+		}
+
+		tp.Total += p.Score
+
+		if p.LevelNo > tp.Furthest {
+			tp.Furthest = p.LevelNo
+		}
+	}
+
+	out := make([]*repository.CampaignTotal, 0, len(byUser))
+	for _, tp := range byUser {
+		out = append(out, tp)
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Total != out[j].Total {
+			return out[i].Total > out[j].Total
+		}
+
+		return out[i].Furthest > out[j].Furthest
+	})
+
+	if len(out) > limit {
+		out = out[:limit]
+	}
+
+	return out, nil
+}
+
+func (f *fakeLearnRepo) CampaignRank(
+	userID uint, userIDs []uint,
+) (*repository.CampaignTotal, int, error) {
+	all, err := f.CampaignTotals(userIDs, 1<<30)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	for i, tp := range all {
+		if tp.UserID == userID {
+			return tp, i + 1, nil
+		}
+	}
+
+	return nil, 0, nil
+}
+
+func (f *fakeLearnRepo) UpsertWeeklyXP(userID uint, week string, xp int) error {
+	if f.weekly == nil {
+		f.weekly = map[string]*model.LearnWeeklyXP{}
+	}
+
+	key := fmt.Sprintf("%d:%s", userID, week)
+	if row, ok := f.weekly[key]; ok {
+		row.XP += xp
+
+		return nil
+	}
+
+	f.weekly[key] = &model.LearnWeeklyXP{UserID: userID, Week: week, XP: xp}
+
+	return nil
+}
+
+func (f *fakeLearnRepo) TopWeeklyXP(
+	week string, userIDs []uint, limit int,
+) ([]*model.LearnWeeklyXP, error) {
+	var rows []*model.LearnWeeklyXP
+
+	for _, r := range f.weekly {
+		if r.Week != week {
+			continue
+		}
+
+		if len(userIDs) > 0 && !containsUint(userIDs, r.UserID) {
+			continue
+		}
+
+		rows = append(rows, r)
+	}
+
+	sort.Slice(rows, func(i, j int) bool { return rows[i].XP > rows[j].XP })
+
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
+
+	return rows, nil
+}
+
+func (f *fakeLearnRepo) WeeklyRank(
+	userID uint, week string, userIDs []uint,
+) (*model.LearnWeeklyXP, int, error) {
+	rows, err := f.TopWeeklyXP(week, userIDs, 1<<30)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	for i, r := range rows {
+		if r.UserID == userID {
+			return r, i + 1, nil
+		}
+	}
+
+	return nil, 0, nil
+}
+
+func containsUint(ids []uint, id uint) bool {
+	for _, v := range ids {
+		if v == id {
+			return true
+		}
+	}
+
+	return false
+}
+
 func newTestService(words []*model.Word) (LearnService, *fakeLearnRepo) {
 	repo := &fakeLearnRepo{words: words}
-	svc := NewLearnService(repo, nil, NewMemoryLevelStore())
+	svc := NewLearnService(repo, nil, nil, NewMemoryLevelStore())
 
 	return svc, repo
 }

@@ -190,8 +190,15 @@ func New(cfg *config.Config) (*Server, error) {
 		levelStore = service.NewMemoryLevelStore()
 	}
 
-	learnService := service.NewLearnService(learnRepo, userRepo, levelStore)
+	learnService := service.NewLearnService(learnRepo, userRepo, friendshipRepo, levelStore)
 	learnHandler := handler.NewLearnHandler(learnService)
+
+	// 固定關卡開機冪等生成（已存在的關卡不重生）；失敗僅降級警告，不擋開機
+	if n, err := learnService.EnsureCampaignLevels(); err != nil {
+		logger.Warn("Failed to ensure learn campaign levels", "error", err, "created", n)
+	} else if n > 0 {
+		logger.Info("Learn campaign levels generated", "created", n)
+	}
 
 	s := &Server{
 		config:             cfg,
@@ -401,6 +408,10 @@ func (s *Server) setupRoutes() {
 				learn.GET("/stats", s.learnHandler.GetStats)
 				learn.GET("/daily", s.learnHandler.GetDaily)
 				learn.GET("/daily/leaderboard", s.learnHandler.GetDailyLeaderboard)
+				learn.GET("/campaign", s.learnHandler.GetCampaign)
+				learn.GET("/campaign/leaderboard", s.learnHandler.GetCampaignLeaderboard)
+				learn.POST("/campaign/:no", s.learnHandler.StartCampaign)
+				learn.GET("/leaderboard/weekly", s.learnHandler.GetWeeklyLeaderboard)
 			}
 		}
 

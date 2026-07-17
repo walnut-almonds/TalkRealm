@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"sort"
 	"strings"
 	"time"
 
@@ -292,6 +291,7 @@ type crosswordLevel struct {
 	ID        string    `json:"id"`
 	UserID    uint      `json:"user_id"`
 	Tier      int       `json:"tier"`
+	Campaign  int       `json:"campaign,omitempty"` // >0 = 固定關卡編號；完關時記首通進度
 	Letters   string    `json:"letters"`
 	WordIDs   []uint    `json:"word_ids"`
 	Words     []string  `json:"words"`
@@ -323,12 +323,13 @@ type CrosswordSlot struct {
 
 // CrosswordView 交叉字謎關卡謎面
 type CrosswordView struct {
-	LevelID string          `json:"level_id"`
-	Tier    int             `json:"tier"`
-	Rows    int             `json:"rows"`
-	Cols    int             `json:"cols"`
-	Letters string          `json:"letters"`
-	Words   []CrosswordSlot `json:"words"`
+	LevelID  string          `json:"level_id"`
+	Tier     int             `json:"tier"`
+	Campaign int             `json:"campaign,omitempty"` // >0 = 固定關卡編號
+	Rows     int             `json:"rows"`
+	Cols     int             `json:"cols"`
+	Letters  string          `json:"letters"`
+	Words    []CrosswordSlot `json:"words"`
 }
 
 // CreateCrosswordLevel 生成新的交叉字謎網格關卡
@@ -367,13 +368,7 @@ func (s *learnService) buildCrosswordLevel(
 	}
 
 	// 短字在前、常用字優先；上限 8 個，底字必收（沿用 wheel 既有規則）
-	sort.Slice(answers, func(i, j int) bool {
-		if len(answers[i].Word) != len(answers[j].Word) {
-			return len(answers[i].Word) < len(answers[j].Word)
-		}
-
-		return answers[i].Frequency < answers[j].Frequency
-	})
+	sortWheelAnswers(answers)
 
 	picked := []*model.Word{}
 
@@ -456,7 +451,8 @@ func (s *learnService) buildCrosswordLevel(
 // crosswordView 轉成下發 client 的謎面（未解字絕不含答案）
 func crosswordView(lv *crosswordLevel) *CrosswordView {
 	v := &CrosswordView{
-		LevelID: lv.ID, Tier: lv.Tier, Rows: lv.Rows, Cols: lv.Cols, Letters: lv.Letters,
+		LevelID: lv.ID, Tier: lv.Tier, Campaign: lv.Campaign,
+		Rows: lv.Rows, Cols: lv.Cols, Letters: lv.Letters,
 	}
 
 	for i, word := range lv.Words {
@@ -553,7 +549,7 @@ func (s *learnService) revealCrossword(
 	if out.Completed {
 		out.TotalXP = lv.XP
 
-		if err := s.onLevelCompleted(userID, lv.XP, "", lv.CreatedAt); err != nil {
+		if err := s.onCrosswordCompleted(userID, &lv); err != nil {
 			return nil, err
 		}
 	}
@@ -563,6 +559,24 @@ func (s *learnService) revealCrossword(
 	}
 
 	return out, nil
+}
+
+// onCrosswordCompleted 完關統一收尾：XP/streak/週榜 + 固定關卡首通進度（guess/reveal 共用）
+func (s *learnService) onCrosswordCompleted(userID uint, lv *crosswordLevel) error {
+	if err := s.onLevelCompleted(userID, lv.XP, "", lv.CreatedAt); err != nil {
+		return err
+	}
+
+	if lv.Campaign > 0 {
+		// 唯一鍵擋重複；重玩不覆寫首通分數
+		if _, err := s.repo.CreateCampaignProgress(&model.LearnCampaignProgress{
+			UserID: userID, LevelNo: lv.Campaign, Score: lv.XP, CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // guessCrossword 處理 crossword 的作答：字母盤送字，後端找出命中哪個字
@@ -620,7 +634,7 @@ func (s *learnService) guessCrossword(
 	if out.Completed {
 		out.TotalXP = lv.XP
 
-		if err := s.onLevelCompleted(userID, lv.XP, "", lv.CreatedAt); err != nil {
+		if err := s.onCrosswordCompleted(userID, &lv); err != nil {
 			return nil, err
 		}
 	}

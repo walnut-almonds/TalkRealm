@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
 import WordFill from '@/components/learn/WordFill.vue'
@@ -15,7 +15,19 @@ const tiers = [1, 2, 3, 4, 5]
 // check-i18n-keys 只認字面 key，動態 tier key 走查表
 const tierKeys = ['learn.tier1', 'learn.tier2', 'learn.tier3', 'learn.tier4', 'learn.tier5']
 
-onMounted(() => { learn.loadStats(); learn.loadDaily(); learn.loadLeaderboard() })
+const board = ref('campaign') // 'campaign' | 'weekly'
+const activeBoard = computed(() =>
+    board.value === 'campaign' ? learn.campaignBoard : learn.weeklyBoard)
+// 下一個可挑戰的關卡 = 最遠通關 + 1
+const nextCampaignNo = computed(() => (learn.campaign?.furthest || 0) + 1)
+
+onMounted(() => {
+    learn.loadStats()
+    learn.loadDaily()
+    learn.loadLeaderboard()
+    learn.loadCampaign()
+    learn.loadBoards()
+})
 
 async function start(mode) {
     await learn.startLevel(mode, tier.value)
@@ -28,6 +40,11 @@ async function startDaily() {
 
 async function startCrosswordMode() {
     await learn.startCrossword(tier.value)
+    if (learn.crossword) playing.value = true
+}
+
+async function startCampaignLevel(no) {
+    await learn.startCampaign(no)
     if (learn.crossword) playing.value = true
 }
 
@@ -103,6 +120,23 @@ function exitGame() {
         </div>
       </section>
 
+      <section v-if="learn.campaign?.total" class="learn-card">
+        <div class="daily-head">
+          <h3>{{ t('learn.campaign') }}</h3>
+          <span class="mono">{{ learn.campaign.furthest }} / {{ learn.campaign.total }}</span>
+        </div>
+        <div class="campaign-grid">
+          <button
+            v-for="l in learn.campaign.levels"
+            :key="l.level_no"
+            :class="['cl-btn', { done: l.done, next: l.level_no === nextCampaignNo }]"
+            :disabled="!l.done && l.level_no !== nextCampaignNo"
+            :title="l.done ? `${l.score} XP` : ''"
+            @click="startCampaignLevel(l.level_no)"
+          >{{ l.level_no }}</button>
+        </div>
+      </section>
+
       <section class="learn-card">
         <h3>{{ t('learn.difficulty') }}</h3>
         <div class="tier-row">
@@ -142,6 +176,48 @@ function exitGame() {
         </div>
 
         <p v-if="learn.error" class="learn-error">{{ learn.error }}</p>
+      </section>
+
+      <section class="learn-card">
+        <div class="board-head">
+          <h3>{{ t('learn.leaderboard') }}</h3>
+          <div class="board-tabs">
+            <button
+              :class="['tab-btn', { active: board === 'campaign' }]"
+              @click="board = 'campaign'"
+            >{{ t('learn.campaign') }}</button>
+            <button
+              :class="['tab-btn', { active: board === 'weekly' }]"
+              @click="board = 'weekly'"
+            >{{ t('learn.boardWeekly') }}</button>
+          </div>
+          <div class="board-tabs">
+            <button
+              :class="['tab-btn', { active: learn.boardScope === 'global' }]"
+              @click="learn.setBoardScope('global')"
+            >{{ t('learn.scopeGlobal') }}</button>
+            <button
+              :class="['tab-btn', { active: learn.boardScope === 'friends' }]"
+              @click="learn.setBoardScope('friends')"
+            >{{ t('learn.scopeFriends') }}</button>
+          </div>
+        </div>
+
+        <ol v-if="activeBoard?.top?.length" class="lb-list">
+          <li v-for="e in activeBoard.top" :key="e.user_id" class="lb-row">
+            <span class="lb-rank mono">{{ e.rank }}</span>
+            <img v-if="e.avatar" :src="e.avatar" class="lb-avatar" />
+            <span class="lb-name">{{ e.username || `#${e.user_id}` }}</span>
+            <span v-if="e.level" class="mono">Lv.{{ e.level }}</span>
+            <span class="lb-score mono">{{ e.score }}</span>
+          </li>
+        </ol>
+        <p v-else class="board-empty">{{ t('learn.boardEmpty') }}</p>
+
+        <p v-if="activeBoard?.me" class="lb-me">
+          {{ t('learn.rank') }} <b class="mono">{{ activeBoard.me.rank }}</b>
+          · <b class="mono">{{ activeBoard.me.score }}</b> {{ t('learn.score') }}
+        </p>
       </section>
     </div>
   </div>
@@ -200,4 +276,24 @@ function exitGame() {
 .lb-avatar { width: 20px; height: 20px; border-radius: 50%; } /* 人=圓 */
 .lb-name { flex: 1; font-size: 13px; }
 .lb-me { margin-top: 8px; font-size: 13px; }
+.campaign-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; }
+.cl-btn {
+    height: 36px; background: transparent; color: var(--text-muted);
+    border: 1px solid var(--border); cursor: pointer;
+    font-family: var(--font-mono); font-size: 12px;
+}
+.cl-btn:disabled { opacity: 0.35; cursor: default; }
+.cl-btn.done { color: inherit; border-color: var(--border-strong); }
+.cl-btn.done:hover, .cl-btn.next:hover { border-color: var(--accent); color: var(--accent); }
+.cl-btn.next { border-color: var(--accent); color: var(--accent); }
+.board-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.board-head h3 { margin-right: auto; }
+.board-tabs { display: flex; gap: 4px; }
+.tab-btn {
+    padding: 4px 10px; background: transparent; color: var(--text-muted);
+    border: 1px solid var(--border); cursor: pointer;
+    font-family: var(--font-mono); font-size: 11px;
+}
+.tab-btn.active { border-color: var(--accent); color: var(--accent); }
+.board-empty { font-size: 13px; color: var(--text-muted); }
 </style>

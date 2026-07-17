@@ -11,7 +11,11 @@ export const useLearnStore = defineStore('learn', {
         lastOutcome: null,  // 最近一次 GuessOutcome
         daily: null,        // { date, played, score?, level? }
         leaderboard: null,  // { date, top[], me? }
-        crossword: null,    // CrosswordView：{ level_id, tier, rows, cols, letters, words[] }
+        crossword: null,    // CrosswordView：{ level_id, tier, campaign?, rows, cols, letters, words[] }
+        campaign: null,      // { total, furthest, levels: [{level_no, done, score?}] }
+        campaignBoard: null, // LeaderboardView（關卡榜）
+        weeklyBoard: null,   // LeaderboardView（週榜）
+        boardScope: 'global', // 'global' | 'friends'
         loading: false,
         error: '',
         // 純本機顯示偏好：隱藏底線數量（不影響計分）
@@ -135,7 +139,10 @@ export const useLearnStore = defineStore('learn', {
                         s.definition = out.definition || s.definition
                     }
                 }
-                if (out.completed) this.loadStats()
+                if (out.completed) {
+                    this.loadStats()
+                    if (this.crossword?.campaign) this.loadCampaign() // 首通進度/解鎖狀態刷新
+                }
                 return out
             } catch (e) {
                 if (String(e.message).includes('expired')) this.crossword = null
@@ -170,13 +177,50 @@ export const useLearnStore = defineStore('learn', {
                     s.masked = out.word
                     s.definition = out.definition
                 }
-                if (out.completed) this.loadStats()
+                if (out.completed) {
+                    this.loadStats()
+                    if (this.crossword?.campaign) this.loadCampaign() // 首通進度/解鎖狀態刷新
+                }
                 return out
             } catch (e) {
                 if (String(e.message).includes('expired')) this.crossword = null
                 this.error = e.message
                 return null
             }
+        },
+        async loadCampaign() {
+            try {
+                this.campaign = await api.get(EP.LEARN_CAMPAIGN)
+            } catch (e) { this.error = e.message }
+        },
+        async startCampaign(no) {
+            this.loading = true
+            this.error = ''
+            this.lastOutcome = null
+            this.level = null // 清掉另一模式的殘留狀態，避免畫面判斷式比對到舊資料
+            try {
+                this.crossword = await api.post(EP.LEARN_CAMPAIGN_START(no), { locale: getLocale() })
+            } catch (e) {
+                this.error = e.message
+            } finally {
+                this.loading = false
+            }
+        },
+        async loadBoards() {
+            const q = this.boardScope === 'friends' ? '?scope=friends' : ''
+            try {
+                // 兩個榜一起刷新（hub 同畫面顯示，分開 catch 沒有意義）
+                const [cb, wb] = await Promise.all([
+                    api.get(EP.LEARN_CAMPAIGN_LB + q),
+                    api.get(EP.LEARN_WEEKLY_LB + q),
+                ])
+                this.campaignBoard = cb
+                this.weeklyBoard = wb
+            } catch { /* 榜非關鍵，靜默失敗 */ }
+        },
+        setBoardScope(scope) {
+            this.boardScope = scope
+            this.loadBoards()
         },
         async loadStats() {
             try {

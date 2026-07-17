@@ -47,6 +47,11 @@ type LearnUserLookup interface {
 	GetByID(id uint) (*model.User, error)
 }
 
+// LearnFriendLookup 提供好友榜範圍用的好友查詢（模組邊界：不直接依賴 friendship repo 實作）
+type LearnFriendLookup interface {
+	FriendIDs(userID uint) ([]uint, error)
+}
+
 // LearnGuessRequest 作答請求
 type LearnGuessRequest struct {
 	Slot int    `json:"slot"`
@@ -114,20 +119,22 @@ type DailyView struct {
 	Level  *LevelView `json:"level,omitempty"` // 未 played 時
 }
 
-// LeaderboardEntry 排行榜單列
+// LeaderboardEntry 排行榜單列（每日/週/關卡榜共用；Level 僅關卡榜使用）
 type LeaderboardEntry struct {
 	Rank     int    `json:"rank"`
 	UserID   uint   `json:"user_id"`
 	Username string `json:"username"`
 	Avatar   string `json:"avatar"`
 	Score    int    `json:"score"`
+	Level    int    `json:"level,omitempty"` // 關卡榜：已通關的最遠關卡
 }
 
-// LeaderboardView 當日排行榜
+// LeaderboardView 排行榜（Date=每日榜、Week=週榜、皆空=關卡榜）
 type LeaderboardView struct {
-	Date string             `json:"date"`
+	Date string             `json:"date,omitempty"`
+	Week string             `json:"week,omitempty"`
 	Top  []LeaderboardEntry `json:"top"`
-	Me   *LeaderboardEntry  `json:"me,omitempty"` // 未完成時 nil
+	Me   *LeaderboardEntry  `json:"me,omitempty"` // 未上榜（未完成/未得分）時 nil
 }
 
 // dailyTemplate 每日題目模板（全站共用）
@@ -189,6 +196,11 @@ type LearnService interface {
 	Stats(userID uint) (*LearnStatsView, error)
 	DailyLevel(userID uint, locale string) (*DailyView, error)
 	DailyLeaderboard(userID uint) (*LeaderboardView, error)
+	EnsureCampaignLevels() (int, error)
+	StartCampaignLevel(userID uint, levelNo int, locale string) (*CrosswordView, error)
+	CampaignOverview(userID uint) (*CampaignOverviewView, error)
+	CampaignLeaderboard(userID uint, friends bool) (*LeaderboardView, error)
+	WeeklyLeaderboard(userID uint, friends bool) (*LeaderboardView, error)
 }
 
 // learnLevel 進行中關卡（含答案，只存 LevelStore）
@@ -212,9 +224,10 @@ type learnLevel struct {
 }
 
 type learnService struct {
-	repo  repository.LearnRepository
-	users LearnUserLookup
-	store LevelStore
+	repo    repository.LearnRepository
+	users   LearnUserLookup
+	friends LearnFriendLookup
+	store   LevelStore
 
 	idxOnce sync.Once
 	idx     *anagramIndex
@@ -241,9 +254,10 @@ func (s *learnService) anagram() (*anagramIndex, error) {
 func NewLearnService(
 	repo repository.LearnRepository,
 	users LearnUserLookup,
+	friends LearnFriendLookup,
 	store LevelStore,
 ) LearnService {
-	return &learnService{repo: repo, users: users, store: store}
+	return &learnService{repo: repo, users: users, friends: friends, store: store}
 }
 
 // CreateLevel 生成新關卡
@@ -350,6 +364,17 @@ func findWheelBase(candidates []*model.Word, idx *anagramIndex) (*model.Word, []
 	return nil, nil, false
 }
 
+// sortWheelAnswers 答案排序規則：短字在前、同長度常用字優先（wheel/crossword/campaign 共用）
+func sortWheelAnswers(answers []*model.Word) {
+	sort.Slice(answers, func(i, j int) bool {
+		if len(answers[i].Word) != len(answers[j].Word) {
+			return len(answers[i].Word) < len(answers[j].Word)
+		}
+
+		return answers[i].Frequency < answers[j].Frequency
+	})
+}
+
 func (s *learnService) buildWheelLevel(
 	userID uint, tier int, locale string,
 	base *model.Word, ids []uint, idx *anagramIndex,
@@ -360,13 +385,7 @@ func (s *learnService) buildWheelLevel(
 	}
 
 	// 短字在前、常用字優先；上限 8 個，底字必收
-	sort.Slice(answers, func(i, j int) bool {
-		if len(answers[i].Word) != len(answers[j].Word) {
-			return len(answers[i].Word) < len(answers[j].Word)
-		}
-
-		return answers[i].Frequency < answers[j].Frequency
-	})
+	sortWheelAnswers(answers)
 
 	picked := []*model.Word{}
 
@@ -684,6 +703,13 @@ func (s *learnService) onLevelCompleted(
 		return err
 	}
 
+	// 週榜：完關 XP 累進當週（ISO week），重玩也計入——週榜量的是投入，不是首通
+	if xp > 0 {
+		if err := s.repo.UpsertWeeklyXP(userID, isoWeek(time.Now().UTC()), xp); err != nil {
+			return err
+		}
+	}
+
 	if daily != "" {
 		elapsed := time.Now().UTC().Sub(createdAt)
 
@@ -851,11 +877,16 @@ func (s *learnService) DailyLeaderboard(userID uint) (*LeaderboardView, error) {
 }
 
 func (s *learnService) leaderboardEntry(rank int, sc *model.LearnDailyScore) LeaderboardEntry {
-	e := LeaderboardEntry{Rank: rank, UserID: sc.UserID, Score: sc.Score}
+	return s.boardEntry(rank, sc.UserID, sc.Score)
+}
+
+// boardEntry 三種榜共用的單列組裝
+func (s *learnService) boardEntry(rank int, userID uint, score int) LeaderboardEntry {
+	e := LeaderboardEntry{Rank: rank, UserID: userID, Score: score}
 
 	// 模組邊界：顯示資訊走 UserLookup，查不到就只顯示 ID
 	if s.users != nil {
-		if u, err := s.users.GetByID(sc.UserID); err == nil {
+		if u, err := s.users.GetByID(userID); err == nil {
 			e.Username = displayName(u)
 			e.Avatar = u.Avatar
 		}

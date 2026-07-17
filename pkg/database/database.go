@@ -103,6 +103,9 @@ func AutoMigrate() error {
 		&model.LearnStat{},
 		&model.LearnWordRecord{},
 		&model.LearnDailyScore{},
+		&model.LearnCampaignLevel{},
+		&model.LearnCampaignProgress{},
+		&model.LearnWeeklyXP{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)

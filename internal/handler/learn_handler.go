@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/walnut-almonds/talkrealm/internal/service"
@@ -192,6 +193,111 @@ func (h *LearnHandler) GetStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// GetCampaign 固定關卡總覽（含個人進度）
+//
+//	@Summary	取得固定關卡總覽
+//	@Tags		Learn
+//	@Produce	json
+//	@Success	200	{object}	service.CampaignOverviewView
+//	@Router		/api/v1/learn/campaign [get]
+func (h *LearnHandler) GetCampaign(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	ov, err := h.learnService.CampaignOverview(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, ov)
+}
+
+type startCampaignReq struct {
+	Locale string `json:"locale"`
+}
+
+// StartCampaign 開始固定關卡
+//
+//	@Summary	開始固定關卡
+//	@Tags		Learn
+//	@Accept		json
+//	@Produce	json
+//	@Param		no		path		int					true	"關卡編號"
+//	@Param		request	body		startCampaignReq	true	"語系"
+//	@Success	200		{object}	service.CrosswordView
+//	@Failure	403		{object}	ErrorResponse
+//	@Failure	404		{object}	ErrorResponse
+//	@Router		/api/v1/learn/campaign/{no} [post]
+func (h *LearnHandler) StartCampaign(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	no, err := strconv.Atoi(c.Param("no"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid level number"})
+		return
+	}
+
+	var req startCampaignReq
+
+	_ = c.ShouldBindJSON(&req) // body 只有選填 locale，缺 body 也可
+
+	view, err := h.learnService.StartCampaignLevel(userID, no, req.Locale)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrLearnLevelNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "campaign level not found"})
+		case errors.Is(err, service.ErrLearnCampaignLocked):
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, view)
+}
+
+// GetCampaignLeaderboard 關卡榜（?scope=friends 限好友）
+//
+//	@Summary	取得固定關卡排行榜
+//	@Tags		Learn
+//	@Produce	json
+//	@Param		scope	query		string	false	"friends 表示好友榜"
+//	@Success	200		{object}	service.LeaderboardView
+//	@Router		/api/v1/learn/campaign/leaderboard [get]
+func (h *LearnHandler) GetCampaignLeaderboard(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	lb, err := h.learnService.CampaignLeaderboard(userID, c.Query("scope") == "friends")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, lb)
+}
+
+// GetWeeklyLeaderboard 本週 XP 成長榜（?scope=friends 限好友）
+//
+//	@Summary	取得本週 XP 排行榜
+//	@Tags		Learn
+//	@Produce	json
+//	@Param		scope	query		string	false	"friends 表示好友榜"
+//	@Success	200		{object}	service.LeaderboardView
+//	@Router		/api/v1/learn/leaderboard/weekly [get]
+func (h *LearnHandler) GetWeeklyLeaderboard(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	lb, err := h.learnService.WeeklyLeaderboard(userID, c.Query("scope") == "friends")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, lb)
 }
 
 type learnSlotReq struct {

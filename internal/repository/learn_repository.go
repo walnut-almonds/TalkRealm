@@ -20,6 +20,23 @@ type LearnRepository interface {
 	CreateDailyScore(s *model.LearnDailyScore) (bool, error)
 	TopDailyScores(date string, limit int) ([]*model.LearnDailyScore, error)
 	UserDailyRank(userID uint, date string) (*model.LearnDailyScore, int, error)
+	CampaignLevelNos() ([]int, error)
+	CreateCampaignLevel(l *model.LearnCampaignLevel) error
+	CampaignLevelByNo(no int) (*model.LearnCampaignLevel, error)
+	CampaignProgress(userID uint) ([]*model.LearnCampaignProgress, error)
+	CreateCampaignProgress(p *model.LearnCampaignProgress) (bool, error)
+	CampaignTotals(userIDs []uint, limit int) ([]*CampaignTotal, error)
+	CampaignRank(userID uint, userIDs []uint) (*CampaignTotal, int, error)
+	UpsertWeeklyXP(userID uint, week string, xp int) error
+	TopWeeklyXP(week string, userIDs []uint, limit int) ([]*model.LearnWeeklyXP, error)
+	WeeklyRank(userID uint, week string, userIDs []uint) (*model.LearnWeeklyXP, int, error)
+}
+
+// CampaignTotal 固定關卡榜單列聚合（總分 + 最遠關卡）
+type CampaignTotal struct {
+	UserID   uint `json:"user_id"`
+	Total    int  `json:"total"`
+	Furthest int  `json:"furthest"`
 }
 
 type learnRepository struct {
@@ -146,6 +163,187 @@ func (r *learnRepository) TopDailyScores(date string, limit int) ([]*model.Learn
 	}
 
 	return scores, nil
+}
+
+// CampaignLevelNos 取已存在的固定關卡編號（開機冪等生成用）
+func (r *learnRepository) CampaignLevelNos() ([]int, error) {
+	var nos []int
+
+	err := r.db.Model(&model.LearnCampaignLevel{}).
+		Order("level_no").Pluck("level_no", &nos).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return nos, nil
+}
+
+// CreateCampaignLevel 寫入固定關卡
+func (r *learnRepository) CreateCampaignLevel(l *model.LearnCampaignLevel) error {
+	return r.db.Create(l).Error
+}
+
+// CampaignLevelByNo 取指定編號的固定關卡；不存在回傳 (nil, nil)
+func (r *learnRepository) CampaignLevelByNo(no int) (*model.LearnCampaignLevel, error) {
+	var l model.LearnCampaignLevel
+
+	err := r.db.Where("level_no = ?", no).First(&l).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil //nolint:nilnil // nil = 關卡不存在，由 service 轉語意錯誤
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &l, nil
+}
+
+// CampaignProgress 取使用者全部首通紀錄（關卡數量級 ≤ 百，直接全取）
+func (r *learnRepository) CampaignProgress(userID uint) ([]*model.LearnCampaignProgress, error) {
+	var ps []*model.LearnCampaignProgress
+
+	err := r.db.Where("user_id = ?", userID).Order("level_no").Find(&ps).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return ps, nil
+}
+
+// CreateCampaignProgress 寫入首通紀錄；該關已有記錄回傳 false（不覆寫，重玩不刷榜）
+func (r *learnRepository) CreateCampaignProgress(p *model.LearnCampaignProgress) (bool, error) {
+	res := r.db.Clauses(clause.OnConflict{DoNothing: true}).Create(p)
+	if res.Error != nil {
+		return false, res.Error
+	}
+
+	return res.RowsAffected > 0, nil
+}
+
+// CampaignTotals 固定關卡榜（總分高者先，同分最遠關卡先）；userIDs 非空時限定範圍（好友榜）
+func (r *learnRepository) CampaignTotals(userIDs []uint, limit int) ([]*CampaignTotal, error) {
+	q := r.db.Model(&model.LearnCampaignProgress{}).
+		Select("user_id, SUM(score) AS total, MAX(level_no) AS furthest").
+		Group("user_id").
+		Order("total DESC, furthest DESC").
+		Limit(limit)
+
+	if len(userIDs) > 0 {
+		q = q.Where("user_id IN ?", userIDs)
+	}
+
+	var out []*CampaignTotal
+	if err := q.Scan(&out).Error; err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+// CampaignRank 取使用者關卡榜總分與名次；無任何首通回傳 (nil, 0, nil)。
+// userIDs 非空時名次僅在該範圍內計算（好友榜）。
+func (r *learnRepository) CampaignRank(
+	userID uint, userIDs []uint,
+) (*CampaignTotal, int, error) {
+	var me CampaignTotal
+
+	err := r.db.Model(&model.LearnCampaignProgress{}).
+		Select("user_id, SUM(score) AS total, MAX(level_no) AS furthest").
+		Where("user_id = ?", userID).
+		Group("user_id").
+		Scan(&me).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if me.UserID == 0 {
+		return nil, 0, nil
+	}
+
+	sub := r.db.Model(&model.LearnCampaignProgress{}).
+		Select("user_id, SUM(score) AS total, MAX(level_no) AS furthest").
+		Group("user_id")
+
+	if len(userIDs) > 0 {
+		sub = sub.Where("user_id IN ?", userIDs)
+	}
+
+	var better int64
+
+	err = r.db.Table("(?) AS t", sub).
+		Where("t.total > ? OR (t.total = ? AND t.furthest > ?)", me.Total, me.Total, me.Furthest).
+		Count(&better).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return &me, int(better) + 1, nil
+}
+
+// UpsertWeeklyXP 累加使用者當週 XP
+func (r *learnRepository) UpsertWeeklyXP(userID uint, week string, xp int) error {
+	return r.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "user_id"}, {Name: "week"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			// ON CONFLICT DO UPDATE 內未加表名的欄位引用有歧義（target vs excluded），必須帶表名
+			"xp":         gorm.Expr("learn_weekly_xps.xp + ?", xp),
+			"updated_at": time.Now().UTC(),
+		}),
+	}).Create(&model.LearnWeeklyXP{
+		UserID: userID, Week: week, XP: xp, UpdatedAt: time.Now().UTC(),
+	}).Error
+}
+
+// TopWeeklyXP 週榜（XP 高者先，同分先達成者先）；userIDs 非空時限定範圍（好友榜）
+func (r *learnRepository) TopWeeklyXP(
+	week string, userIDs []uint, limit int,
+) ([]*model.LearnWeeklyXP, error) {
+	q := r.db.Where("week = ?", week).
+		Order("xp DESC, updated_at ASC").Limit(limit)
+
+	if len(userIDs) > 0 {
+		q = q.Where("user_id IN ?", userIDs)
+	}
+
+	var rows []*model.LearnWeeklyXP
+	if err := q.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
+// WeeklyRank 取使用者當週 XP 與名次；本週未得分回傳 (nil, 0, nil)。
+// userIDs 非空時名次僅在該範圍內計算（好友榜）。
+func (r *learnRepository) WeeklyRank(
+	userID uint, week string, userIDs []uint,
+) (*model.LearnWeeklyXP, int, error) {
+	var me model.LearnWeeklyXP
+
+	err := r.db.Where("user_id = ? AND week = ?", userID, week).First(&me).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, 0, nil
+	}
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	q := r.db.Model(&model.LearnWeeklyXP{}).
+		Where("week = ? AND (xp > ? OR (xp = ? AND updated_at < ?))",
+			week, me.XP, me.XP, me.UpdatedAt)
+
+	if len(userIDs) > 0 {
+		q = q.Where("user_id IN ?", userIDs)
+	}
+
+	var better int64
+	if err := q.Count(&better).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return &me, int(better) + 1, nil
 }
 
 // UserDailyRank 取使用者當日分數與名次；未完成回傳 (nil, 0, nil)

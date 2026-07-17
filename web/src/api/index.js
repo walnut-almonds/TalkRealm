@@ -65,6 +65,10 @@ export const EP = {
     LEARN_CROSSWORD: '/api/v1/learn/levels/crossword',
     LEARN_HINT: (id) => `/api/v1/learn/levels/${id}/hint`,
     LEARN_REVEAL: (id) => `/api/v1/learn/levels/${id}/reveal`,
+    LEARN_CAMPAIGN: '/api/v1/learn/campaign',
+    LEARN_CAMPAIGN_START: (no) => `/api/v1/learn/campaign/${no}`,
+    LEARN_CAMPAIGN_LB: '/api/v1/learn/campaign/leaderboard',
+    LEARN_WEEKLY_LB: '/api/v1/learn/leaderboard/weekly',
 }
 
 export const STORAGE_KEYS = {
