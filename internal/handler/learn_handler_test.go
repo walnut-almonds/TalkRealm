@@ -13,8 +13,8 @@ import (
 )
 
 type mockLearnService struct {
-	createLevelFn     func(userID uint, mode string, tier int, locale string) (*service.LevelView, error)
-	createCrosswordFn func(userID uint, tier int, locale string) (*service.CrosswordView, error)
+	createLevelFn     func(userID uint, mode string, tier, count int, locale string) (*service.LevelView, error)
+	createCrosswordFn func(userID uint, tier, count int, locale string) (*service.CrosswordView, error)
 	guessFn           func(userID uint, levelID string, req *service.LearnGuessRequest) (*service.GuessOutcome, error)
 	hintFn            func(userID uint, levelID string, slot int) (*service.HintOutcome, error)
 	revealFn          func(userID uint, levelID string, slot int) (*service.GuessOutcome, error)
@@ -24,18 +24,18 @@ type mockLearnService struct {
 func (m *mockLearnService) CreateLevel(
 	userID uint,
 	mode string,
-	tier int,
+	tier, count int,
 	locale string,
 ) (*service.LevelView, error) {
-	return m.createLevelFn(userID, mode, tier, locale)
+	return m.createLevelFn(userID, mode, tier, count, locale)
 }
 
 func (m *mockLearnService) CreateCrosswordLevel(
 	userID uint,
-	tier int,
+	tier, count int,
 	locale string,
 ) (*service.CrosswordView, error) {
-	return m.createCrosswordFn(userID, tier, locale)
+	return m.createCrosswordFn(userID, tier, count, locale)
 }
 
 func (m *mockLearnService) Guess(
@@ -118,7 +118,7 @@ func setupLearnRouter(svc service.LearnService) *gin.Engine {
 
 func TestCreateLevelOK(t *testing.T) {
 	svc := &mockLearnService{
-		createLevelFn: func(userID uint, mode string, tier int, locale string) (*service.LevelView, error) {
+		createLevelFn: func(userID uint, mode string, tier, count int, locale string) (*service.LevelView, error) {
 			if userID != 7 || mode != service.ModeFill || tier != 2 {
 				t.Errorf("args: %d %s %d", userID, mode, tier)
 			}
@@ -146,7 +146,7 @@ func TestCreateLevelOK(t *testing.T) {
 
 func TestCreateLevelInvalidMode(t *testing.T) {
 	svc := &mockLearnService{
-		createLevelFn: func(uint, string, int, string) (*service.LevelView, error) {
+		createLevelFn: func(uint, string, int, int, string) (*service.LevelView, error) {
 			return nil, service.ErrLearnInvalidMode
 		},
 	}
@@ -194,7 +194,7 @@ func TestGuessExpiredLevel(t *testing.T) {
 
 func TestCreateCrosswordOK(t *testing.T) {
 	svc := &mockLearnService{
-		createCrosswordFn: func(userID uint, tier int, locale string) (*service.CrosswordView, error) {
+		createCrosswordFn: func(userID uint, tier, count int, locale string) (*service.CrosswordView, error) {
 			if userID != 7 || tier != 2 {
 				t.Errorf("args: %d %d", userID, tier)
 			}
@@ -222,7 +222,7 @@ func TestCreateCrosswordOK(t *testing.T) {
 
 func TestCreateCrosswordInvalidTier(t *testing.T) {
 	svc := &mockLearnService{
-		createCrosswordFn: func(uint, int, string) (*service.CrosswordView, error) {
+		createCrosswordFn: func(uint, int, int, string) (*service.CrosswordView, error) {
 			return nil, service.ErrLearnInvalidTier
 		},
 	}

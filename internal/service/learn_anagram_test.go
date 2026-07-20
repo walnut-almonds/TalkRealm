@@ -70,7 +70,7 @@ func TestWheelLevelFlow(t *testing.T) {
 	}
 	svc, _ := newTestService(words)
 
-	lv, err := svc.CreateLevel(7, ModeWheel, 2, "zh-tw")
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, 0, "zh-tw")
 	if err != nil {
 		t.Fatalf("CreateLevel wheel: %v", err)
 	}

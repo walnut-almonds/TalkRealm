@@ -2,6 +2,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -32,6 +33,25 @@ func TestEnsureCampaignLevelsIdempotent(t *testing.T) {
 		}
 	}
 
+	// 底字長度曲線：fixture 有 3 字母（rat/art/tar）與 4 字母（star）底字，
+	// 1-5 關字母輪應為 3 顆、6-10 關應為 4 顆（更長的關卡 fixture 缺字，走保底不驗證）
+	for no := 1; no <= 10; no++ {
+		var pz campaignPuzzle
+		if err := json.Unmarshal([]byte(repo.campaign[no].Puzzle), &pz); err != nil {
+			t.Fatalf("level %d puzzle: %v", no, err)
+		}
+
+		if want := campaignBaseLen(no); len(pz.Letters) != want {
+			t.Errorf(
+				"level %d letters = %q (%d) want len %d",
+				no,
+				pz.Letters,
+				len(pz.Letters),
+				want,
+			)
+		}
+	}
+
 	// 冪等：再跑一次不重生任何關卡
 	created, err = svc.EnsureCampaignLevels()
 	if err != nil {
@@ -40,6 +60,17 @@ func TestEnsureCampaignLevelsIdempotent(t *testing.T) {
 
 	if created != 0 {
 		t.Errorf("2nd run created %d, want 0", created)
+	}
+}
+
+func TestCampaignBaseLenCurve(t *testing.T) {
+	tests := []struct{ no, want int }{
+		{1, 3}, {5, 3}, {6, 4}, {10, 4}, {11, 5}, {20, 5}, {21, 6}, {35, 6}, {36, 7}, {50, 7},
+	}
+	for _, tt := range tests {
+		if got := campaignBaseLen(tt.no); got != tt.want {
+			t.Errorf("campaignBaseLen(%d) = %d want %d", tt.no, got, tt.want)
+		}
 	}
 }
 

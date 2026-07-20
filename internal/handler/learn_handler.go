@@ -22,6 +22,7 @@ func NewLearnHandler(learnService service.LearnService) *LearnHandler {
 type createLevelReq struct {
 	Mode   string `json:"mode"   binding:"required"`
 	Tier   int    `json:"tier"   binding:"required"`
+	Count  int    `json:"count"`  // 答案數（少3/中6/多9）；0 = 該模式預設
 	Locale string `json:"locale"` // 前端 i18n locale；空值 fallback en
 }
 
@@ -44,7 +45,7 @@ func (h *LearnHandler) CreateLevel(c *gin.Context) {
 		return
 	}
 
-	lv, err := h.learnService.CreateLevel(userID, req.Mode, req.Tier, req.Locale)
+	lv, err := h.learnService.CreateLevel(userID, req.Mode, req.Tier, req.Count, req.Locale)
 	if err != nil {
 		if errors.Is(err, service.ErrLearnInvalidMode) ||
 			errors.Is(err, service.ErrLearnInvalidTier) {
@@ -62,6 +63,7 @@ func (h *LearnHandler) CreateLevel(c *gin.Context) {
 
 type createCrosswordReq struct {
 	Tier   int    `json:"tier"   binding:"required"`
+	Count  int    `json:"count"` // 答案數（少3/中6/多9）；0 = 預設
 	Locale string `json:"locale"`
 }
 
@@ -84,7 +86,7 @@ func (h *LearnHandler) CreateCrossword(c *gin.Context) {
 		return
 	}
 
-	cw, err := h.learnService.CreateCrosswordLevel(userID, req.Tier, req.Locale)
+	cw, err := h.learnService.CreateCrosswordLevel(userID, req.Tier, req.Count, req.Locale)
 	if err != nil {
 		if errors.Is(err, service.ErrLearnInvalidTier) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

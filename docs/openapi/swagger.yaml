@@ -51,6 +51,9 @@ definitions:
     type: object
   handler.createCrosswordReq:
     properties:
+      count:
+        description: 答案數（少3/中6/多9）；0 = 預設
+        type: integer
       locale:
         type: string
       tier:
@@ -60,6 +63,9 @@ definitions:
     type: object
   handler.createLevelReq:
     properties:
+      count:
+        description: 答案數（少3/中6/多9）；0 = 該模式預設
+        type: integer
       locale:
         description: 前端 i18n locale；空值 fallback en
         type: string

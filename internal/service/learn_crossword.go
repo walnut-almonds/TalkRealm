@@ -297,7 +297,8 @@ type crosswordLevel struct {
 	Words     []string  `json:"words"`
 	Phonetics []string  `json:"phonetics"`
 	Defs      []string  `json:"defs"`
-	Row       []int     `json:"row"` // 平行陣列；-1 = bonus 字（未排進網格）
+	Tiers     []int     `json:"tiers,omitempty"` // 各字自身 tier（計分用）；舊關卡可能缺
+	Row       []int     `json:"row"`             // 平行陣列；-1 = bonus 字（未排進網格）
 	Col       []int     `json:"col"`
 	Dir       []string  `json:"dir"` // "h" / "v"；bonus 字為空字串
 	Solved    []bool    `json:"solved"`
@@ -332,9 +333,9 @@ type CrosswordView struct {
 	Words    []CrosswordSlot `json:"words"`
 }
 
-// CreateCrosswordLevel 生成新的交叉字謎網格關卡
+// CreateCrosswordLevel 生成新的交叉字謎網格關卡；count 為答案數（0 = 預設）
 func (s *learnService) CreateCrosswordLevel(
-	userID uint, tier int, locale string,
+	userID uint, tier, count int, locale string,
 ) (*CrosswordView, error) {
 	if tier < 1 || tier > 5 {
 		return nil, ErrLearnInvalidTier
@@ -355,34 +356,15 @@ func (s *learnService) CreateCrosswordLevel(
 		return nil, fmt.Errorf("no crossword puzzle available for tier %d", tier)
 	}
 
-	return s.buildCrosswordLevel(userID, tier, locale, base, ids, idx)
+	return s.buildCrosswordLevel(userID, tier, count, locale, base, ids, idx)
 }
 
 func (s *learnService) buildCrosswordLevel(
-	userID uint, tier int, locale string,
+	userID uint, tier, count int, locale string,
 	base *model.Word, ids []uint, idx *anagramIndex,
 ) (*CrosswordView, error) {
-	answers := make([]*model.Word, 0, len(ids))
-	for _, id := range ids {
-		answers = append(answers, idx.words[id])
-	}
-
-	// 短字在前、常用字優先；上限 8 個，底字必收（沿用 wheel 既有規則）
-	sortWheelAnswers(answers)
-
-	picked := []*model.Word{}
-
-	for _, a := range answers {
-		if a.ID == base.ID {
-			continue
-		}
-
-		if len(picked) < wheelMaxAnswers-1 {
-			picked = append(picked, a)
-		}
-	}
-
-	picked = append(picked, base)
+	// 短字在前、常用字優先；上限 = 使用者自選數（預設 8），底字必收（沿用 wheel 既有規則）
+	picked := pickWheelAnswers(base, ids, idx, clampWordCount(count, wheelMaxAnswers))
 
 	// picked 目前只有 idx 的輕量欄位（無 phonetic/definition），
 	// 需重新取完整欄位才能填入最終謎面資料
@@ -433,6 +415,7 @@ func (s *learnService) buildCrosswordLevel(
 		lv.Words = append(lv.Words, w.Word)
 		lv.Phonetics = append(lv.Phonetics, w.Phonetic)
 		lv.Defs = append(lv.Defs, definitionFor(w, locale))
+		lv.Tiers = append(lv.Tiers, w.Tier)
 		lv.Row = append(lv.Row, placements[i].Row)
 		lv.Col = append(lv.Col, placements[i].Col)
 		lv.Dir = append(lv.Dir, placements[i].Dir)
@@ -625,8 +608,13 @@ func (s *learnService) guessCrossword(
 		Phonetic:   lv.Phonetics[slot],
 		Definition: lv.Defs[slot],
 		XPAwarded: hintDiscount(
-			wordXP(lv.Words[slot], lv.Tier, ModeWheel), lv.HintTier[slot],
-		), // 猜字機制同 wheel，套用同一套 XP 檔次
+			// 猜字機制同 wheel，套用同一套 XP 檔次 + 難字/字數加成
+			scaleXPBySize(
+				wordXP(lv.Words[slot], effectiveTier(lv.Tier, lv.Tiers, slot), ModeWheel),
+				len(lv.Words),
+			),
+			lv.HintTier[slot],
+		),
 	}
 	lv.XP += out.XPAwarded
 	out.Completed = allSolved(lv.Solved)

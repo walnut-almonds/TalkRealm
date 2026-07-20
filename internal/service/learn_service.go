@@ -31,6 +31,9 @@ const (
 	wheelMaxAnswers = 8
 	wheelMinAnswers = 3
 
+	// 使用者可自選的答案數上限（少3/中6/多9）；0 = 沿用各模式預設
+	maxUserWordCount = 9
+
 	dateFmt       = "2006-01-02"
 	dailyTier     = 3
 	dailyKeyFmt   = "learn:daily:%s"
@@ -188,8 +191,8 @@ func loadEnvelope(store LevelStore, id string) (*levelEnvelope, error) {
 
 // LearnService 單字學習服務介面
 type LearnService interface {
-	CreateLevel(userID uint, mode string, tier int, locale string) (*LevelView, error)
-	CreateCrosswordLevel(userID uint, tier int, locale string) (*CrosswordView, error)
+	CreateLevel(userID uint, mode string, tier, count int, locale string) (*LevelView, error)
+	CreateCrosswordLevel(userID uint, tier, count int, locale string) (*CrosswordView, error)
 	Guess(userID uint, levelID string, req *LearnGuessRequest) (*GuessOutcome, error)
 	Hint(userID uint, levelID string, slot int) (*HintOutcome, error)
 	Reveal(userID uint, levelID string, slot int) (*GuessOutcome, error)
@@ -214,6 +217,7 @@ type learnLevel struct {
 	Words     []string  `json:"words"`
 	Phonetics []string  `json:"phonetics"`
 	Defs      []string  `json:"defs"`
+	Tiers     []int     `json:"tiers,omitempty"` // 各字自身 tier（計分用）；舊關卡可能缺
 	Masks     [][]int   `json:"masks"`
 	Letters   string    `json:"letters"`
 	Solved    []bool    `json:"solved"`
@@ -260,9 +264,26 @@ func NewLearnService(
 	return &learnService{repo: repo, users: users, friends: friends, store: store}
 }
 
-// CreateLevel 生成新關卡
+// clampWordCount 使用者自選答案數：0 = 沿用該模式預設；否則收斂到 3..9
+func clampWordCount(n, def int) int {
+	if n == 0 {
+		return def
+	}
+
+	if n < wheelMinAnswers {
+		return wheelMinAnswers
+	}
+
+	if n > maxUserWordCount {
+		return maxUserWordCount
+	}
+
+	return n
+}
+
+// CreateLevel 生成新關卡；count 為答案數（0 = 預設）
 func (s *learnService) CreateLevel(
-	userID uint, mode string, tier int, locale string,
+	userID uint, mode string, tier, count int, locale string,
 ) (*LevelView, error) {
 	if mode != ModeFill && mode != ModeWheel {
 		return nil, ErrLearnInvalidMode
@@ -273,14 +294,16 @@ func (s *learnService) CreateLevel(
 	}
 
 	if mode == ModeWheel {
-		return s.createWheelLevel(userID, tier, locale)
+		return s.createWheelLevel(userID, tier, count, locale)
 	}
 
-	return s.createFillLevel(userID, tier, locale)
+	return s.createFillLevel(userID, tier, count, locale)
 }
 
-func (s *learnService) createFillLevel(userID uint, tier int, locale string) (*LevelView, error) {
-	words, err := s.repo.RandomWordsByTier(tier, fillWordCount)
+func (s *learnService) createFillLevel(
+	userID uint, tier, count int, locale string,
+) (*LevelView, error) {
+	words, err := s.repo.RandomWordsByTier(tier, clampWordCount(count, fillWordCount))
 	if err != nil {
 		return nil, err
 	}
@@ -303,6 +326,7 @@ func (s *learnService) createFillLevel(userID uint, tier int, locale string) (*L
 		lv.Words = append(lv.Words, w.Word)
 		lv.Phonetics = append(lv.Phonetics, w.Phonetic)
 		lv.Defs = append(lv.Defs, definitionFor(w, locale))
+		lv.Tiers = append(lv.Tiers, w.Tier)
 		lv.Masks = append(lv.Masks, maskPositions(rng, len(w.Word), tier))
 		lv.Solved = append(lv.Solved, false)
 		lv.HintTier = append(lv.HintTier, 0)
@@ -316,7 +340,9 @@ func (s *learnService) createFillLevel(userID uint, tier int, locale string) (*L
 	return levelView(lv), nil
 }
 
-func (s *learnService) createWheelLevel(userID uint, tier int, locale string) (*LevelView, error) {
+func (s *learnService) createWheelLevel(
+	userID uint, tier, count int, locale string,
+) (*LevelView, error) {
 	idx, err := s.anagram()
 	if err != nil {
 		return nil, err
@@ -332,7 +358,7 @@ func (s *learnService) createWheelLevel(userID uint, tier int, locale string) (*
 		return nil, fmt.Errorf("no wheel puzzle available for tier %d", tier)
 	}
 
-	return s.buildWheelLevel(userID, tier, locale, base, ids, idx)
+	return s.buildWheelLevel(userID, tier, count, locale, base, ids, idx)
 }
 
 // findWheelBase 依既有規則找底字候選與其子字 ID 清單：優先 5–7 字母且答案數
@@ -376,30 +402,11 @@ func sortWheelAnswers(answers []*model.Word) {
 }
 
 func (s *learnService) buildWheelLevel(
-	userID uint, tier int, locale string,
+	userID uint, tier, count int, locale string,
 	base *model.Word, ids []uint, idx *anagramIndex,
 ) (*LevelView, error) {
-	answers := make([]*model.Word, 0, len(ids))
-	for _, id := range ids {
-		answers = append(answers, idx.words[id])
-	}
-
-	// 短字在前、常用字優先；上限 8 個，底字必收
-	sortWheelAnswers(answers)
-
-	picked := []*model.Word{}
-
-	for _, a := range answers {
-		if a.ID == base.ID {
-			continue
-		}
-
-		if len(picked) < wheelMaxAnswers-1 {
-			picked = append(picked, a)
-		}
-	}
-
-	picked = append(picked, base) // 底字放最後（最長）
+	// 短字在前、常用字優先；上限 = 使用者自選數（預設 8），底字必收（放最後、最長）
+	picked := pickWheelAnswers(base, ids, idx, clampWordCount(count, wheelMaxAnswers))
 
 	// picked 目前只有 idx 的輕量欄位（無 phonetic/definition），
 	// 需重新取完整欄位才能填入最終謎面資料
@@ -442,6 +449,7 @@ func (s *learnService) buildWheelLevel(
 		lv.Words = append(lv.Words, w.Word)
 		lv.Phonetics = append(lv.Phonetics, w.Phonetic)
 		lv.Defs = append(lv.Defs, definitionFor(w, locale))
+		lv.Tiers = append(lv.Tiers, w.Tier)
 		lv.Masks = append(lv.Masks, nil)
 		lv.Solved = append(lv.Solved, false)
 		lv.HintTier = append(lv.HintTier, 0)
@@ -532,7 +540,8 @@ func (s *learnService) guessFillWheel(
 	out.Word = lv.Words[slot]
 	out.Phonetic = lv.Phonetics[slot]
 	out.Definition = lv.Defs[slot]
-	out.XPAwarded = hintDiscount(wordXP(lv.Words[slot], lv.Tier, lv.Mode), lv.HintTier[slot])
+	base := wordXP(lv.Words[slot], effectiveTier(lv.Tier, lv.Tiers, slot), lv.Mode)
+	out.XPAwarded = hintDiscount(scaleXPBySize(base, len(lv.Words)), lv.HintTier[slot])
 	lv.XP += out.XPAwarded
 	out.Completed = allSolved(lv.Solved)
 
@@ -786,6 +795,7 @@ func (s *learnService) DailyLevel(userID uint, locale string) (*DailyView, error
 		lv.Words = append(lv.Words, w.Word)
 		lv.Phonetics = append(lv.Phonetics, w.Phonetic)
 		lv.Defs = append(lv.Defs, definitionFor(w, locale))
+		lv.Tiers = append(lv.Tiers, w.Tier)
 		lv.Masks = append(lv.Masks, tpl.Masks[i])
 		lv.Solved = append(lv.Solved, false)
 		lv.HintTier = append(lv.HintTier, 0)
@@ -968,6 +978,32 @@ func wordXP(word string, tier int, mode string) int {
 	}
 
 	return xp
+}
+
+// effectiveTier 計分用 tier：字自身 tier 與關卡 tier 取大者——
+// wheel/crossword 的 anagram 子字不分難度，抽到難字應有加成、簡單字不受罰。
+// 舊版進行中關卡（Redis 內無 Tiers 陣列）自然 fallback 關卡 tier。
+func effectiveTier(levelTier int, tiers []int, slot int) int {
+	if slot < len(tiers) && tiers[slot] > levelTier {
+		return tiers[slot]
+	}
+
+	return levelTier
+}
+
+// scaleXPBySize 答案數等差加成：3 字 ×1.0，每多 1 字 +10%，上限 ×1.6（9 字）。
+// 整數運算避免浮點捨入不一致。
+func scaleXPBySize(xp, answerCount int) int {
+	b := answerCount - 3
+	if b < 0 {
+		b = 0
+	}
+
+	if b > 6 {
+		b = 6
+	}
+
+	return xp * (10 + b) / 10
 }
 
 // definitionFor 依 ui_locale 挑釋義；ja 缺字 fallback en（spec §3）

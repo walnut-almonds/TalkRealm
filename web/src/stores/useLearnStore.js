@@ -26,14 +26,14 @@ export const useLearnStore = defineStore('learn', {
             this.hardMode = v
             localStorage.setItem(HARD_MODE_KEY, v ? '1' : '0')
         },
-        async startLevel(mode, tier) {
+        async startLevel(mode, tier, count = 0) {
             this.loading = true
             this.error = ''
             this.lastOutcome = null
             this.crossword = null // 清掉另一模式的殘留狀態，避免畫面判斷式比對到舊資料
             try {
                 this.level = await api.post(EP.LEARN_LEVELS, {
-                    mode, tier, locale: getLocale(),
+                    mode, tier, count, locale: getLocale(),
                 })
             } catch (e) {
                 this.error = e.message
@@ -112,13 +112,13 @@ export const useLearnStore = defineStore('learn', {
                 return null
             }
         },
-        async startCrossword(tier) {
+        async startCrossword(tier, count = 0) {
             this.loading = true
             this.error = ''
             this.lastOutcome = null
             this.level = null // 清掉另一模式的殘留狀態，避免畫面判斷式比對到舊資料
             try {
-                this.crossword = await api.post(EP.LEARN_CROSSWORD, { tier, locale: getLocale() })
+                this.crossword = await api.post(EP.LEARN_CROSSWORD, { tier, count, locale: getLocale() })
             } catch (e) {
                 this.error = e.message
             } finally {

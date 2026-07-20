@@ -215,7 +215,7 @@ func TestCreateCrosswordLevel(t *testing.T) {
 	}
 	svc, _ := newTestService(words)
 
-	cw, err := svc.CreateCrosswordLevel(7, 2, "zh-tw")
+	cw, err := svc.CreateCrosswordLevel(7, 2, 0, "zh-tw")
 	if err != nil {
 		t.Fatalf("CreateCrosswordLevel: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestGuessCrossword(t *testing.T) {
 	}
 	svc, repo := newTestService(words)
 
-	cw, err := svc.CreateCrosswordLevel(7, 2, "zh-tw")
+	cw, err := svc.CreateCrosswordLevel(7, 2, 0, "zh-tw")
 	if err != nil {
 		t.Fatalf("CreateCrosswordLevel: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestGuessCrosswordCompletion(t *testing.T) {
 	}
 	svc, repo := newTestService(words)
 
-	cw, err := svc.CreateCrosswordLevel(9, 1, "zh-tw")
+	cw, err := svc.CreateCrosswordLevel(9, 1, 0, "zh-tw")
 	if err != nil {
 		t.Fatalf("CreateCrosswordLevel: %v", err)
 	}
@@ -368,7 +368,7 @@ func TestHintCrosswordProgression(t *testing.T) {
 	}
 	svc, _ := newTestService(words)
 
-	cw, err := svc.CreateCrosswordLevel(7, 2, "en")
+	cw, err := svc.CreateCrosswordLevel(7, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateCrosswordLevel: %v", err)
 	}
@@ -424,7 +424,7 @@ func TestRevealCrossword(t *testing.T) {
 	}
 	svc, repo := newTestService(words)
 
-	cw, err := svc.CreateCrosswordLevel(7, 2, "en")
+	cw, err := svc.CreateCrosswordLevel(7, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateCrosswordLevel: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestFillWheelUnaffectedByEnvelope(t *testing.T) {
 	// 信封改動的回歸驗證：fill 既有流程必須完全不受影響
 	svc, _ := newTestService(testWords())
 
-	lv, err := svc.CreateLevel(7, ModeFill, 2, "en")
+	lv, err := svc.CreateLevel(7, ModeFill, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateLevel: %v", err)
 	}

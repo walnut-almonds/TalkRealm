@@ -81,6 +81,96 @@ func TestWordXP(t *testing.T) {
 	}
 }
 
+func TestScaleXPBySize(t *testing.T) {
+	// 3 字 ×1.0，每多 1 字 +10%，9 字封頂 ×1.6；3 字以下不減分
+	tests := []struct{ xp, n, want int }{
+		{10, 2, 10}, {10, 3, 10}, {10, 4, 11}, {10, 6, 13}, {10, 9, 16}, {10, 12, 16},
+	}
+	for _, tt := range tests {
+		if got := scaleXPBySize(tt.xp, tt.n); got != tt.want {
+			t.Errorf("scaleXPBySize(%d,%d)=%d want %d", tt.xp, tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestEffectiveTier(t *testing.T) {
+	tiers := []int{1, 4}
+
+	if got := effectiveTier(2, tiers, 0); got != 2 { // 字比關卡簡單 → 不受罰
+		t.Errorf("easy word tier = %d want 2", got)
+	}
+
+	if got := effectiveTier(2, tiers, 1); got != 4 { // 抽到難字 → 用字自身 tier
+		t.Errorf("hard word tier = %d want 4", got)
+	}
+
+	if got := effectiveTier(2, nil, 5); got != 2 { // 舊關卡無 Tiers → fallback
+		t.Errorf("legacy fallback tier = %d want 2", got)
+	}
+}
+
+func TestWheelHardWordBonus(t *testing.T) {
+	// tier 2 的 wheel 關抽到 tier 5 的子字，計分應用字自身 tier
+	words := []*model.Word{
+		{ID: 1, Word: "star", Tier: 2, Frequency: 100, DefinitionEN: "gas ball"},
+		{ID: 2, Word: "rat", Tier: 2, Frequency: 200, DefinitionEN: "rodent"},
+		{ID: 3, Word: "art", Tier: 5, Frequency: 150, DefinitionEN: "creative work"},
+	}
+	svc, _ := newTestService(words)
+
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, 0, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel: %v", err)
+	}
+
+	out, err := svc.Guess(7, lv.LevelID, &LearnGuessRequest{Slot: -1, Word: "art"})
+	if err != nil || !out.Correct {
+		t.Fatalf("guess art: %v %+v", err, out)
+	}
+
+	want := scaleXPBySize(wordXP("art", 5, ModeWheel), len(lv.Slots))
+	if out.XPAwarded != want {
+		t.Errorf("hard word xp = %d want %d (tier 5, not level tier 2)", out.XPAwarded, want)
+	}
+}
+
+func TestCreateLevelWordCount(t *testing.T) {
+	svc, _ := newTestService(wheelAnagramWords()) // 4 個字的 fixture
+
+	// fill：count=3 精確取 3 字
+	lv, err := svc.CreateLevel(7, ModeFill, 2, 3, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel fill: %v", err)
+	}
+
+	if len(lv.Slots) != 3 {
+		t.Errorf("fill slots = %d want 3", len(lv.Slots))
+	}
+
+	// wheel：count=3 是上限（底字必收）
+	lv, err = svc.CreateLevel(7, ModeWheel, 2, 3, "en")
+	if err != nil {
+		t.Fatalf("CreateLevel wheel: %v", err)
+	}
+
+	if len(lv.Slots) != 3 {
+		t.Errorf("wheel slots = %d want 3", len(lv.Slots))
+	}
+
+	// clamp：超界收斂到 3..9
+	if got := clampWordCount(99, 5); got != maxUserWordCount {
+		t.Errorf("clamp(99) = %d want %d", got, maxUserWordCount)
+	}
+
+	if got := clampWordCount(1, 5); got != wheelMinAnswers {
+		t.Errorf("clamp(1) = %d want %d", got, wheelMinAnswers)
+	}
+
+	if got := clampWordCount(0, 5); got != 5 {
+		t.Errorf("clamp(0) = %d want default 5", got)
+	}
+}
+
 func TestDefinitionFor(t *testing.T) {
 	w := &model.Word{
 		DefinitionEN: "en", DefinitionZH: "zh",
@@ -449,7 +539,7 @@ func wheelAnagramWords() []*model.Word {
 func TestFillLevelFlow(t *testing.T) {
 	svc, repo := newTestService(testWords())
 
-	lv, err := svc.CreateLevel(7, ModeFill, 2, "zh-tw")
+	lv, err := svc.CreateLevel(7, ModeFill, 2, 0, "zh-tw")
 	if err != nil {
 		t.Fatalf("CreateLevel: %v", err)
 	}
@@ -541,11 +631,11 @@ func TestGuessUnknownLevel(t *testing.T) {
 func TestCreateLevelValidation(t *testing.T) {
 	svc, _ := newTestService(testWords())
 
-	if _, err := svc.CreateLevel(7, "bogus", 2, "en"); !errors.Is(err, ErrLearnInvalidMode) {
+	if _, err := svc.CreateLevel(7, "bogus", 2, 0, "en"); !errors.Is(err, ErrLearnInvalidMode) {
 		t.Errorf("mode: %v", err)
 	}
 
-	if _, err := svc.CreateLevel(7, ModeFill, 9, "en"); !errors.Is(err, ErrLearnInvalidTier) {
+	if _, err := svc.CreateLevel(7, ModeFill, 9, 0, "en"); !errors.Is(err, ErrLearnInvalidTier) {
 		t.Errorf("tier: %v", err)
 	}
 }
@@ -656,7 +746,7 @@ func TestHintDiscount(t *testing.T) {
 func TestHintWheelProgression(t *testing.T) {
 	svc, _ := newTestService(wheelAnagramWords())
 
-	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateLevel: %v", err)
 	}
@@ -706,7 +796,7 @@ func TestHintRejectsSolvedSlot(t *testing.T) {
 
 	svc, _ := newTestService(wheelAnagramWords())
 
-	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateLevel: %v", err)
 	}
@@ -724,7 +814,7 @@ func TestHintRejectsSolvedSlot(t *testing.T) {
 func TestHintRejectsFillMode(t *testing.T) {
 	svc, _ := newTestService(testWords())
 
-	lv, err := svc.CreateLevel(7, ModeFill, 2, "en")
+	lv, err := svc.CreateLevel(7, ModeFill, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateLevel: %v", err)
 	}
@@ -743,7 +833,7 @@ func TestGuessXPDiscountedByHintTier(t *testing.T) {
 
 	svc, _ := newTestService(wheelAnagramWords())
 
-	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateLevel: %v", err)
 	}
@@ -768,7 +858,7 @@ func TestGuessXPDiscountedByHintTier(t *testing.T) {
 func TestRevealWheel(t *testing.T) {
 	svc, repo := newTestService(wheelAnagramWords())
 
-	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateLevel: %v", err)
 	}
@@ -796,7 +886,7 @@ func TestRevealWheel(t *testing.T) {
 func TestRevealCompletesLevel(t *testing.T) {
 	svc, repo := newTestService(wheelAnagramWords())
 
-	lv, err := svc.CreateLevel(7, ModeWheel, 2, "en")
+	lv, err := svc.CreateLevel(7, ModeWheel, 2, 0, "en")
 	if err != nil {
 		t.Fatalf("CreateLevel: %v", err)
 	}

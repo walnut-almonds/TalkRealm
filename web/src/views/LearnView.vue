@@ -15,6 +15,21 @@ const tiers = [1, 2, 3, 4, 5]
 // check-i18n-keys 只認字面 key，動態 tier key 走查表
 const tierKeys = ['learn.tier1', 'learn.tier2', 'learn.tier3', 'learn.tier4', 'learn.tier5']
 
+// 隨機模式答案數偏好（少/中/多），純本機顯示偏好存 localStorage
+const COUNT_KEY = 'talkrealm_learn_count'
+// check-i18n-keys 只認字面 key，動態 key 走查表
+const counts = [
+    { v: 3, key: 'learn.countFew' },
+    { v: 6, key: 'learn.countMid' },
+    { v: 9, key: 'learn.countMany' },
+]
+const wordCount = ref(Number(localStorage.getItem(COUNT_KEY)) || 6)
+
+function setWordCount(v) {
+    wordCount.value = v
+    localStorage.setItem(COUNT_KEY, String(v))
+}
+
 const board = ref('campaign') // 'campaign' | 'weekly'
 const activeBoard = computed(() =>
     board.value === 'campaign' ? learn.campaignBoard : learn.weeklyBoard)
@@ -30,7 +45,7 @@ onMounted(() => {
 })
 
 async function start(mode) {
-    await learn.startLevel(mode, tier.value)
+    await learn.startLevel(mode, tier.value, wordCount.value)
     if (learn.level) playing.value = true
 }
 
@@ -39,7 +54,7 @@ async function startDaily() {
 }
 
 async function startCrosswordMode() {
-    await learn.startCrossword(tier.value)
+    await learn.startCrossword(tier.value, wordCount.value)
     if (learn.crossword) playing.value = true
 }
 
@@ -155,6 +170,16 @@ function exitGame() {
           <span>{{ t('learn.hardMode') }}</span>
           <small>{{ t('learn.hardModeDesc') }}</small>
         </button>
+
+        <h3>{{ t('learn.wordCount') }}</h3>
+        <div class="tier-row">
+          <button
+            v-for="c in counts"
+            :key="c.v"
+            :class="['tier-btn', { active: wordCount === c.v }]"
+            @click="setWordCount(c.v)"
+          >{{ t(c.key) }} ({{ c.v }})</button>
+        </div>
 
         <h3>{{ t('learn.chooseMode') }}</h3>
         <div class="mode-row">

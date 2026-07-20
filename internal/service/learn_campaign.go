@@ -26,6 +26,54 @@ func campaignWordCount(no int) int {
 	return 3 + (no-1)/10
 }
 
+// campaignBaseLen 關卡編號 → 底字長度（= 字母輪的字母數）難度曲線。
+// 只影響關卡生成，不影響計分；避免第 1 關就出現 7 字母底字。
+func campaignBaseLen(no int) int {
+	switch {
+	case no <= 5:
+		return 3
+	case no <= 10:
+		return 4
+	case no <= 20:
+		return 5
+	case no <= 35:
+		return 6
+	default:
+		return 7
+	}
+}
+
+// campaignFindBase 挑指定長度的底字：優先答案數 ≥ want，退而求其次 ≥2
+func campaignFindBase(
+	candidates []*model.Word, idx *anagramIndex, baseLen, want int,
+) (*model.Word, []uint, bool) {
+	var (
+		fbBase *model.Word
+		fbIDs  []uint
+	)
+
+	for _, c := range candidates {
+		if len(c.Word) != baseLen {
+			continue
+		}
+
+		ids := idx.subWordIDs(c.Word)
+		if len(ids) >= want {
+			return c, ids, true
+		}
+
+		if fbBase == nil && len(ids) >= 2 {
+			fbBase, fbIDs = c, ids
+		}
+	}
+
+	if fbBase != nil {
+		return fbBase, fbIDs, true
+	}
+
+	return nil, nil, false
+}
+
 // campaignPuzzle 固定關卡謎題（存 DB 的 JSON；只含排進網格的字）
 type campaignPuzzle struct {
 	Letters string   `json:"letters"`
@@ -106,18 +154,21 @@ func (s *learnService) EnsureCampaignLevels() (int, error) {
 }
 
 // generateCampaignPuzzle 反覆抽字排版直到湊出合格謎題：
-// 優先全部答案都排進網格；試滿次數後退而求其次取「排進最多」的一次，未排進的字直接剔除
+// 只有「湊滿目標字數且全部排進網格」才立即接受，確保難度曲線是盡力保證而非上限；
+// 試滿次數後退而求其次取「排進最多」的一次，未排進的字直接剔除
 func (s *learnService) generateCampaignPuzzle(
 	no int, idx *anagramIndex, usedBase map[uint]bool,
 ) (*campaignPuzzle, error) {
 	want := campaignWordCount(no)
+	baseLen := campaignBaseLen(no)
 
 	var best *campaignPuzzle
 
 	bestPlaced := 0
 
 	for try := 0; try < campaignGenTries; try++ {
-		candidates, err := s.repo.RandomWordsByTier(campaignTier, 20)
+		// 抽多一點（50）提高命中指定長度底字的機率
+		candidates, err := s.repo.RandomWordsByTier(campaignTier, 50)
 		if err != nil {
 			return nil, err
 		}
@@ -134,9 +185,14 @@ func (s *learnService) generateCampaignPuzzle(
 			fresh = candidates
 		}
 
-		base, ids, ok := findWheelBase(fresh, idx)
+		base, ids, ok := campaignFindBase(fresh, idx, baseLen, want)
 		if !ok {
 			// 未用過的底字湊不出謎面（字池小）：退回允許重複底字
+			base, ids, ok = campaignFindBase(candidates, idx, baseLen, want)
+		}
+
+		if !ok {
+			// 字池完全沒有該長度的可用底字：退回一般 wheel 規則保底，寧可長度略偏也要能生成
 			base, ids, ok = findWheelBase(candidates, idx)
 		}
 
@@ -144,7 +200,7 @@ func (s *learnService) generateCampaignPuzzle(
 			continue
 		}
 
-		picked := pickCrosswordAnswers(base, ids, idx, want)
+		picked := pickWheelAnswers(base, ids, idx, want)
 
 		words := make([]string, len(picked))
 		for i, w := range picked {
@@ -181,7 +237,8 @@ func (s *learnService) generateCampaignPuzzle(
 		)
 		pz.Letters = string(letters)
 
-		if placed == len(picked) {
+		// placed ≤ len(picked) ≤ want，等於 want 即代表湊滿且全排進
+		if placed == want {
 			usedBase[base.ID] = true
 
 			return pz, nil
@@ -205,8 +262,9 @@ func (s *learnService) generateCampaignPuzzle(
 	return best, nil
 }
 
-// pickCrosswordAnswers 依 wheel 既有規則（短字在前、常用優先、底字必收）挑最多 limit 個答案
-func pickCrosswordAnswers(
+// pickWheelAnswers 依 wheel 既有規則（短字在前、常用優先、底字必收）挑最多 limit 個答案；
+// wheel/crossword/campaign 三種生成共用
+func pickWheelAnswers(
 	base *model.Word, ids []uint, idx *anagramIndex, limit int,
 ) []*model.Word {
 	answers := make([]*model.Word, 0, len(ids))
@@ -282,17 +340,21 @@ func (s *learnService) StartCampaignLevel(
 	}
 
 	for i, id := range pz.WordIDs {
-		// 拼字以 puzzle 存檔為準（字表異動不影響已發布關卡）；音標/釋義由字表即時補
+		// 拼字以 puzzle 存檔為準（字表異動不影響已發布關卡）；音標/釋義/計分 tier 由字表即時補
 		phonetic, def := "", ""
+		wordTier := rec.Tier
+
 		if w := byID[id]; w != nil {
 			phonetic = w.Phonetic
 			def = definitionFor(w, locale)
+			wordTier = w.Tier
 		}
 
 		lv.WordIDs = append(lv.WordIDs, id)
 		lv.Words = append(lv.Words, pz.Words[i])
 		lv.Phonetics = append(lv.Phonetics, phonetic)
 		lv.Defs = append(lv.Defs, def)
+		lv.Tiers = append(lv.Tiers, wordTier)
 		lv.Row = append(lv.Row, pz.Row[i])
 		lv.Col = append(lv.Col, pz.Col[i])
 		lv.Dir = append(lv.Dir, pz.Dir[i])
