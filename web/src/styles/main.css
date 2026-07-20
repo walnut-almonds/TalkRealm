@@ -2990,7 +2990,7 @@ select {
        when a chat view is showing, the rail hides off-canvas and
        slides in together with the channel/DM sidebar. On views
        without a sidebar (e.g. Home) it stays in the normal flow. ── */
-    .app-shell:has(.channels-sidebar, .dm-sidebar) .nav-rail {
+    .app-shell:has(.channels-sidebar, .dm-sidebar, .learn-view) .nav-rail {
         position: fixed;
         left: 0;
         top: 0;
@@ -3000,7 +3000,7 @@ select {
         z-index: 501;
     }
 
-    .app-shell:has(.channels-sidebar.mobile-open, .dm-sidebar.mobile-open) .nav-rail {
+    .app-shell:has(.channels-sidebar.mobile-open, .dm-sidebar.mobile-open, .learn-view.mobile-nav-open) .nav-rail {
         transform: translateX(0);
     }
 

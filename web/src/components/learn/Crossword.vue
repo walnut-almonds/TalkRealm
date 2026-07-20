@@ -58,10 +58,11 @@ async function onReveal(index) {
 
 <template>
   <div class="crossword">
+    <!-- minmax(0,32px) + aspect-ratio：窄螢幕（手機扣掉 rail 後）欄寬等比縮小，不橫向爆版 -->
     <div
       v-if="!done"
       class="crossword__grid"
-      :style="{ gridTemplateRows: `repeat(${rows}, 32px)`, gridTemplateColumns: `repeat(${cols}, 32px)` }"
+      :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 32px))` }"
     >
       <template v-for="(row, r) in cells" :key="r">
         <div
@@ -89,6 +90,13 @@ async function onReveal(index) {
     <div v-else class="crossword__done">
       <h3>{{ t('learn.levelComplete') }}</h3>
       <p class="cw-xp">+{{ learn.lastOutcome?.total_xp || 0 }} XP</p>
+      <!-- 完關單字回顧：最後一字猜完直接進完關畫面，釋義在這裡補看 -->
+      <ul class="done-words">
+        <li v-for="(w, i) in words" :key="i">
+          <b class="dw-word">{{ w.word }}</b>
+          <span class="dw-def">{{ w.definition }}</span>
+        </li>
+      </ul>
       <div class="cw-done-actions">
         <button v-if="nextCampaign" class="cw-back primary" @click="goNextCampaign">
           {{ t('learn.nextLevel') }}
@@ -101,15 +109,23 @@ async function onReveal(index) {
 
 <style scoped>
 .crossword { display: flex; flex-direction: column; gap: 20px; max-width: 480px; margin: 0 auto; padding: 24px 16px; align-items: center; }
-.crossword__grid { display: grid; gap: 2px; }
+.crossword__grid { display: grid; gap: 2px; max-width: 100%; }
 .cw-cell {
+    aspect-ratio: 1 / 1; min-width: 0;
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-mono); font-size: 16px; text-transform: lowercase;
+    font-family: var(--font-mono); font-size: clamp(11px, 4.2vw, 16px); text-transform: lowercase;
 }
 .cw-cell.filled { border: 1px solid var(--border-strong); background: var(--bg-secondary); }
 .cw-cell.active { border-color: var(--accent); color: var(--accent); }
 .cw-cell.empty { border: none; background: transparent; }
-.crossword__done { text-align: center; padding: 40px 0; }
+.crossword__done { text-align: center; padding: 40px 0; width: 100%; }
+.done-words {
+    list-style: none; padding: 0; margin: 20px 0;
+    display: flex; flex-direction: column; gap: 6px; text-align: left;
+}
+.done-words li { display: flex; gap: 12px; align-items: baseline; border: 1px solid var(--border); padding: 8px 12px; }
+.dw-word { font-family: var(--font-mono); flex-shrink: 0; }
+.dw-def { color: var(--text-muted); font-size: 12px; }
 .cw-done-actions { display: flex; gap: 8px; justify-content: center; }
 .cw-back { padding: 8px 18px; background: transparent; color: inherit; border: 1px solid var(--border); cursor: pointer; }
 .cw-back:hover { background: var(--accent); color: var(--bg-tertiary); }

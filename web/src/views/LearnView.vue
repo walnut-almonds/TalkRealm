@@ -11,6 +11,8 @@ const { t } = useI18n()
 
 const tier = ref(2)
 const playing = ref(false)
+// 手機版：nav rail 收成抽屜（比照 chat），漢堡鍵展開
+const mobileNavOpen = ref(false)
 const tiers = [1, 2, 3, 4, 5]
 // check-i18n-keys 只認字面 key，動態 tier key 走查表
 const tierKeys = ['learn.tier1', 'learn.tier2', 'learn.tier3', 'learn.tier4', 'learn.tier5']
@@ -71,9 +73,18 @@ function exitGame() {
 </script>
 
 <template>
-  <div class="learn-view">
+  <div :class="['learn-view', { 'mobile-nav-open': mobileNavOpen }]">
+    <div
+      v-if="mobileNavOpen"
+      class="mobile-sidebar-backdrop"
+      @click="mobileNavOpen = false"
+    ></div>
+
     <div v-if="playing && (learn.level || learn.crossword)" class="learn-game">
       <div class="learn-game__bar">
+        <button class="mobile-hamburger" aria-label="menu" @click="mobileNavOpen = true">
+          <i class="fas fa-bars"></i>
+        </button>
         <button class="exit-btn" @click="exitGame">
           <i class="fas fa-arrow-left"></i>
           <span>{{ t('learn.backToHub') }}</span>
@@ -94,6 +105,9 @@ function exitGame() {
 
     <div v-else class="learn-hub">
       <header class="learn-hub__head">
+        <button class="mobile-hamburger" aria-label="menu" @click="mobileNavOpen = true">
+          <i class="fas fa-bars"></i>
+        </button>
         <h2>{{ t('learn.hubTitle') }}</h2>
         <div v-if="learn.stats" class="learn-stats">
           <span class="stat"><b>{{ learn.stats.xp }}</b> XP</span>

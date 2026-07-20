@@ -44,6 +44,13 @@ async function onReveal(index) {
     <div v-else class="wheel__done">
       <h3>{{ t('learn.levelComplete') }}</h3>
       <p class="wh-xp">+{{ learn.lastOutcome?.total_xp || 0 }} XP</p>
+      <!-- 完關單字回顧：最後一字猜完直接進完關畫面，釋義在這裡補看 -->
+      <ul class="done-words">
+        <li v-for="(s, i) in learn.level?.slots || []" :key="i">
+          <b class="dw-word">{{ s.word }}</b>
+          <span class="dw-def">{{ s.definition }}</span>
+        </li>
+      </ul>
       <button class="wh-btn primary" @click="emit('exit')">{{ t('learn.backToHub') }}</button>
     </div>
   </div>
@@ -59,4 +66,11 @@ async function onReveal(index) {
 .wh-btn.primary:hover { background: var(--accent); color: var(--bg-tertiary); }
 .wheel__done { text-align: center; padding: 40px 0; }
 .wh-xp { font-family: var(--font-mono); font-size: 24px; color: var(--accent); }
+.done-words {
+    list-style: none; padding: 0; margin: 20px 0;
+    display: flex; flex-direction: column; gap: 6px; text-align: left;
+}
+.done-words li { display: flex; gap: 12px; align-items: baseline; border: 1px solid var(--border); padding: 8px 12px; }
+.dw-word { font-family: var(--font-mono); flex-shrink: 0; }
+.dw-def { color: var(--text-muted); font-size: 12px; }
 </style>

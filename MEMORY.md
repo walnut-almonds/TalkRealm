@@ -74,7 +74,7 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - **Windows 開發環境**：`.tool-versions` 的 swag 需用 `go:github.com/swaggo/swag/cmd/swag` backend（aqua backend 不支援 windows）；Makefile 的 setup scripts 需以 `bash ./scripts/...` 呼叫（直接執行 `.sh` 會被 Windows 丟給 WSL）；`go test -race` 需 cgo + gcc，Windows 無 gcc 時 Makefile 以 `ifeq ($(OS),Windows_NT)` 跳過 `-race`。mise reshim 在 claude 執行中會因 claude.exe shim 被鎖而整批失敗；缺 shim 時可直接複製任一既有 shim（全是同一顆通用 exe，靠檔名辨識）：`cp shims/go.exe shims/<tool>.exe`（已補 golangci-lint/swag/kubectl/k9s）。
 - **Status 顯示規則（invisible/idle/dnd）**：`Status` 欄位是使用者自選偏好；對「其他人」顯示時 invisible 一律映射為 offline（`ListGuildMembers` 的 switch、`user_service.publicStatus()`）。WS identify 廣播 presence 時經 `Manager.userLookup`（`SetUserLookup(userRepo)` 注入）查偏好：invisible 不廣播、idle/dnd/busy/away 廣播自選值。前端 `handleUserStatus` 只有收到 `offline` 才從 `onlineUserIds` 移除。已知限制：透過 REST 改 status 不會即時廣播 presence，需等下次成員清單載入。注意：message/friendship 等 Preload("User") 的 JSON 仍會帶原始 status（含 invisible），尚未清洗。
 
-- **手機版左側抽屜（Discord-style）**：nav-rail 在聊天頁（DOM 有 `.channels-sidebar` 或 `.dm-sidebar` 時）透過 `main.css` mobile 區塊的 `.app-shell:has(...)` 規則變 fixed off-canvas，與 sidebar 一起滑入（sidebar `left:56px`、closed transform 是 `translateX(calc(-100% - 56px))`）；HomeView 無 sidebar 時 rail 留在 flow 內。注意 mobile 樣式分兩處：`channels-sidebar`/`members-sidebar` 在 `main.css`，`dm-sidebar` 在 `DMSidebar.vue` 的 scoped style，改抽屜行為要兩邊同步。
+- **手機版左側抽屜（Discord-style）**：nav-rail 在聊天頁（DOM 有 `.channels-sidebar` 或 `.dm-sidebar`）與 Learn 頁（`.learn-view`）透過 `main.css` mobile 區塊的 `.app-shell:has(...)` 規則變 fixed off-canvas；聊天頁與 sidebar 一起滑入（sidebar `left:56px`、closed transform 是 `translateX(calc(-100% - 56px))`），Learn 頁由 `LearnView.vue` 的 `mobileNavOpen` state（root class `mobile-nav-open`）+ 復用 `.mobile-hamburger`/`.mobile-sidebar-backdrop` 控制。HomeView 無 sidebar 時 rail 留在 flow 內。注意 mobile 樣式分兩處：`channels-sidebar`/`members-sidebar` 在 `main.css`，`dm-sidebar` 在 `DMSidebar.vue` 的 scoped style，改抽屜行為要兩邊同步。
 
 - **GORM 欄位命名陷阱（連續大寫縮寫）**：`DefinitionZHTW` 會被 GORM naming 轉成 `definition_zhtw`（不是 `definition_zh_tw`；json tag 可以自訂但 DB 欄位名跟著 GORM）。手寫 SQL/`clause.AssignmentColumns` 的欄位字串必須用 GORM 實際命名。同理 `ContentZHTW` → `content_zhtw`。
 - **Postgres ON CONFLICT DO UPDATE 歧義**：`gorm.Expr("col + 1")` 在 DO UPDATE 內會報 42702（target 表與 excluded 都有該欄），必須帶表名：`gorm.Expr("learn_word_records.col + 1")`。mock repo 的單元測試測不出這類 SQL 錯誤，改 upsert 語句後要對真 DB 打一次。
@@ -91,6 +91,9 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-07-20
+ — campaign 底字長度曲線修正（兩階段生成、長度優先於字數，見 Architecture Notes）；手機版三修：crossword 網格 `minmax(0,32px)`+`aspect-ratio` 自適應收縮、wheel/crossword 完關畫面加單字回顧列表（修「最後一字釋義看不到」）、Learn 頁 nav-rail 比照 chat 收成抽屜（見「手機版左側抽屜」條目）
+
 2026-07-17
  — Learn XP 難字/字數加成 + 隨機模式答案數自選（少/中/多）+ campaign 生成改盡力保證目標字數（見 Architecture Notes「Learn XP 加成與答案數自選」）；含 4 個新單元測試，真瀏覽器驗證按鈕列與 request body
  — Learn 固定關卡 1~50（easy）+ 進度解鎖 + 關卡榜/週榜（好友/全球）上線（見 Architecture Notes「Learn 固定關卡」）；含開機冪等生成、首通不覆寫、四個新單元測試，真瀏覽器驗證關卡格/完關接關/榜切換
