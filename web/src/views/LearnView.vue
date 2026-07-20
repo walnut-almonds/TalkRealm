@@ -13,6 +13,16 @@ const tier = ref(2)
 const playing = ref(false)
 // 手機版：nav rail 收成抽屜（比照 chat），漢堡鍵展開
 const mobileNavOpen = ref(false)
+
+// Hub 分頁（比照 chat 的頻道切換）：內容只顯示當前分頁，避免卡片一路往下疊到要一直捲動。
+// check-i18n-keys 只認字面 key，動態 tab key 走查表（同 tierKeys 慣例）
+const tabs = [
+    { id: 'daily', icon: 'fa-calendar-day', key: 'learn.tabDaily' },
+    { id: 'campaign', icon: 'fa-map', key: 'learn.tabCampaign' },
+    { id: 'random', icon: 'fa-shuffle', key: 'learn.tabRandom' },
+    { id: 'board', icon: 'fa-ranking-star', key: 'learn.leaderboard' },
+]
+const activeTab = ref('daily')
 const tiers = [1, 2, 3, 4, 5]
 // check-i18n-keys 只認字面 key，動態 tier key 走查表
 const tierKeys = ['learn.tier1', 'learn.tier2', 'learn.tier3', 'learn.tier4', 'learn.tier5']
@@ -115,7 +125,21 @@ function exitGame() {
         </div>
       </header>
 
-      <section class="learn-card daily-card">
+      <nav class="hub-tabs">
+        <button
+          v-for="tb in tabs"
+          :key="tb.id"
+          :class="['hub-tab', { active: activeTab === tb.id }]"
+          @click="activeTab = tb.id"
+        >
+          <i :class="['fas', tb.icon]"></i>
+          <span>{{ t(tb.key) }}</span>
+        </button>
+      </nav>
+
+      <p v-if="learn.error" class="learn-error">{{ learn.error }}</p>
+
+      <section v-if="activeTab === 'daily'" class="learn-card daily-card">
         <div class="daily-head">
           <h3>{{ t('learn.daily') }}</h3>
           <span class="daily-date">{{ learn.daily?.date }}</span>
@@ -149,12 +173,12 @@ function exitGame() {
         </div>
       </section>
 
-      <section v-if="learn.campaign?.total" class="learn-card">
-        <div class="daily-head">
+      <section v-else-if="activeTab === 'campaign'" class="learn-card">
+        <div v-if="learn.campaign?.total" class="daily-head">
           <h3>{{ t('learn.campaign') }}</h3>
           <span class="mono">{{ learn.campaign.furthest }} / {{ learn.campaign.total }}</span>
         </div>
-        <div class="campaign-grid">
+        <div v-if="learn.campaign?.total" class="campaign-grid">
           <button
             v-for="l in learn.campaign.levels"
             :key="l.level_no"
@@ -164,9 +188,10 @@ function exitGame() {
             @click="startCampaignLevel(l.level_no)"
           >{{ l.level_no }}</button>
         </div>
+        <p v-else class="board-empty">{{ t('common.loading') }}</p>
       </section>
 
-      <section class="learn-card">
+      <section v-else-if="activeTab === 'random'" class="learn-card">
         <h3>{{ t('learn.difficulty') }}</h3>
         <div class="tier-row">
           <button
@@ -213,11 +238,9 @@ function exitGame() {
             <small>{{ t('learn.modeCrosswordDesc') }}</small>
           </button>
         </div>
-
-        <p v-if="learn.error" class="learn-error">{{ learn.error }}</p>
       </section>
 
-      <section class="learn-card">
+      <section v-else-if="activeTab === 'board'" class="learn-card">
         <div class="board-head">
           <h3>{{ t('learn.leaderboard') }}</h3>
           <div class="board-tabs">
@@ -281,8 +304,20 @@ function exitGame() {
 }
 .hard-toggle.on { border-color: var(--accent); color: var(--accent); }
 .hard-toggle small { color: var(--text-muted); font-size: 11px; }
-.learn-hub { max-width: 640px; margin: 0 auto; padding: 32px 16px; display: flex; flex-direction: column; gap: 24px; }
+.learn-hub { max-width: 640px; margin: 0 auto; padding: 32px 16px; display: flex; flex-direction: column; gap: 20px; }
 .learn-hub__head { display: flex; justify-content: space-between; align-items: baseline; }
+.hub-tabs {
+    display: flex; justify-content: center; flex-wrap: wrap; gap: 8px;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+.hub-tab {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; background: transparent; color: var(--text-muted);
+    border: 1px solid var(--border); cursor: pointer;
+    font-family: var(--font-mono); font-size: 13px;
+}
+.hub-tab:hover { border-color: var(--accent); color: var(--accent); }
+.hub-tab.active { border-color: var(--accent); color: var(--accent); }
 .learn-stats { display: flex; gap: 16px; font-family: var(--font-mono); font-size: 13px; color: var(--text-muted); }
 .learn-stats b { color: var(--accent); }
 .learn-card {
