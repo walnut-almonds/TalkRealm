@@ -123,7 +123,7 @@ func (s *learnService) EnsureCampaignLevels() (int, error) {
 	}
 
 	created := 0
-	usedBase := map[uint]bool{} // 同一輪生成盡量不重複底字，避免關卡雷同
+	usedBase := map[string]bool{} // key=底字排序字母簽名：同一輪生成盡量不重複 anagram 組，避免關卡雷同
 
 	for no := 1; no <= campaignLevelCount; no++ {
 		if have[no] {
@@ -153,113 +153,133 @@ func (s *learnService) EnsureCampaignLevels() (int, error) {
 	return created, nil
 }
 
-// generateCampaignPuzzle 反覆抽字排版直到湊出合格謎題：
-// 只有「湊滿目標字數且全部排進網格」才立即接受，確保難度曲線是盡力保證而非上限；
-// 試滿次數後退而求其次取「排進最多」的一次，未排進的字直接剔除
+// generateCampaignPuzzle 兩階段抽字排版：
+// 第一階段堅持指定底字長度，「湊滿目標字數且全排進」立即接受，字數不足的成品記為候選；
+// 第一階段只要有任何成品（即使字數不足）就直接採用——長度優先於字數，
+// 3 字母 2 個答案的簡單關，好過 5 字母 3 個答案的「假 easy」。
+// 第一階段全空手（字池缺該長度）才進第二階段放寬長度保底。
 func (s *learnService) generateCampaignPuzzle(
-	no int, idx *anagramIndex, usedBase map[uint]bool,
+	no int, idx *anagramIndex, usedBase map[string]bool,
 ) (*campaignPuzzle, error) {
 	want := campaignWordCount(no)
 	baseLen := campaignBaseLen(no)
 
-	var best *campaignPuzzle
+	var (
+		best       *campaignPuzzle
+		bestPlaced int
+		bestSig    string
+	)
 
-	bestPlaced := 0
-
-	for try := 0; try < campaignGenTries; try++ {
-		// 抽多一點（50）提高命中指定長度底字的機率
-		candidates, err := s.repo.RandomWordsByTier(campaignTier, 50)
-		if err != nil {
-			return nil, err
-		}
-
-		fresh := make([]*model.Word, 0, len(candidates))
-
-		for _, c := range candidates {
-			if !usedBase[c.ID] {
-				fresh = append(fresh, c)
+	for _, relax := range []bool{false, true} {
+		for try := 0; try < campaignGenTries; try++ {
+			pz, placed, sig, err := s.tryCampaignDraw(idx, usedBase, baseLen, want, relax)
+			if err != nil {
+				return nil, err
 			}
-		}
 
-		if len(fresh) == 0 {
-			fresh = candidates
-		}
-
-		base, ids, ok := campaignFindBase(fresh, idx, baseLen, want)
-		if !ok {
-			// 未用過的底字湊不出謎面（字池小）：退回允許重複底字
-			base, ids, ok = campaignFindBase(candidates, idx, baseLen, want)
-		}
-
-		if !ok {
-			// 字池完全沒有該長度的可用底字：退回一般 wheel 規則保底，寧可長度略偏也要能生成
-			base, ids, ok = findWheelBase(candidates, idx)
-		}
-
-		if !ok {
-			continue
-		}
-
-		picked := pickWheelAnswers(base, ids, idx, want)
-
-		words := make([]string, len(picked))
-		for i, w := range picked {
-			words[i] = w.Word
-		}
-
-		placements, rows, cols := layoutCrossword(words)
-		pz := &campaignPuzzle{Rows: rows, Cols: cols}
-		placed := 0
-
-		for i, p := range placements {
-			if p.Row == -1 {
+			if pz == nil {
 				continue
 			}
 
-			placed++
+			// placed ≤ 挑中字數 ≤ want，等於 want 即代表湊滿且全排進
+			if placed == want {
+				usedBase[sig] = true
 
-			pz.WordIDs = append(pz.WordIDs, picked[i].ID)
-			pz.Words = append(pz.Words, picked[i].Word)
-			pz.Row = append(pz.Row, p.Row)
-			pz.Col = append(pz.Col, p.Col)
-			pz.Dir = append(pz.Dir, p.Dir)
+				return pz, nil
+			}
+
+			if placed > bestPlaced {
+				best, bestPlaced, bestSig = pz, placed, sig
+			}
 		}
 
-		if placed < 2 {
-			continue
-		}
-
-		rng := newLevelRand()
-		letters := []byte(base.Word)
-		rng.Shuffle(
-			len(letters),
-			func(i, j int) { letters[i], letters[j] = letters[j], letters[i] },
-		)
-		pz.Letters = string(letters)
-
-		// placed ≤ len(picked) ≤ want，等於 want 即代表湊滿且全排進
-		if placed == want {
-			usedBase[base.ID] = true
-
-			return pz, nil
-		}
-
-		if placed > bestPlaced {
-			bestPlaced = placed
-			best = pz
-
-			usedBase[base.ID] = true
+		if best != nil {
+			break // 本階段已有成品，不進入放寬階段
 		}
 	}
 
 	if best == nil {
 		return nil, fmt.Errorf(
 			"no valid puzzle after %d tries (word pool too small?)",
-			campaignGenTries,
+			campaignGenTries*2,
 		)
 	}
 
+	usedBase[bestSig] = true
+
 	return best, nil
+}
+
+// tryCampaignDraw 抽一批候選字並嘗試組出謎題；relax 時放寬底字長度限制。
+// 這批組不出東西回傳 (nil, 0, "", nil)，由呼叫端重抽。
+func (s *learnService) tryCampaignDraw(
+	idx *anagramIndex, usedBase map[string]bool, baseLen, want int, relax bool,
+) (*campaignPuzzle, int, string, error) {
+	// 抽多一點（50）提高命中指定長度底字的機率
+	candidates, err := s.repo.RandomWordsByTier(campaignTier, 50)
+	if err != nil {
+		return nil, 0, "", err
+	}
+
+	fresh := make([]*model.Word, 0, len(candidates))
+
+	for _, c := range candidates {
+		if !usedBase[sortLetters(c.Word)] {
+			fresh = append(fresh, c)
+		}
+	}
+
+	base, ids, ok := campaignFindBase(fresh, idx, baseLen, want)
+	if !ok && relax {
+		// 放寬階段才逐步讓步：先允許重複 anagram 組（字池小），再退回一般 wheel 規則（字池缺該長度）
+		base, ids, ok = campaignFindBase(candidates, idx, baseLen, want)
+		if !ok {
+			base, ids, ok = findWheelBase(candidates, idx)
+		}
+	}
+
+	if !ok {
+		return nil, 0, "", nil
+	}
+
+	picked := pickWheelAnswers(base, ids, idx, want)
+
+	words := make([]string, len(picked))
+	for i, w := range picked {
+		words[i] = w.Word
+	}
+
+	placements, rows, cols := layoutCrossword(words)
+	pz := &campaignPuzzle{Rows: rows, Cols: cols}
+	placed := 0
+
+	for i, p := range placements {
+		if p.Row == -1 {
+			continue
+		}
+
+		placed++
+
+		pz.WordIDs = append(pz.WordIDs, picked[i].ID)
+		pz.Words = append(pz.Words, picked[i].Word)
+		pz.Row = append(pz.Row, p.Row)
+		pz.Col = append(pz.Col, p.Col)
+		pz.Dir = append(pz.Dir, p.Dir)
+	}
+
+	if placed < 2 {
+		return nil, 0, "", nil
+	}
+
+	rng := newLevelRand()
+	letters := []byte(base.Word)
+	rng.Shuffle(
+		len(letters),
+		func(i, j int) { letters[i], letters[j] = letters[j], letters[i] },
+	)
+	pz.Letters = string(letters)
+
+	return pz, placed, sortLetters(base.Word), nil
 }
 
 // pickWheelAnswers 依 wheel 既有規則（短字在前、常用優先、底字必收）挑最多 limit 個答案；
