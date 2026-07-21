@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
 import { maskSegments } from './mask.js'
+import SpeakButton from './SpeakButton.vue'
 
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
@@ -43,21 +44,26 @@ async function submit() {
 <template>
   <div class="wordfill">
     <div v-if="!done" class="wordfill__board">
-      <button
+      <!-- 已解格改用 div：SpeakButton 是互動元素，button 巢狀 button 是無效 HTML -->
+      <component
+        :is="slot.solved ? 'div' : 'button'"
         v-for="(slot, i) in learn.level.slots"
         :key="i"
         :class="['wf-slot', { active: i === activeSlot, solved: slot.solved }]"
         @click="selectSlot(i)"
       >
-        <span class="wf-slot__word">
-          <span
-            v-for="(seg, j) in maskSegments(slot.masked, learn.hardMode && !slot.solved)"
-            :key="j"
-            :class="['wf-char', { gap: seg.gap }]"
-          >{{ seg.ch }}</span>
+        <span class="wf-slot__word-row">
+          <span class="wf-slot__word">
+            <span
+              v-for="(seg, j) in maskSegments(slot.masked, learn.hardMode && !slot.solved)"
+              :key="j"
+              :class="['wf-char', { gap: seg.gap }]"
+            >{{ seg.ch }}</span>
+          </span>
+          <SpeakButton v-if="slot.solved" :word="slot.word" />
         </span>
         <span class="wf-slot__def">{{ slot.definition }}</span>
-      </button>
+      </component>
     </div>
 
     <div v-if="!done" class="wordfill__input">
@@ -93,6 +99,7 @@ async function submit() {
 }
 .wf-slot.active { border-color: var(--accent); }
 .wf-slot.solved { opacity: 0.55; cursor: default; }
+.wf-slot__word-row { display: flex; align-items: center; gap: 8px; }
 .wf-slot__word { display: flex; gap: 4px; }
 .wf-char {
     width: 24px; height: 30px; display: inline-flex; align-items: center; justify-content: center;

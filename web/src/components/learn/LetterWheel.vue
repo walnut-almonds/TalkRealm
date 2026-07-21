@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
 import LetterTray from './LetterTray.vue'
 import HintList from './HintList.vue'
+import SpeakButton from './SpeakButton.vue'
 
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
@@ -48,6 +49,7 @@ async function onReveal(index) {
       <ul class="done-words">
         <li v-for="(s, i) in learn.level?.slots || []" :key="i">
           <b class="dw-word">{{ s.word }}</b>
+          <SpeakButton :word="s.word" />
           <span class="dw-def">{{ s.definition }}</span>
         </li>
       </ul>

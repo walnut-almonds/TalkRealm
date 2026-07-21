@@ -3,6 +3,7 @@
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
 import { maskSegments } from './mask.js'
+import SpeakButton from './SpeakButton.vue'
 
 defineProps({
     items: { type: Array, required: true }, // [{ index, length, masked, definition, solved, hintTier }]
@@ -30,6 +31,9 @@ const { t } = useI18n()
         >{{ seg.ch }}</span>
       </span>
       <span v-if="item.definition" class="hl-def">{{ item.definition }}</span>
+      <!-- item.masked 已解出時等於完整單字（後端 s.masked = out.word），發音鈕只在此時出現，
+           唸未解字等於繞過提示梯直接洩答案 -->
+      <SpeakButton v-if="item.solved" :word="item.masked" />
       <div v-if="!item.solved" class="hl-actions">
         <button
           v-if="item.hintTier < 2"

@@ -6,6 +6,7 @@ import { useLearnStore } from '@/stores/useLearnStore.js'
 import { buildCells } from './crosswordGrid.js'
 import LetterTray from './LetterTray.vue'
 import HintList from './HintList.vue'
+import SpeakButton from './SpeakButton.vue'
 
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
@@ -94,6 +95,7 @@ async function onReveal(index) {
       <ul class="done-words">
         <li v-for="(w, i) in words" :key="i">
           <b class="dw-word">{{ w.word }}</b>
+          <SpeakButton :word="w.word" />
           <span class="dw-def">{{ w.definition }}</span>
         </li>
       </ul>
