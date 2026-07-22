@@ -42,6 +42,9 @@ configs/config.yml
 !configs/config.example.yaml
 !configs/config.docker.yaml
 
+# k8s: rendered from configs/config.prod.yaml + overlay config.env at deploy time (see `make k8s-*`)
+deploy/k8s/overlays/*/talk-realm/config.yaml
+
 # Logs
 *.log
 logs/

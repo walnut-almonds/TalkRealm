@@ -8,9 +8,9 @@ server:
 database:
   host: postgres
   port: 5432
-  user: talkrealm
+  user: ${DB_USER}
   password: ${DB_PASSWORD}
-  dbname: talkrealm
+  dbname: ${DB_NAME}
   sslmode: disable
   max_idle_conns: 10
   max_open_conns: 100

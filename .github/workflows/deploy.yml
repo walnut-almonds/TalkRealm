@@ -62,6 +62,8 @@ jobs:
 
       - name: Generate config.yaml and .env
         env:
+          DB_USER: talkrealm
+          DB_NAME: talkrealm
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}

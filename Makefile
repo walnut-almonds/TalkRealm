@@ -76,13 +76,21 @@ pack: build
 		--build-arg APP=bin/server \
 		.
 
+# 渲染單一來源 configs/config.prod.yaml + overlay 的 config.env（僅存差異值）
+# 成 kustomize 要吃的 config.yaml；新增 config 欄位只需改 configs/config.prod.yaml，
+# 不用碰 deployment.yaml 或任何 overlay。
+.PHONY: k8s-config-%
+k8s-config-%:
+	set -a; . ./deploy/k8s/overlays/$*/talk-realm/config.env; set +a; \
+	envsubst < configs/config.prod.yaml > ./deploy/k8s/overlays/$*/talk-realm/config.yaml
+
 .PHONY: k8s-local
-k8s-local: install
+k8s-local: install k8s-config-local
 	mkdir -p ./build
 	kubectl kustomize ./deploy/k8s/overlays/local > ./build/local.yaml
 
 .PHONY: k8s-dev
-k8s-dev: install
+k8s-dev: install k8s-config-dev
 	mkdir -p ./build
 	kubectl kustomize ./deploy/k8s/overlays/dev > ./build/dev.yaml
 

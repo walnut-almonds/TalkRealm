@@ -22,33 +22,11 @@ spec:
         - containerPort: 8080
           name: http
           protocol: TCP
-        env:
-        - name: SERVER_PORT
-          value: "8080"
-        - name: DATABASE_HOST
-          value: postgres
-        - name: DATABASE_PORT
-          value: "5432"
-        - name: DATABASE_USER
-          value: talk-realm
-        - name: DATABASE_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: postgres-secret
-              key: password
-        - name: DATABASE_DBNAME
-          value: talk-realm
-        - name: REDIS_HOST
-          value: redis
-        - name: REDIS_PORT
-          value: "6379"
-        - name: REDIS_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: redis-secret
-              key: password
-        - name: JWT_EXPIRATION_HOURS
-          value: "168"
+        volumeMounts:
+        - name: config
+          mountPath: /talk-realm/config.yaml
+          subPath: config.yaml
+          readOnly: true
         livenessProbe:
           httpGet:
             path: /health
@@ -72,3 +50,7 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
+      volumes:
+      - name: config
+        secret:
+          secretName: talk-realm-config

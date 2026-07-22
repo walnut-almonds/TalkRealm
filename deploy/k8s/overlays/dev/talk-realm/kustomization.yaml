@@ -6,6 +6,11 @@ resources:
 
 namespace: talk-realm-dev
 
+secretGenerator:
+  - name: talk-realm-config
+    files:
+      - config.yaml
+
 patches:
   - path: deployment-patch.yaml
     target:
