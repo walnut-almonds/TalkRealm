@@ -366,3 +366,51 @@ func (m *mockWSManager) IsUserOnline(userID uint) bool {
 
 	return false
 }
+
+func TestMessageService_CreateMessage_SetsParentID(t *testing.T) {
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "feed"}
+	post := &model.Message{ID: 7, ChannelID: 1, ParentID: nil}
+
+	var created *model.Message
+	mockMsg := &testutil.MockMessageRepository{
+		GetByIDFn: func(id uint) (*model.Message, error) {
+			if id == 7 {
+				return post, nil
+			}
+			return created, nil
+		},
+		CreateFn: func(m *model.Message) error { m.ID = 8; created = m; return nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
+	}
+	mockMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(g, u uint) (*model.GuildMember, error) { return &model.GuildMember{UserID: u}, nil },
+	}
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
+
+	parent := uint(7)
+	_, err := svc.CreateMessage(5, &service.CreateMessageRequest{
+		ChannelID: 1, Content: "nice post", ParentID: &parent,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.ParentID)
+	assert.Equal(t, uint(7), *created.ParentID)
+}
+
+func TestMessageService_CreateMessage_RejectsCommentOnComment(t *testing.T) {
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "feed"}
+	comment := &model.Message{ID: 7, ChannelID: 1, ParentID: testutil.PtrUint(3)} // already a comment
+
+	mockMsg := &testutil.MockMessageRepository{
+		GetByIDFn: func(id uint) (*model.Message, error) { return comment, nil },
+		CreateFn:  func(m *model.Message) error { return nil },
+	}
+	mockCh := &testutil.MockChannelRepository{GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil }}
+	mockMember := &testutil.MockGuildMemberRepository{GetMemberFn: func(g, u uint) (*model.GuildMember, error) { return &model.GuildMember{UserID: u}, nil }}
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
+
+	parent := uint(7)
+	_, err := svc.CreateMessage(5, &service.CreateMessageRequest{ChannelID: 1, Content: "x", ParentID: &parent})
+	require.Error(t, err)
+}

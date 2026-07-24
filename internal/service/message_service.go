@@ -131,9 +131,10 @@ func (s *messageService) CreateMessageWS(
 type CreateMessageRequest struct {
 	ChannelID uint   `json:"channel_id"`
 	Content   string `json:"content"`
-	Type      string `json:"type"`     // text, image, file (預設: text)
-	Nonce     string `json:"nonce"`    // client 產生的冪等 key（可選，建議 UUID v4）
-	FileIDs   []uint `json:"file_ids"` // 附加的已確認檔案 ID（可選）
+	Type      string `json:"type"`      // text, image, file (預設: text)
+	Nonce     string `json:"nonce"`     // client 產生的冪等 key（可選，建議 UUID v4）
+	FileIDs   []uint `json:"file_ids"`  // 附加的已確認檔案 ID（可選）
+	ParentID  *uint  `json:"parent_id"` // 有值 = 留言，指向貼文（單層）
 }
 
 // UpdateMessageRequest 更新訊息請求
@@ -176,6 +177,20 @@ func (s *messageService) CreateMessage(
 		return nil, err
 	}
 
+	// 留言：驗證父貼文存在、同頻道、且父本身是貼文（單層留言）
+	if req.ParentID != nil {
+		parent, perr := s.messageRepo.GetByID(*req.ParentID)
+		if perr != nil {
+			return nil, errors.New("parent post not found")
+		}
+		if parent.ChannelID != req.ChannelID {
+			return nil, errors.New("parent post is in a different channel")
+		}
+		if parent.ParentID != nil {
+			return nil, errors.New("cannot comment on a comment")
+		}
+	}
+
 	// 建立訊息
 	message := &model.Message{
 		ChannelID: req.ChannelID,
@@ -183,6 +198,7 @@ func (s *messageService) CreateMessage(
 		Content:   req.Content,
 		Type:      msgType,
 		Nonce:     req.Nonce,
+		ParentID:  req.ParentID,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
