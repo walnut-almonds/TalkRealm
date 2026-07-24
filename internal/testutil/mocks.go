@@ -487,6 +487,73 @@ func (m *MockMessageRepository) CountByUserInGuildsSince(
 }
 
 // ---------------------------------------------------------------------------
+// MockMessageLikeRepository
+// ---------------------------------------------------------------------------
+
+// MockMessageLikeRepository is a test double for repository.MessageLikeRepository.
+type MockMessageLikeRepository struct {
+	CreateFn             func(like *model.MessageLike) error
+	DeleteFn             func(messageID, userID uint) error
+	CountByMessageIDFn   func(messageID uint) (int64, error)
+	CountByMessageIDsFn  func(ids []uint) (map[uint]int64, error)
+	LikedMessageIDsFn    func(userID uint, ids []uint) (map[uint]bool, error)
+	DeleteByMessageIDsFn func(ids []uint) error
+}
+
+var _ repository.MessageLikeRepository = (*MockMessageLikeRepository)(nil)
+
+func (m *MockMessageLikeRepository) Create(like *model.MessageLike) error {
+	if m.CreateFn != nil {
+		return m.CreateFn(like)
+	}
+
+	return nil
+}
+
+func (m *MockMessageLikeRepository) Delete(messageID, userID uint) error {
+	if m.DeleteFn != nil {
+		return m.DeleteFn(messageID, userID)
+	}
+
+	return nil
+}
+
+func (m *MockMessageLikeRepository) CountByMessageID(messageID uint) (int64, error) {
+	if m.CountByMessageIDFn != nil {
+		return m.CountByMessageIDFn(messageID)
+	}
+
+	return 0, nil
+}
+
+func (m *MockMessageLikeRepository) CountByMessageIDs(ids []uint) (map[uint]int64, error) {
+	if m.CountByMessageIDsFn != nil {
+		return m.CountByMessageIDsFn(ids)
+	}
+
+	return map[uint]int64{}, nil
+}
+
+func (m *MockMessageLikeRepository) LikedMessageIDs(
+	userID uint,
+	ids []uint,
+) (map[uint]bool, error) {
+	if m.LikedMessageIDsFn != nil {
+		return m.LikedMessageIDsFn(userID, ids)
+	}
+
+	return map[uint]bool{}, nil
+}
+
+func (m *MockMessageLikeRepository) DeleteByMessageIDs(ids []uint) error {
+	if m.DeleteByMessageIDsFn != nil {
+		return m.DeleteByMessageIDsFn(ids)
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // MockChannelRepository
 // ---------------------------------------------------------------------------
 
