@@ -18,7 +18,7 @@ var (
 type CreateChannelRequest struct {
 	GuildID  uint   `json:"guild_id"`
 	Name     string `json:"name"     binding:"required,min=1,max=100"`
-	Type     string `json:"type"     binding:"required,oneof=text voice"`
+	Type     string `json:"type"     binding:"required,oneof=text voice feed"`
 	Topic    string `json:"topic"    binding:"max=1024"`
 	Position int    `json:"position"`
 }
@@ -26,7 +26,7 @@ type CreateChannelRequest struct {
 // UpdateChannelRequest 更新頻道請求
 type UpdateChannelRequest struct {
 	Name     string `json:"name"     binding:"omitempty,min=1,max=100"`
-	Type     string `json:"type"     binding:"omitempty,oneof=text voice"`
+	Type     string `json:"type"     binding:"omitempty,oneof=text voice feed"`
 	Topic    string `json:"topic"    binding:"max=1024"`
 	Position *int   `json:"position"`
 }
