@@ -25,6 +25,9 @@ export const EP = {
     CHANNEL: (channelId) => `/api/v1/channels/${channelId}`,
     CHANNEL_MESSAGES: (channelId) => `/api/v1/channels/${channelId}/messages`,
     MESSAGE: (messageId) => `/api/v1/messages/${messageId}`,
+    CHANNEL_POSTS: (channelId) => `/api/v1/channels/${channelId}/posts`,
+    MESSAGE_COMMENTS: (id) => `/api/v1/messages/${id}/comments`,
+    MESSAGE_LIKE: (id) => `/api/v1/messages/${id}/like`,
     CREATE_INVITE: (guildId) => `/api/v1/guilds/${guildId}/invites`,
     GET_INVITE: (code) => `/api/v1/invites/${code}`,
     JOIN_BY_INVITE: '/api/v1/guilds/join-by-invite',
@@ -215,6 +218,26 @@ class ApiClient {
     }
     updateMessage(messageId, content) { return this.patch(EP.MESSAGE(messageId), { content }) }
     deleteMessage(messageId) { return this.del(EP.MESSAGE(messageId)) }
+
+    // ── Feed / Wall ──
+    getPosts(channelId, limit = 20, before = null) {
+        const q = new URLSearchParams({ limit })
+        if (before) q.set('before', before)
+        return this.get(`${EP.CHANNEL_POSTS(channelId)}?${q}`)
+    }
+    createPost(channelId, content, fileIds = []) {
+        return this.post(EP.CHANNEL_MESSAGES(channelId), { content, file_ids: fileIds })
+    }
+    getComments(postId, limit = 50, before = null) {
+        const q = new URLSearchParams({ limit })
+        if (before) q.set('before', before)
+        return this.get(`${EP.MESSAGE_COMMENTS(postId)}?${q}`)
+    }
+    createComment(channelId, postId, content) {
+        return this.post(EP.CHANNEL_MESSAGES(channelId), { content, parent_id: postId })
+    }
+    likePost(id) { return this.put(EP.MESSAGE_LIKE(id), {}) }
+    unlikePost(id) { return this.del(EP.MESSAGE_LIKE(id)) }
 
     // ── Invite ──
     createInvite(guildId) { return this.post(EP.CREATE_INVITE(guildId), {}) }

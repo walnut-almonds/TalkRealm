@@ -226,6 +226,7 @@ export default {
         channelType: '频道类型',
         textChannel: '文字频道',
         voiceChannel: '语音频道',
+        feedChannel: '动态墙',
         channelNameRequired: '频道名称 *',
         channelNamePlaceholder: 'new-channel',
         channelTopicOptional: '频道主题（可选）',

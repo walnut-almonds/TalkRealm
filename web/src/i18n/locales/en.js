@@ -223,6 +223,7 @@ export default {
         channelType: 'Channel type',
         textChannel: 'Text Channel',
         voiceChannel: 'Voice Channel',
+        feedChannel: 'Feed Channel',
         channelNameRequired: 'Channel name *',
         channelNamePlaceholder: 'new-channel',
         channelTopicOptional: 'Channel topic (optional)',

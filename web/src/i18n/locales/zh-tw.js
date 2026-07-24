@@ -226,6 +226,7 @@ export default {
         channelType: '頻道類型',
         textChannel: '文字頻道',
         voiceChannel: '語音頻道',
+        feedChannel: '動態牆',
         channelNameRequired: '頻道名稱 *',
         channelNamePlaceholder: 'new-channel',
         channelTopicOptional: '頻道主題（選填）',

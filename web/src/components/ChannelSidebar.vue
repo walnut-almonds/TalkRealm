@@ -1,5 +1,5 @@
 <script setup>
-import { inject } from 'vue'
+import { inject, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useVoiceStore } from '@/stores/useVoiceStore.js'
@@ -13,6 +13,11 @@ const voice     = inject('voice')
 const store = useAppStore()
 const voiceStore = useVoiceStore()
 const { t } = useI18n()
+
+// feed 頻道與 text 頻道共用同一區塊列出（feed 用 fa-stream 圖示）
+const textAndFeedChannels = computed(() =>
+  store.channels.filter(c => c.type === 'text' || c.type === 'feed')
+)
 
 async function selectChannel(channel) {
   if (channel.type === 'voice') {
@@ -46,12 +51,12 @@ async function selectChannel(channel) {
         </div>
         <div class="channels-list">
           <div
-            v-for="ch in store.textChannels"
+            v-for="ch in textAndFeedChannels"
             :key="ch.id"
             :class="['channel-item', { active: store.currentChannel?.id === ch.id }]"
             @click="selectChannel(ch)"
           >
-            <i class="fas fa-hashtag"></i>
+            <i :class="ch.type === 'feed' ? 'fas fa-stream' : 'fas fa-hashtag'"></i>
             <span>{{ ch.name }}</span>
             <!-- Unread badge: mention (red number) or unread dot (grey) -->
             <template v-if="store.currentChannel?.id !== ch.id">

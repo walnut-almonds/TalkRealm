@@ -226,6 +226,7 @@ export default {
         channelType: 'チャンネルの種類',
         textChannel: 'テキストチャンネル',
         voiceChannel: 'ボイスチャンネル',
+        feedChannel: 'フィードチャンネル',
         channelNameRequired: 'チャンネル名 *',
         channelNamePlaceholder: 'new-channel',
         channelTopicOptional: 'チャンネルトピック（任意）',

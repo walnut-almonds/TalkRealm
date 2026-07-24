@@ -55,6 +55,10 @@ async function submit() {
               <input type="radio" v-model="channelType" value="voice" />
               <i class="fas fa-volume-up"></i> {{ t('createChannel.voiceChannel') }}
             </label>
+            <label class="type-option" :class="{ active: channelType === 'feed' }">
+              <input type="radio" v-model="channelType" value="feed" />
+              <i class="fas fa-stream"></i> {{ t('createChannel.feedChannel') }}
+            </label>
           </div>
         </div>
         <div class="form-group">
