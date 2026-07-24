@@ -219,6 +219,18 @@ export default {
         channelStart: '這是頻道的開頭。',
         unreadDivider: '--- 以下是未讀訊息 ---'
     },
+    wall: {
+        composePlaceholder: '分享新鮮事…',
+        post: '發佈',
+        posting: '發佈中…',
+        empty: '還沒有任何貼文，成為第一個發文的人吧！',
+        like: '讚',
+        comment: '留言',
+        commentPlaceholder: '寫下留言…',
+        reply: '送出',
+        loadingComments: '載入留言中…',
+        loadMore: '載入更多',
+    },
     createChannel: {
         title: '建立頻道',
         createdSuccess: '頻道建立成功！',

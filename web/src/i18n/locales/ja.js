@@ -219,6 +219,18 @@ export default {
         channelStart: 'これはチャンネルの最初のメッセージです。',
         unreadDivider: '--- 以下は未読メッセージ ---'
     },
+    wall: {
+        composePlaceholder: '今どうしてる？…',
+        post: '投稿',
+        posting: '投稿中…',
+        empty: 'まだ投稿がありません。最初の投稿をしてみましょう！',
+        like: 'いいね',
+        comment: 'コメント',
+        commentPlaceholder: 'コメントを書く…',
+        reply: '送信',
+        loadingComments: 'コメントを読み込み中…',
+        loadMore: 'もっと見る',
+    },
     createChannel: {
         title: 'チャンネルを作成',
         createdSuccess: 'チャンネルを作成しました！',

@@ -120,6 +120,7 @@ function createWebSocketManager() {
             case 'message_create': notify('message', msg.d); break
             case 'message_update': notify('message_update', msg.d); break
             case 'message_delete': notify('message_delete', msg.d); break
+            case 'post_like': notify('post_like', msg.d); break
             case 'dm_message_create': notify('dm_message', msg.d); break
             case 'typing_start': notify('typing', msg.d); break
             case 'presence_update': notify('user_status', msg.d); break

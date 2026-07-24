@@ -219,6 +219,18 @@ export default {
         channelStart: '这是频道的开头。',
         unreadDivider: '--- 以下是未读消息 ---'
     },
+    wall: {
+        composePlaceholder: '分享新鲜事…',
+        post: '发布',
+        posting: '发布中…',
+        empty: '还没有任何贴文，成为第一个发文的人吧！',
+        like: '赞',
+        comment: '留言',
+        commentPlaceholder: '写下留言…',
+        reply: '送出',
+        loadingComments: '加载留言中…',
+        loadMore: '加载更多',
+    },
     createChannel: {
         title: '创建频道',
         createdSuccess: '频道创建成功！',

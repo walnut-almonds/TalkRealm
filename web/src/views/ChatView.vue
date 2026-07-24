@@ -4,6 +4,7 @@ import { useAppStore } from '@/stores/useAppStore.js'
 import { useDMStore } from '@/stores/useDMStore.js'
 import ChannelSidebar from '@/components/ChannelSidebar.vue'
 import ChatArea from '@/components/ChatArea.vue'
+import FeedArea from '@/components/FeedArea.vue'
 import MemberSidebar from '@/components/MemberSidebar.vue'
 import DMSidebar from '@/components/DMSidebar.vue'
 import DMChatArea from '@/components/DMChatArea.vue'
@@ -102,7 +103,12 @@ function onTouchEnd(e) {
         :class="{ 'mobile-open': mobileChannelSidebarOpen }"
         @channel-selected="mobileChannelSidebarOpen = false"
       />
+      <FeedArea
+        v-if="store.currentChannel?.type === 'feed'"
+        @open-sidebar="mobileChannelSidebarOpen = true"
+      />
       <ChatArea
+        v-else
         @toggle-members="toggleMembers"
         @open-sidebar="mobileChannelSidebarOpen = true"
       />

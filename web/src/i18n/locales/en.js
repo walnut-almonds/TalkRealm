@@ -216,6 +216,18 @@ export default {
         channelStart: 'This is the beginning of the channel.',
         unreadDivider: '--- Unread messages below ---'
     },
+    wall: {
+        composePlaceholder: 'Share something…',
+        post: 'Post',
+        posting: 'Posting…',
+        empty: 'No posts yet. Be the first to post!',
+        like: 'Like',
+        comment: 'Comment',
+        commentPlaceholder: 'Write a comment…',
+        reply: 'Reply',
+        loadingComments: 'Loading comments…',
+        loadMore: 'Load more',
+    },
     createChannel: {
         title: 'Create Channel',
         createdSuccess: 'Channel created!',
