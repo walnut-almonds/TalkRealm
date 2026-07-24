@@ -37,6 +37,27 @@ func TestChannelService_CreateChannel_Success_Owner(t *testing.T) {
 	assert.Equal(t, "general", ch.Name)
 }
 
+func TestChannelService_CreateChannel_AllowsFeedType(t *testing.T) {
+	channelRepo := &testutil.MockChannelRepository{
+		CreateFn:       func(ch *model.Channel) error { return nil },
+		GetByGuildIDFn: func(guildID uint) ([]*model.Channel, error) { return []*model.Channel{}, nil },
+	}
+	guildRepo := &testutil.MockGuildRepository{
+		GetByIDFn: func(id uint) (*model.Guild, error) {
+			return &model.Guild{ID: id, OwnerID: 1}, nil
+		},
+	}
+	memberRepo := &testutil.MockGuildMemberRepository{}
+	svc := newChannelService(channelRepo, guildRepo, memberRepo)
+
+	_, err := svc.CreateChannel(1, &service.CreateChannelRequest{
+		GuildID: 10,
+		Name:    "動態牆",
+		Type:    "feed",
+	})
+	require.NoError(t, err)
+}
+
 func TestChannelService_CreateChannel_GuildNotFound(t *testing.T) {
 	channelRepo := &testutil.MockChannelRepository{}
 	guildRepo := &testutil.MockGuildRepository{

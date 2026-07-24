@@ -93,7 +93,7 @@ func (s *channelService) CreateChannel(
 
 	// 驗證頻道類型
 
-	if req.Type != "text" && req.Type != "voice" {
+	if req.Type != "text" && req.Type != "voice" && req.Type != "feed" {
 		return nil, ErrInvalidChannelType
 	}
 
@@ -204,7 +204,7 @@ func (s *channelService) UpdateChannel(
 	}
 
 	if req.Type != "" {
-		if req.Type != "text" && req.Type != "voice" {
+		if req.Type != "text" && req.Type != "voice" && req.Type != "feed" {
 			return nil, ErrInvalidChannelType
 		}
 
