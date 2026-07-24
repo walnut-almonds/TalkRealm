@@ -61,6 +61,7 @@ MessageLike（新表,貼文與留言共用）
    `ponytail: COUNT 即可,真的變熱門再加 like_count 快取欄`。
 2. **刪貼文的 cascade:** 硬刪,貼文連同其留言與所有相關讚一起清,不留孤兒(見 §2)。
 3. **`ParentID` 的附帶價值:** 之後聊天室要做「回覆某則訊息」可直接複用此欄,非為本功能專屬。
+4. **開放 feed 頻道類型:** 建/改頻道的 type 守衛目前寫死只准 `text`/`voice`(`channel_service.go:96`、`:207`),兩處各加 `'feed'` 即開放建立動態牆頻道。這是唯一為「能建牆」所需的既有改動;頻道建立/排序/側邊欄/權限全複用。
 
 ### 既有潛在問題(不在本設計範圍,僅記錄)
 
@@ -68,22 +69,30 @@ MessageLike（新表,貼文與留言共用）
 
 ## §2 API + 即時事件
 
-### Endpoints(全部掛 `/channels/:id/` 下,複用既有頻道權限中介層)
+貼文與留言本體就是 `Message`,因此**編輯/刪除/發文全部複用既有 endpoint**,不新造。既有路由慣例是「頻道集合掛 `/channels/:id/...`、單則訊息操作掛 `/messages/:id/...`」(如 `/messages/:id/translation`),動態牆完全跟隨,不改既有 API,也不碰保留給未來跨社群模組的 `/posts/` 命名空間。
 
-| Method | Path | 說明 |
+### 複用既有 endpoint(不新造)
+
+| 動作 | 複用 | 備註 |
 |---|---|---|
-| `GET` | `/channels/:id/posts?before=&limit=` | 牆列表,新到舊,cursor 分頁;每筆帶讚數、我讚了嗎、留言數 |
-| `POST` | `/channels/:id/posts` | 發貼文(content + attachment file_ids),`parent_id=nil` |
-| `GET` | `/channels/:id/posts/:postId/comments?before=&limit=` | 某貼文留言,舊到新 |
-| `POST` | `/channels/:id/posts/:postId/comments` | 留言,`parent_id=postId` |
-| `PUT` | `/channels/:id/posts/:postId` | 編輯自己的貼文/留言(postId 為任一則 feed 訊息 id) |
-| `DELETE` | `/channels/:id/posts/:postId` | 貼文→cascade;留言→清自己 |
-| `PUT` | `/channels/:id/posts/:postId/like` | 按讚,idempotent(已讚無動作) |
-| `DELETE` | `/channels/:id/posts/:postId/like` | 收回讚 |
+| 發貼文 | `POST /channels/:id/messages` | `parent_id` 省略或 nil |
+| 發留言 | `POST /channels/:id/messages` | 帶 `parent_id=貼文id`(建立請求新增可選欄位) |
+| 編輯貼文/留言 | `PUT /messages/:id` | 原封複用 |
+| 刪貼文/留言 | `DELETE /messages/:id` | **加 cascade 分支**(見下) |
+
+### 新增 endpoint(僅三個,貼合既有慣例)
+
+| Method | Path | 對照既有 | 說明 |
+|---|---|---|---|
+| `GET` | `/channels/:id/posts?before=&limit=` | 仿 `/channels/:id/messages` | 牆列表(`parent_id IS NULL`),新到舊,cursor 分頁;每筆帶讚數、我讚了嗎、留言數 |
+| `GET` | `/messages/:id/comments?before=&limit=` | 仿 `/messages/:id/translation` | 某貼文留言,舊到新 |
+| `PUT` / `DELETE` | `/messages/:id/like` | 仿 `/messages/:id/...` 子資源 | 按讚(idempotent)/ 收回讚 |
 
 ### 服務層
 
-貼文/留言的建立與編輯本質上就是帶 `ParentID` 呼叫既有 `messageService`;在其上加薄薄一層,**不另開平行 service**。權限(成員可發、僅作者或 guild admin/owner 可刪)複用既有 message 邏輯。
+發文/留言/編輯就是帶(或不帶)`ParentID` 呼叫既有 `messageService`,在其上加薄層,**不另開平行 service**。權限(成員可發、僅作者或 guild admin/owner 可刪)複用既有 message 邏輯。
+
+唯一需改到既有 handler 的點:**`DELETE /messages/:id` 加一個分支**——若目標是 feed 頻道的貼文(`parent_id=nil`)走 cascade(連留言+讚);若是留言或一般聊天訊息則現有行為 + 清自己的讚。
 
 MVP 預設 feed 頻道所有成員皆可發文;之後可再細分(例如某 feed 頻道限 admin 發公告),不在本設計。
 
