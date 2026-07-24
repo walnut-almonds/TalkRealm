@@ -82,8 +82,22 @@ definitions:
       slot:
         type: integer
     type: object
+  handler.srsAnswerReq:
+    properties:
+      guess:
+        type: string
+      index:
+        type: integer
+    type: object
   handler.startCampaignReq:
     properties:
+      locale:
+        type: string
+    type: object
+  handler.startSRSReq:
+    properties:
+      count:
+        type: integer
       locale:
         type: string
     type: object
@@ -698,6 +712,60 @@ definitions:
     - email
     - password
     - username
+    type: object
+  service.SRSAnswerOutcome:
+    properties:
+      answer:
+        type: string
+      completed:
+        type: boolean
+      correct:
+        type: boolean
+      next_stage:
+        type: integer
+      phonetic:
+        type: string
+      total_xp:
+        type: integer
+      trans:
+        type: string
+      xp_awarded:
+        type: integer
+    type: object
+  service.SRSCardView:
+    properties:
+      index:
+        type: integer
+      is_new:
+        type: boolean
+      length:
+        description: 答案長度（輸入框寬度提示）
+        type: integer
+      text_en:
+        description: 含 "{{}}"，前端渲染成輸入框
+        type: string
+      trans:
+        type: string
+    type: object
+  service.SRSOverviewView:
+    properties:
+      due_count:
+        type: integer
+      new_available:
+        type: integer
+    type: object
+  service.SRSSessionView:
+    properties:
+      cards:
+        items:
+          $ref: '#/definitions/service.SRSCardView'
+        type: array
+      new_count:
+        type: integer
+      session_id:
+        type: string
+      total:
+        type: integer
     type: object
   service.SlotView:
     properties:
@@ -2156,6 +2224,77 @@ paths:
           schema:
             $ref: '#/definitions/handler.ErrorResponse'
       summary: 生成交叉字謎網格關卡
+      tags:
+      - Learn
+  /api/v1/learn/srs:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 題數與語系
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.startSRSReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.SRSSessionView'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 開始 SRS 複習 session
+      tags:
+      - Learn
+  /api/v1/learn/srs/{id}/answer:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: session ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 卡片索引與作答
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.srsAnswerReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.SRSAnswerOutcome'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: 作答 SRS 複習卡
+      tags:
+      - Learn
+  /api/v1/learn/srs/overview:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.SRSOverviewView'
+      summary: 取得 SRS 複習概況
       tags:
       - Learn
   /api/v1/learn/stats:

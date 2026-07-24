@@ -69,6 +69,9 @@ export const EP = {
     LEARN_CAMPAIGN_START: (no) => `/api/v1/learn/campaign/${no}`,
     LEARN_CAMPAIGN_LB: '/api/v1/learn/campaign/leaderboard',
     LEARN_WEEKLY_LB: '/api/v1/learn/leaderboard/weekly',
+    LEARN_SRS_OVERVIEW: '/api/v1/learn/srs/overview',
+    LEARN_SRS_START: '/api/v1/learn/srs',
+    LEARN_SRS_ANSWER: (id) => `/api/v1/learn/srs/${id}/answer`,
 }
 
 export const STORAGE_KEYS = {

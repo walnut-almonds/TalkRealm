@@ -412,6 +412,9 @@ func (s *Server) setupRoutes() {
 				learn.GET("/campaign/leaderboard", s.learnHandler.GetCampaignLeaderboard)
 				learn.POST("/campaign/:no", s.learnHandler.StartCampaign)
 				learn.GET("/leaderboard/weekly", s.learnHandler.GetWeeklyLeaderboard)
+				learn.GET("/srs/overview", s.learnHandler.GetSRSOverview)
+				learn.POST("/srs", s.learnHandler.StartSRS)
+				learn.POST("/srs/:id/answer", s.learnHandler.AnswerSRS)
 			}
 		}
 

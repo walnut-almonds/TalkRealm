@@ -16,6 +16,8 @@ export const useLearnStore = defineStore('learn', {
         campaignBoard: null, // LeaderboardView（關卡榜）
         weeklyBoard: null,   // LeaderboardView（週榜）
         boardScope: 'global', // 'global' | 'friends'
+        srsOverview: null,   // { due_count, new_available }
+        srs: null,           // SRSSessionView：{ session_id, total, new_count, cards[] }
         loading: false,
         error: '',
         // 純本機顯示偏好：隱藏底線數量（不影響計分）
@@ -221,6 +223,42 @@ export const useLearnStore = defineStore('learn', {
         setBoardScope(scope) {
             this.boardScope = scope
             this.loadBoards()
+        },
+        async loadSRSOverview() {
+            try {
+                this.srsOverview = await api.get(EP.LEARN_SRS_OVERVIEW)
+            } catch { /* 非關鍵，靜默失敗 */ }
+        },
+        async startSRS(count) {
+            this.loading = true
+            this.error = ''
+            this.lastOutcome = null
+            // 清掉其他模式殘留，避免 playing 畫面判斷式比對到舊資料
+            this.level = null
+            this.crossword = null
+            try {
+                this.srs = await api.post(EP.LEARN_SRS_START, { count, locale: getLocale() })
+            } catch (e) {
+                this.error = e.message
+            } finally {
+                this.loading = false
+            }
+            return this.srs
+        },
+        async answerSRS(index, guess) {
+            if (!this.srs) return null
+            try {
+                const out = await api.post(EP.LEARN_SRS_ANSWER(this.srs.session_id), { index, guess })
+                if (out.completed) {
+                    this.loadStats()
+                    this.loadSRSOverview() // 到期數已變，刷新 hub 概況
+                }
+                return out
+            } catch (e) {
+                if (String(e.message).includes('expired')) this.srs = null
+                this.error = e.message
+                return null
+            }
         },
         async loadStats() {
             try {

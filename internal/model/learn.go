@@ -28,14 +28,33 @@ type LearnStat struct {
 	UpdatedAt      time.Time `                        json:"updated_at"`
 }
 
-// LearnWordRecord user×word 的作答記錄（未來 SRS 地基）
+// LearnWordRecord user×word 的作答記錄 + SRS 排程狀態。
+// correct/wrong/last_seen 由所有模式（fill/wheel/crossword/campaign）的 UpsertWordRecord 累加；
+// srs_stage/next_review_at 只由例句填空複習模式（learn_srs.go）維護——其他模式的 upsert
+// 明列欄位不碰這兩欄，故 crossword 玩過的字仍算「尚未進入 SRS 輪替」(srs_stage=0)。
 type LearnWordRecord struct {
-	ID           uint      `gorm:"primarykey"                             json:"id"`
-	UserID       uint      `gorm:"not null;uniqueIndex:idx_lwr_user_word" json:"user_id"`
-	WordID       uint      `gorm:"not null;uniqueIndex:idx_lwr_user_word" json:"word_id"`
-	CorrectCount int       `gorm:"default:0"                              json:"correct_count"`
-	WrongCount   int       `gorm:"default:0"                              json:"wrong_count"`
-	LastSeenAt   time.Time `                                              json:"last_seen_at"`
+	ID           uint       `gorm:"primarykey"                             json:"id"`
+	UserID       uint       `gorm:"not null;uniqueIndex:idx_lwr_user_word" json:"user_id"`
+	WordID       uint       `gorm:"not null;uniqueIndex:idx_lwr_user_word" json:"word_id"`
+	CorrectCount int        `gorm:"default:0"                              json:"correct_count"`
+	WrongCount   int        `gorm:"default:0"                              json:"wrong_count"`
+	LastSeenAt   time.Time  `                                              json:"last_seen_at"`
+	SRSStage     int        `gorm:"column:srs_stage;default:0;index"       json:"srs_stage"`      // 0=未進輪替；≥1=複習階段（間隔遞增）
+	NextReviewAt *time.Time `gorm:"column:next_review_at;index"            json:"next_review_at"` // 到期時間；nil=未排程
+}
+
+// LearnSentence 例句（LLM 生成，由 scripts/seedsentences 或開機 SeedSentences 匯入）。
+// TextEN 內以 "{{}}" 標記挖空位置，Answer 為填空答案（通常等於 word，也可能是變化形）；
+// 翻譯欄位是完整句子（不挖空），作為作答時的語意提示。text_en 唯一以支援冪等重匯入。
+type LearnSentence struct {
+	ID        uint      `gorm:"primarykey"                json:"id"`
+	WordID    uint      `gorm:"not null;index"            json:"word_id"` // FK words.id（模組邊界：不建 GORM 關聯）
+	Answer    string    `gorm:"not null"                  json:"answer"`
+	TextEN    string    `gorm:"type:text;not null;unique" json:"text_en"`
+	TextZH    string    `gorm:"type:text"                 json:"text_zh"`
+	TextZHTW  string    `gorm:"type:text"                 json:"text_zh_tw"`
+	TextJA    string    `gorm:"type:text"                 json:"text_ja"`
+	CreatedAt time.Time `                                 json:"created_at"`
 }
 
 // LearnDailyScore 每日挑戰分數（(user_id, date) unique，只記首次完成）

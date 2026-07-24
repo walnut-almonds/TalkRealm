@@ -197,13 +197,15 @@ func TestDefinitionFor(t *testing.T) {
 // --- fill 模式端對端（mock repo + memory store）---
 
 type fakeLearnRepo struct {
-	words    []*model.Word
-	stats    map[uint]*model.LearnStat
-	daily    map[string]*model.LearnDailyScore
-	records  int
-	campaign map[int]*model.LearnCampaignLevel
-	progress map[string]*model.LearnCampaignProgress // "uid:no"
-	weekly   map[string]*model.LearnWeeklyXP         // "uid:week"
+	words     []*model.Word
+	stats     map[uint]*model.LearnStat
+	daily     map[string]*model.LearnDailyScore
+	records   int
+	campaign  map[int]*model.LearnCampaignLevel
+	progress  map[string]*model.LearnCampaignProgress // "uid:no"
+	weekly    map[string]*model.LearnWeeklyXP         // "uid:week"
+	sentences map[uint][]*model.LearnSentence         // wordID → 例句
+	wordRecs  map[string]*model.LearnWordRecord       // "uid:wid" → SRS 記錄
 }
 
 func (f *fakeLearnRepo) RandomWordsByTier(tier, n int) ([]*model.Word, error) {
@@ -247,6 +249,128 @@ func (f *fakeLearnRepo) GetOrCreateStats(userID uint) (*model.LearnStat, error) 
 func (f *fakeLearnRepo) SaveStats(s *model.LearnStat) error { f.stats[s.UserID] = s; return nil }
 func (f *fakeLearnRepo) UpsertWordRecord(userID, wordID uint, correct bool) error {
 	f.records++
+	return nil
+}
+
+func recKey(userID, wordID uint) string { return fmt.Sprintf("%d:%d", userID, wordID) }
+
+func (f *fakeLearnRepo) CountDueReviews(userID uint, now time.Time) (int64, error) {
+	var n int64
+
+	for _, r := range f.wordRecs {
+		if r.UserID == userID && r.SRSStage >= 1 && r.NextReviewAt != nil &&
+			!r.NextReviewAt.After(now) && len(f.sentences[r.WordID]) > 0 {
+			n++
+		}
+	}
+
+	return n, nil
+}
+
+func (f *fakeLearnRepo) inRotation(userID, wordID uint) bool {
+	r := f.wordRecs[recKey(userID, wordID)]
+	return r != nil && r.SRSStage >= 1
+}
+
+func (f *fakeLearnRepo) CountNewSentenceWords(userID uint) (int64, error) {
+	var n int64
+
+	for wid, ss := range f.sentences {
+		if len(ss) > 0 && !f.inRotation(userID, wid) {
+			n++
+		}
+	}
+
+	return n, nil
+}
+
+func (f *fakeLearnRepo) DueReviewWordIDs(userID uint, now time.Time, limit int) ([]uint, error) {
+	type due struct {
+		id uint
+		at time.Time
+	}
+
+	var list []due
+
+	for _, r := range f.wordRecs {
+		if r.UserID == userID && r.SRSStage >= 1 && r.NextReviewAt != nil &&
+			!r.NextReviewAt.After(now) && len(f.sentences[r.WordID]) > 0 {
+			list = append(list, due{r.WordID, *r.NextReviewAt})
+		}
+	}
+
+	sort.Slice(list, func(i, j int) bool { return list[i].at.Before(list[j].at) })
+
+	ids := []uint{}
+	for i := 0; i < len(list) && i < limit; i++ {
+		ids = append(ids, list[i].id)
+	}
+
+	return ids, nil
+}
+
+func (f *fakeLearnRepo) NewSentenceWordIDs(userID uint, limit int) ([]uint, error) {
+	ids := []uint{}
+
+	for wid, ss := range f.sentences {
+		if len(ss) > 0 && !f.inRotation(userID, wid) {
+			ids = append(ids, wid)
+		}
+	}
+
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] }) // 測試穩定序
+
+	if len(ids) > limit {
+		ids = ids[:limit]
+	}
+
+	return ids, nil
+}
+
+//nolint:nilnil // nil = 無例句，忠實模擬真實 repo
+func (f *fakeLearnRepo) RandomSentenceByWord(wordID uint) (*model.LearnSentence, error) {
+	ss := f.sentences[wordID]
+	if len(ss) == 0 {
+		return nil, nil
+	}
+
+	return ss[0], nil
+}
+
+//nolint:nilnil // nil = 無記錄（全新字），忠實模擬真實 repo
+func (f *fakeLearnRepo) GetWordRecord(userID, wordID uint) (*model.LearnWordRecord, error) {
+	if r, ok := f.wordRecs[recKey(userID, wordID)]; ok {
+		return r, nil
+	}
+
+	return nil, nil
+}
+
+func (f *fakeLearnRepo) SaveSRSResult(
+	userID, wordID uint, stage int, nextReviewAt time.Time, correct bool,
+) error {
+	if f.wordRecs == nil {
+		f.wordRecs = map[string]*model.LearnWordRecord{}
+	}
+
+	key := recKey(userID, wordID)
+
+	r := f.wordRecs[key]
+	if r == nil {
+		r = &model.LearnWordRecord{UserID: userID, WordID: wordID}
+		f.wordRecs[key] = r
+	}
+
+	if correct {
+		r.CorrectCount++
+	} else {
+		r.WrongCount++
+	}
+
+	r.SRSStage = stage
+	at := nextReviewAt
+	r.NextReviewAt = &at
+
 	return nil
 }
 

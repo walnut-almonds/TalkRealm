@@ -100,6 +100,22 @@ func (m *mockLearnService) WeeklyLeaderboard(
 	return nil, nil //nolint:nilnil // 測試 stub，尚無 campaign handler 測試
 }
 
+func (m *mockLearnService) SRSOverview(userID uint) (*service.SRSOverviewView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 SRS handler 測試
+}
+
+func (m *mockLearnService) CreateSRSSession(
+	userID uint, count int, locale string,
+) (*service.SRSSessionView, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 SRS handler 測試
+}
+
+func (m *mockLearnService) AnswerSRS(
+	userID uint, sessionID string, index int, guess string,
+) (*service.SRSAnswerOutcome, error) {
+	return nil, nil //nolint:nilnil // 測試 stub，尚無 SRS handler 測試
+}
+
 func setupLearnRouter(svc service.LearnService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 

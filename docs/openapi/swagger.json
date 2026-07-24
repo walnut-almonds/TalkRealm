@@ -2085,6 +2085,116 @@
                 }
             }
         },
+        "/api/v1/learn/srs": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "開始 SRS 複習 session",
+                "parameters": [
+                    {
+                        "description": "題數與語系",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.startSRSReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.SRSSessionView"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/srs/overview": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "取得 SRS 複習概況",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.SRSOverviewView"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/learn/srs/{id}/answer": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Learn"
+                ],
+                "summary": "作答 SRS 複習卡",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "卡片索引與作答",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.srsAnswerReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.SRSAnswerOutcome"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/learn/stats": {
             "get": {
                 "produces": [
@@ -2725,9 +2835,31 @@
                 }
             }
         },
+        "handler.srsAnswerReq": {
+            "type": "object",
+            "properties": {
+                "guess": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                }
+            }
+        },
         "handler.startCampaignReq": {
             "type": "object",
             "properties": {
+                "locale": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.startSRSReq": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
                 "locale": {
                     "type": "string"
                 }
@@ -3643,6 +3775,88 @@
                     "type": "string",
                     "maxLength": 32,
                     "minLength": 3
+                }
+            }
+        },
+        "service.SRSAnswerOutcome": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "completed": {
+                    "type": "boolean"
+                },
+                "correct": {
+                    "type": "boolean"
+                },
+                "next_stage": {
+                    "type": "integer"
+                },
+                "phonetic": {
+                    "type": "string"
+                },
+                "total_xp": {
+                    "type": "integer"
+                },
+                "trans": {
+                    "type": "string"
+                },
+                "xp_awarded": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.SRSCardView": {
+            "type": "object",
+            "properties": {
+                "index": {
+                    "type": "integer"
+                },
+                "is_new": {
+                    "type": "boolean"
+                },
+                "length": {
+                    "description": "答案長度（輸入框寬度提示）",
+                    "type": "integer"
+                },
+                "text_en": {
+                    "description": "含 \"{{}}\"，前端渲染成輸入框",
+                    "type": "string"
+                },
+                "trans": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.SRSOverviewView": {
+            "type": "object",
+            "properties": {
+                "due_count": {
+                    "type": "integer"
+                },
+                "new_available": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.SRSSessionView": {
+            "type": "object",
+            "properties": {
+                "cards": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.SRSCardView"
+                    }
+                },
+                "new_count": {
+                    "type": "integer"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

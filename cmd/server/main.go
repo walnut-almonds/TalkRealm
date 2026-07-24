@@ -54,6 +54,13 @@ func main() {
 		logger.Info("Learn words seeded", "count", n)
 	}
 
+	// 補齊 SRS 例句表（冪等 upsert；字表沒有的字直接跳過，缺檔僅警告不中止開機）
+	if imp, skip, err := database.SeedSentences("data/sentences.csv"); err != nil {
+		logger.Warn("Failed to seed learn sentences, SRS review may be degraded", "error", err)
+	} else {
+		logger.Info("Learn sentences seeded", "imported", imp, "skipped", skip)
+	}
+
 	// 創建伺服器
 	srv, err := server.New(cfg)
 	if err != nil {

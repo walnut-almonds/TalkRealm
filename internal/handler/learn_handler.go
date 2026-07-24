@@ -302,6 +302,105 @@ func (h *LearnHandler) GetWeeklyLeaderboard(c *gin.Context) {
 	c.JSON(http.StatusOK, lb)
 }
 
+// GetSRSOverview 複習概況（今日到期 + 可學新字）
+//
+//	@Summary	取得 SRS 複習概況
+//	@Tags		Learn
+//	@Produce	json
+//	@Success	200	{object}	service.SRSOverviewView
+//	@Router		/api/v1/learn/srs/overview [get]
+func (h *LearnHandler) GetSRSOverview(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	ov, err := h.learnService.SRSOverview(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, ov)
+}
+
+type startSRSReq struct {
+	Count  int    `json:"count"`
+	Locale string `json:"locale"`
+}
+
+// StartSRS 開始一場例句填空複習
+//
+//	@Summary	開始 SRS 複習 session
+//	@Tags		Learn
+//	@Accept		json
+//	@Produce	json
+//	@Param		request	body		startSRSReq	true	"題數與語系"
+//	@Success	200		{object}	service.SRSSessionView
+//	@Failure	404		{object}	ErrorResponse
+//	@Router		/api/v1/learn/srs [post]
+func (h *LearnHandler) StartSRS(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var req startSRSReq
+
+	_ = c.ShouldBindJSON(&req) // 全選填，缺 body 也可
+
+	view, err := h.learnService.CreateSRSSession(userID, req.Count, req.Locale)
+	if err != nil {
+		if errors.Is(err, service.ErrLearnNoSentences) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
+		return
+	}
+
+	c.JSON(http.StatusOK, view)
+}
+
+type srsAnswerReq struct {
+	Index int    `json:"index"`
+	Guess string `json:"guess"`
+}
+
+// AnswerSRS 作答一張複習卡
+//
+//	@Summary	作答 SRS 複習卡
+//	@Tags		Learn
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string			true	"session ID"
+//	@Param		request	body		srsAnswerReq	true	"卡片索引與作答"
+//	@Success	200		{object}	service.SRSAnswerOutcome
+//	@Failure	409		{object}	ErrorResponse
+//	@Failure	410		{object}	ErrorResponse
+//	@Router		/api/v1/learn/srs/{id}/answer [post]
+func (h *LearnHandler) AnswerSRS(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var req srsAnswerReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	out, err := h.learnService.AnswerSRS(userID, c.Param("id"), req.Index, req.Guess)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrLearnLevelNotFound):
+			c.JSON(http.StatusGone, gin.H{"error": "session expired"})
+		case errors.Is(err, service.ErrLearnCardGraded):
+			c.JSON(http.StatusConflict, gin.H{"error": "card already answered"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, out)
+}
+
 type learnSlotReq struct {
 	Slot int `json:"slot"`
 }

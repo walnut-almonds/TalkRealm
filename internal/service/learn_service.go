@@ -204,6 +204,9 @@ type LearnService interface {
 	CampaignOverview(userID uint) (*CampaignOverviewView, error)
 	CampaignLeaderboard(userID uint, friends bool) (*LeaderboardView, error)
 	WeeklyLeaderboard(userID uint, friends bool) (*LeaderboardView, error)
+	SRSOverview(userID uint) (*SRSOverviewView, error)
+	CreateSRSSession(userID uint, count int, locale string) (*SRSSessionView, error)
+	AnswerSRS(userID uint, sessionID string, index int, guess string) (*SRSAnswerOutcome, error)
 }
 
 // learnLevel 進行中關卡（含答案，只存 LevelStore）
@@ -470,6 +473,10 @@ func (s *learnService) Guess(
 	env, err := loadEnvelope(s.store, levelID)
 	if err != nil {
 		return nil, err
+	}
+
+	if env.Mode == ModeSRS {
+		return nil, ErrLearnLevelNotFound // SRS 走專用 /srs/:id/answer，不吃共用 guess
 	}
 
 	if env.Mode == ModeCrossword {

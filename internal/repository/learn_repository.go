@@ -30,6 +30,13 @@ type LearnRepository interface {
 	UpsertWeeklyXP(userID uint, week string, xp int) error
 	TopWeeklyXP(week string, userIDs []uint, limit int) ([]*model.LearnWeeklyXP, error)
 	WeeklyRank(userID uint, week string, userIDs []uint) (*model.LearnWeeklyXP, int, error)
+	CountDueReviews(userID uint, now time.Time) (int64, error)
+	CountNewSentenceWords(userID uint) (int64, error)
+	DueReviewWordIDs(userID uint, now time.Time, limit int) ([]uint, error)
+	NewSentenceWordIDs(userID uint, limit int) ([]uint, error)
+	RandomSentenceByWord(wordID uint) (*model.LearnSentence, error)
+	GetWordRecord(userID, wordID uint) (*model.LearnWordRecord, error)
+	SaveSRSResult(userID, wordID uint, stage int, nextReviewAt time.Time, correct bool) error
 }
 
 // CampaignTotal 固定關卡榜單列聚合（總分 + 最遠關卡）
@@ -163,6 +170,123 @@ func (r *learnRepository) TopDailyScores(date string, limit int) ([]*model.Learn
 	}
 
 	return scores, nil
+}
+
+// dueReviewScope 到期複習的共用條件：已進輪替（srs_stage>=1）、到期、且該字仍有例句可出題
+func dueReviewScope(db *gorm.DB, userID uint, now time.Time) *gorm.DB {
+	return db.Model(&model.LearnWordRecord{}).
+		Where("user_id = ? AND srs_stage >= 1 AND next_review_at <= ?", userID, now).
+		Where("EXISTS (SELECT 1 FROM learn_sentences s WHERE s.word_id = learn_word_records.word_id)")
+}
+
+// CountDueReviews 到期待複習字數
+func (r *learnRepository) CountDueReviews(userID uint, now time.Time) (int64, error) {
+	var n int64
+
+	err := dueReviewScope(r.db, userID, now).Count(&n).Error
+
+	return n, err
+}
+
+// CountNewSentenceWords 尚未進入 SRS 輪替、且有例句可出題的新字數
+func (r *learnRepository) CountNewSentenceWords(userID uint) (int64, error) {
+	var n int64
+
+	err := r.db.Model(&model.LearnSentence{}).
+		Joins("LEFT JOIN learn_word_records r ON r.word_id = learn_sentences.word_id AND r.user_id = ?", userID).
+		Where("r.id IS NULL OR r.srs_stage = 0").
+		Distinct("learn_sentences.word_id").
+		Count(&n).Error
+
+	return n, err
+}
+
+// DueReviewWordIDs 到期字 ID（到期早者先）
+func (r *learnRepository) DueReviewWordIDs(userID uint, now time.Time, limit int) ([]uint, error) {
+	var ids []uint
+
+	err := dueReviewScope(r.db, userID, now).
+		Order("next_review_at ASC").Limit(limit).
+		Pluck("word_id", &ids).Error
+
+	return ids, err
+}
+
+// NewSentenceWordIDs 新字 ID（有例句、未進輪替；隨機取樣避免每次同一批）。
+// Postgres 不允許 SELECT DISTINCT 搭配不在 select list 的 ORDER BY random()，
+// 故先取 distinct word_id 子查詢，外層再隨機排序。
+func (r *learnRepository) NewSentenceWordIDs(userID uint, limit int) ([]uint, error) {
+	var ids []uint
+
+	sub := r.db.Model(&model.LearnSentence{}).
+		Joins("LEFT JOIN learn_word_records r ON r.word_id = learn_sentences.word_id AND r.user_id = ?", userID).
+		Where("r.id IS NULL OR r.srs_stage = 0").
+		Distinct("learn_sentences.word_id")
+
+	err := r.db.Table("(?) AS t", sub).
+		Order("random()").Limit(limit).
+		Pluck("word_id", &ids).Error
+
+	return ids, err
+}
+
+// RandomSentenceByWord 取該字的一則例句（隨機）；無例句回傳 (nil, nil)
+func (r *learnRepository) RandomSentenceByWord(wordID uint) (*model.LearnSentence, error) {
+	var s model.LearnSentence
+
+	err := r.db.Where("word_id = ?", wordID).Order("random()").First(&s).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil //nolint:nilnil // nil = 無例句，由 service 決定跳過
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &s, nil
+}
+
+// GetWordRecord 取 user×word 記錄（含 SRS 狀態）；無記錄回傳 (nil, nil)
+func (r *learnRepository) GetWordRecord(userID, wordID uint) (*model.LearnWordRecord, error) {
+	var rec model.LearnWordRecord
+
+	err := r.db.Where("user_id = ? AND word_id = ?", userID, wordID).First(&rec).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil //nolint:nilnil // nil = 尚無記錄（全新字）
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &rec, nil
+}
+
+// SaveSRSResult upsert SRS 排程結果：累加 correct/wrong 並寫入新的 stage/next_review_at
+func (r *learnRepository) SaveSRSResult(
+	userID, wordID uint, stage int, nextReviewAt time.Time, correct bool,
+) error {
+	now := time.Now().UTC()
+	col := "wrong_count"
+
+	if correct {
+		col = "correct_count"
+	}
+
+	return r.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "user_id"}, {Name: "word_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			// ON CONFLICT DO UPDATE 內欄位引用需帶表名，避免 42702 歧義（target vs excluded）
+			col:              gorm.Expr("learn_word_records." + col + " + 1"),
+			"srs_stage":      stage,
+			"next_review_at": nextReviewAt,
+			"last_seen_at":   now,
+		}),
+	}).Create(&model.LearnWordRecord{
+		UserID: userID, WordID: wordID,
+		CorrectCount: boolToInt(correct), WrongCount: boolToInt(!correct),
+		SRSStage: stage, NextReviewAt: &nextReviewAt, LastSeenAt: now,
+	}).Error
 }
 
 // CampaignLevelNos 取已存在的固定關卡編號（開機冪等生成用）

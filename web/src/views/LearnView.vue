@@ -5,6 +5,7 @@ import { useLearnStore } from '@/stores/useLearnStore.js'
 import WordFill from '@/components/learn/WordFill.vue'
 import LetterWheel from '@/components/learn/LetterWheel.vue'
 import Crossword from '@/components/learn/Crossword.vue'
+import SentenceReview from '@/components/learn/SentenceReview.vue'
 
 const learn = useLearnStore()
 const { t } = useI18n()
@@ -17,12 +18,23 @@ const mobileNavOpen = ref(false)
 // Hub 分頁（比照 chat 的頻道切換）：內容只顯示當前分頁，避免卡片一路往下疊到要一直捲動。
 // check-i18n-keys 只認字面 key，動態 tab key 走查表（同 tierKeys 慣例）
 const tabs = [
+    { id: 'review', icon: 'fa-rotate', key: 'learn.tabReview' },
     { id: 'daily', icon: 'fa-calendar-day', key: 'learn.tabDaily' },
     { id: 'campaign', icon: 'fa-map', key: 'learn.tabCampaign' },
     { id: 'random', icon: 'fa-shuffle', key: 'learn.tabRandom' },
     { id: 'board', icon: 'fa-ranking-star', key: 'learn.leaderboard' },
 ]
-const activeTab = ref('daily')
+const activeTab = ref('review')
+
+// SRS 複習題數偏好（存 localStorage）
+const SRS_COUNT_KEY = 'talkrealm_learn_srs_count'
+const srsCounts = [10, 20, 30]
+const srsCount = ref(Number(localStorage.getItem(SRS_COUNT_KEY)) || 10)
+
+function setSrsCount(v) {
+    srsCount.value = v
+    localStorage.setItem(SRS_COUNT_KEY, String(v))
+}
 const tiers = [1, 2, 3, 4, 5]
 // check-i18n-keys 只認字面 key，動態 tier key 走查表
 const tierKeys = ['learn.tier1', 'learn.tier2', 'learn.tier3', 'learn.tier4', 'learn.tier5']
@@ -54,7 +66,13 @@ onMounted(() => {
     learn.loadLeaderboard()
     learn.loadCampaign()
     learn.loadBoards()
+    learn.loadSRSOverview()
 })
+
+async function startReview() {
+    await learn.startSRS(srsCount.value)
+    if (learn.srs) playing.value = true
+}
 
 async function start(mode) {
     await learn.startLevel(mode, tier.value, wordCount.value)
@@ -79,6 +97,7 @@ function exitGame() {
     playing.value = false
     learn.level = null
     learn.crossword = null
+    learn.srs = null
 }
 </script>
 
@@ -90,7 +109,7 @@ function exitGame() {
       @click="mobileNavOpen = false"
     ></div>
 
-    <div v-if="playing && (learn.level || learn.crossword)" class="learn-game">
+    <div v-if="playing && (learn.level || learn.crossword || learn.srs)" class="learn-game">
       <div class="learn-game__bar">
         <button class="mobile-hamburger" aria-label="menu" @click="mobileNavOpen = true">
           <i class="fas fa-bars"></i>
@@ -108,7 +127,8 @@ function exitGame() {
           <span>{{ t('learn.hardMode') }}</span>
         </button>
       </div>
-      <WordFill v-if="learn.level?.mode === 'fill'" @exit="exitGame" />
+      <SentenceReview v-if="learn.srs" @exit="exitGame" />
+      <WordFill v-else-if="learn.level?.mode === 'fill'" @exit="exitGame" />
       <LetterWheel v-else-if="learn.level?.mode === 'wheel'" @exit="exitGame" />
       <Crossword v-else-if="learn.crossword" @exit="exitGame" />
     </div>
@@ -139,7 +159,39 @@ function exitGame() {
 
       <p v-if="learn.error" class="learn-error">{{ learn.error }}</p>
 
-      <section v-if="activeTab === 'daily'" class="learn-card daily-card">
+      <section v-if="activeTab === 'review'" class="learn-card">
+        <h3>{{ t('learn.srsTitle') }}</h3>
+        <div class="srs-stats">
+          <span class="stat"><b>{{ learn.srsOverview?.due_count || 0 }}</b> {{ t('learn.srsDue') }}</span>
+          <span class="stat"><b>{{ learn.srsOverview?.new_available || 0 }}</b> {{ t('learn.srsNewAvail') }}</span>
+        </div>
+        <p class="srs-desc">{{ t('learn.srsDesc') }}</p>
+
+        <h4 class="srs-sub">{{ t('learn.srsCount') }}</h4>
+        <div class="tier-row">
+          <button
+            v-for="c in srsCounts"
+            :key="c"
+            :class="['tier-btn', { active: srsCount === c }]"
+            @click="setSrsCount(c)"
+          >{{ c }}</button>
+        </div>
+
+        <button
+          class="mode-btn srs-start"
+          :disabled="learn.loading || (!learn.srsOverview?.due_count && !learn.srsOverview?.new_available)"
+          @click="startReview"
+        >
+          <i class="fas fa-play"></i>
+          <span>{{ t('learn.srsStart') }}</span>
+        </button>
+        <p
+          v-if="learn.srsOverview && !learn.srsOverview.due_count && !learn.srsOverview.new_available"
+          class="board-empty"
+        >{{ t('learn.srsAllDone') }}</p>
+      </section>
+
+      <section v-else-if="activeTab === 'daily'" class="learn-card daily-card">
         <div class="daily-head">
           <h3>{{ t('learn.daily') }}</h3>
           <span class="daily-date">{{ learn.daily?.date }}</span>
@@ -370,4 +422,9 @@ function exitGame() {
 }
 .tab-btn.active { border-color: var(--accent); color: var(--accent); }
 .board-empty { font-size: 13px; color: var(--text-muted); }
+.srs-stats { display: flex; gap: 20px; font-family: var(--font-mono); font-size: 14px; color: var(--text-muted); }
+.srs-stats b { color: var(--accent); font-size: 18px; }
+.srs-desc { font-size: 13px; color: var(--text-muted); }
+.srs-sub { color: var(--text-muted); font-weight: 500; }
+.srs-start { flex: none; align-self: flex-start; flex-direction: row; align-items: center; gap: 8px; min-width: 0; }
 </style>
