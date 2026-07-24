@@ -89,6 +89,7 @@ type Message struct {
 	Type        string              `gorm:"default:'text'"                          json:"type"`        // text, image, file
 	IsEdited    bool                `gorm:"default:false"                           json:"is_edited"`   // 是否被編輯過
 	Nonce       string              `gorm:"uniqueIndex:idx_user_nonce;default:null" json:"nonce"`       // client 產生的冪等 key（可選）
+	ParentID    *uint               `gorm:"index"                                   json:"parent_id"`   // nil = 貼文/一般訊息；有值 = 留言，指向貼文
 	Attachments []MessageAttachment `gorm:"foreignKey:MessageID"                    json:"attachments"` // 附件
 	CreatedAt   time.Time           `                                               json:"created_at"`
 	UpdatedAt   time.Time           `                                               json:"updated_at"`
@@ -118,6 +119,14 @@ type MessageAttachment struct {
 	FileID    uint      `gorm:"not null"             json:"file_id"`
 	File      File      `gorm:"foreignKey:FileID"    json:"file"`
 	CreatedAt time.Time `                            json:"created_at"`
+}
+
+// MessageLike 貼文/留言的按讚（一人對一則只能讚一次）
+type MessageLike struct {
+	ID        uint      `gorm:"primarykey"                                 json:"id"`
+	MessageID uint      `gorm:"not null;uniqueIndex:idx_like_message_user" json:"message_id"`
+	UserID    uint      `gorm:"not null;uniqueIndex:idx_like_message_user" json:"user_id"`
+	CreatedAt time.Time `                                                  json:"created_at"`
 }
 
 // GuildMember 社群成員模型
