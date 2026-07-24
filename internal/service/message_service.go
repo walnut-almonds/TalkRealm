@@ -515,11 +515,13 @@ func (s *messageService) DeleteMessage(messageID, userID uint) error {
 		return ErrMessageNotFound
 	}
 
+	// 預先載入頻道，供權限檢查與 cascade 判斷共用（只 fetch 一次）
+	channel, _ := s.channelRepo.GetByID(message.ChannelID)
+
 	// 檢查是否為訊息擁有者或社群管理員
 	if message.UserID != userID {
 		// 檢查是否為社群管理員
-		channel, err := s.channelRepo.GetByID(message.ChannelID)
-		if err != nil {
+		if channel == nil {
 			return errors.New("channel not found")
 		}
 
@@ -543,9 +545,19 @@ func (s *messageService) DeleteMessage(messageID, userID uint) error {
 		}
 	}
 
-	// 刪除訊息
-	if err := s.messageRepo.Delete(messageID); err != nil {
-		return err
+	// feed 頻道的貼文（parent_id = nil）→ cascade 刪留言與所有讚
+	if channel != nil && channel.Type == "feed" && message.ParentID == nil {
+		if err := s.messageRepo.DeletePostCascade(messageID); err != nil {
+			return err
+		}
+	} else {
+		if s.likeRepo != nil {
+			_ = s.likeRepo.DeleteByMessageIDs([]uint{messageID})
+		}
+
+		if err := s.messageRepo.Delete(messageID); err != nil {
+			return err
+		}
 	}
 
 	// 廣播訊息刪除事件

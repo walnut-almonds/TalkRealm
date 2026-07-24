@@ -337,6 +337,49 @@ func TestMessageService_DeleteMessage_NotOwnerAndNotAdmin(t *testing.T) {
 	assert.ErrorIs(t, err, service.ErrNotMessageOwner)
 }
 
+func TestMessageService_DeleteMessage_FeedPostCascades(t *testing.T) {
+	post := &model.Message{ID: 7, ChannelID: 1, UserID: 5, ParentID: nil}
+	cascaded := false
+	mockMsg := &testutil.MockMessageRepository{
+		GetByIDFn:           func(id uint) (*model.Message, error) { return post, nil },
+		DeletePostCascadeFn: func(postID uint) error { cascaded = true; return nil },
+		DeleteFn:            func(id uint) error { t.Fatalf("plain Delete must not be used for a feed post"); return nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) {
+			return &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "feed"}, nil
+		},
+	}
+	svc := service.NewMessageService(mockMsg, mockCh, &testutil.MockGuildMemberRepository{}, nil)
+
+	require.NoError(t, svc.DeleteMessage(7, 5))
+	assert.True(t, cascaded)
+}
+
+func TestMessageService_DeleteMessage_CommentClearsOwnLikes(t *testing.T) {
+	comment := &model.Message{ID: 8, ChannelID: 1, UserID: 5, ParentID: testutil.PtrUint(7)}
+	var clearedIDs []uint
+	deleted := false
+	mockMsg := &testutil.MockMessageRepository{
+		GetByIDFn: func(id uint) (*model.Message, error) { return comment, nil },
+		DeleteFn:  func(id uint) error { deleted = true; return nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) {
+			return &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "feed"}, nil
+		},
+	}
+	mockLike := &testutil.MockMessageLikeRepository{
+		DeleteByMessageIDsFn: func(ids []uint) error { clearedIDs = ids; return nil },
+	}
+	svc := service.NewMessageService(mockMsg, mockCh, &testutil.MockGuildMemberRepository{}, nil)
+	svc.SetLikeRepo(mockLike)
+
+	require.NoError(t, svc.DeleteMessage(8, 5))
+	assert.True(t, deleted)
+	assert.Equal(t, []uint{8}, clearedIDs)
+}
+
 // ---------------------------------------------------------------------------
 // mockWSManager helper
 // ---------------------------------------------------------------------------
