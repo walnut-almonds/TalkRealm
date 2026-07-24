@@ -62,6 +62,9 @@ type MessageService interface {
 	SetWebSocketManager(manager WebSocketManager)
 	SetFileService(fs FileService)
 	SetTranslationService(ts TranslationService)
+	SetLikeRepo(r repository.MessageLikeRepository)
+	LikePost(messageID, userID uint) (int64, error)
+	UnlikePost(messageID, userID uint) (int64, error)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
 	CreateMessageWS(
 		userID, channelID uint,
@@ -75,6 +78,7 @@ type messageService struct {
 	channelRepo        repository.ChannelRepository
 	guildMemberRepo    repository.GuildMemberRepository
 	mentionRepo        repository.MessageMentionRepository
+	likeRepo           repository.MessageLikeRepository
 	wsManager          WebSocketManager
 	fileService        FileService        // 可選，用於建立附件關聯
 	translationService TranslationService // 可選，用於非同步翻譯
@@ -110,6 +114,75 @@ func (s *messageService) SetWebSocketManager(manager WebSocketManager) {
 // SetTranslationService 設定翻譯服務（用於非同步翻譯）
 func (s *messageService) SetTranslationService(ts TranslationService) {
 	s.translationService = ts
+}
+
+// SetLikeRepo 設定按讚 repository（動態牆功能所需）
+func (s *messageService) SetLikeRepo(r repository.MessageLikeRepository) { s.likeRepo = r }
+
+// likeAccessCheck 確認訊息存在、使用者是該頻道所屬 guild 的成員，回傳訊息
+func (s *messageService) likeAccessCheck(messageID, userID uint) (*model.Message, error) {
+	msg, err := s.messageRepo.GetByID(messageID)
+	if err != nil {
+		return nil, ErrMessageNotFound
+	}
+
+	channel, err := s.channelRepo.GetByID(msg.ChannelID)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+
+	if channel.GuildID != nil {
+		if member, merr := s.guildMemberRepo.GetMember(*channel.GuildID, userID); merr != nil ||
+			member == nil {
+			return nil, ErrNotChannelMemberMsg
+		}
+	}
+
+	return msg, nil
+}
+
+func (s *messageService) broadcastLikeCount(msg *model.Message) (int64, error) {
+	n, err := s.likeRepo.CountByMessageID(msg.ID)
+	if err != nil {
+		return 0, err
+	}
+
+	if s.wsManager != nil {
+		s.wsManager.BroadcastToChannel(msg.ChannelID, "post_like", map[string]any{
+			"message_id": msg.ID,
+			"like_count": n,
+		})
+	}
+
+	return n, nil
+}
+
+// LikePost 按讚（idempotent）
+func (s *messageService) LikePost(messageID, userID uint) (int64, error) {
+	msg, err := s.likeAccessCheck(messageID, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := s.likeRepo.Create(&model.MessageLike{MessageID: messageID, UserID: userID}); err != nil {
+		return 0, err
+	}
+
+	return s.broadcastLikeCount(msg)
+}
+
+// UnlikePost 收回讚
+func (s *messageService) UnlikePost(messageID, userID uint) (int64, error) {
+	msg, err := s.likeAccessCheck(messageID, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := s.likeRepo.Delete(messageID, userID); err != nil {
+		return 0, err
+	}
+
+	return s.broadcastLikeCount(msg)
 }
 
 // CreateMessageWS 給 WebSocket send_message op 使用的薄包裝

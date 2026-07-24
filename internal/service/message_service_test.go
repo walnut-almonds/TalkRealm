@@ -414,3 +414,34 @@ func TestMessageService_CreateMessage_RejectsCommentOnComment(t *testing.T) {
 	_, err := svc.CreateMessage(5, &service.CreateMessageRequest{ChannelID: 1, Content: "x", ParentID: &parent})
 	require.Error(t, err)
 }
+
+func TestMessageService_LikePost_ReturnsCountAndBroadcasts(t *testing.T) {
+	msg := &model.Message{ID: 7, ChannelID: 1}
+	mockMsg := &testutil.MockMessageRepository{
+		GetByIDFn: func(id uint) (*model.Message, error) { return msg, nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) {
+			return &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "feed"}, nil
+		},
+	}
+	mockMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(g, u uint) (*model.GuildMember, error) { return &model.GuildMember{UserID: u}, nil },
+	}
+	mockLike := &testutil.MockMessageLikeRepository{
+		CreateFn:           func(l *model.MessageLike) error { return nil },
+		CountByMessageIDFn: func(id uint) (int64, error) { return 4, nil },
+	}
+	ws := &testutil.MockWebSocketManager{}
+
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
+	svc.SetLikeRepo(mockLike)
+	svc.SetWebSocketManager(ws)
+
+	n, err := svc.LikePost(7, 5)
+	require.NoError(t, err)
+	assert.Equal(t, int64(4), n)
+	require.Len(t, ws.ChannelBroadcasts, 1)
+	assert.Equal(t, "post_like", ws.ChannelBroadcasts[0].MsgType)
+	assert.Equal(t, uint(1), ws.ChannelBroadcasts[0].ID)
+}

@@ -114,6 +114,9 @@ func New(cfg *config.Config) (*Server, error) {
 	// DM 服務
 	dmService := service.NewDMService(channelRepo, userRepo)
 
+	// 動態牆按讚 repository
+	messageService.SetLikeRepo(repository.NewMessageLikeRepository(db))
+
 	// 設定 WebSocket 管理器到各 Service
 	messageService.SetWebSocketManager(wsManager)
 	guildService.SetWebSocketManager(wsManager)

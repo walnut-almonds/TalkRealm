@@ -1043,6 +1043,8 @@ type MockMessageService struct {
 	DeleteMessageFn       func(messageID, userID uint) error
 	SetWebSocketManagerFn func(manager service.WebSocketManager)
 	CreateMessageWSFn     func(userID, channelID uint, content, contentType, nonce string, fileIDs []uint) (any, error)
+	LikePostFn            func(messageID, userID uint) (int64, error)
+	UnlikePostFn          func(messageID, userID uint) (int64, error)
 }
 
 var _ service.MessageService = (*MockMessageService)(nil)
@@ -1106,6 +1108,24 @@ func (m *MockMessageService) SetWebSocketManager(manager service.WebSocketManage
 func (m *MockMessageService) SetFileService(_ service.FileService) {}
 
 func (m *MockMessageService) SetTranslationService(_ service.TranslationService) {}
+
+func (m *MockMessageService) SetLikeRepo(_ repository.MessageLikeRepository) {}
+
+func (m *MockMessageService) LikePost(messageID, userID uint) (int64, error) {
+	if m.LikePostFn != nil {
+		return m.LikePostFn(messageID, userID)
+	}
+
+	return 0, nil
+}
+
+func (m *MockMessageService) UnlikePost(messageID, userID uint) (int64, error) {
+	if m.UnlikePostFn != nil {
+		return m.UnlikePostFn(messageID, userID)
+	}
+
+	return 0, nil
+}
 
 func (m *MockMessageService) CreateMessageWS(
 	userID, channelID uint,
@@ -1198,6 +1218,46 @@ func (m *MockChannelService) SetWebSocketManager(mgr service.GuildEventBroadcast
 
 // PtrUint returns a pointer to the given uint value.
 func PtrUint(v uint) *uint { return &v }
+
+// ---------------------------------------------------------------------------
+// MockWebSocketManager
+// ---------------------------------------------------------------------------
+
+// WSBroadcast records a single BroadcastToChannel/BroadcastToUser call.
+type WSBroadcast struct {
+	ID      uint // channelID or userID
+	MsgType string
+	Data    any
+}
+
+// MockWebSocketManager is a test double for service.WebSocketManager that
+// records broadcasts so tests can assert on them.
+type MockWebSocketManager struct {
+	ChannelBroadcasts []WSBroadcast
+	UserBroadcasts    []WSBroadcast
+	OnlineFn          func(userID uint) bool
+}
+
+var _ service.WebSocketManager = (*MockWebSocketManager)(nil)
+
+func (m *MockWebSocketManager) BroadcastToChannel(channelID uint, msgType string, data any) {
+	m.ChannelBroadcasts = append(
+		m.ChannelBroadcasts,
+		WSBroadcast{ID: channelID, MsgType: msgType, Data: data},
+	)
+}
+
+func (m *MockWebSocketManager) BroadcastToUser(userID uint, msgType string, data any) {
+	m.UserBroadcasts = append(m.UserBroadcasts, WSBroadcast{ID: userID, MsgType: msgType, Data: data})
+}
+
+func (m *MockWebSocketManager) IsUserOnline(userID uint) bool {
+	if m.OnlineFn != nil {
+		return m.OnlineFn(userID)
+	}
+
+	return false
+}
 
 // ── MockMessageMentionRepository ─────────────────────────────────────────────
 
