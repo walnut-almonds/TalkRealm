@@ -354,6 +354,8 @@ func (s *Server) setupRoutes() {
 
 				// 頻道訊息
 				channels.GET("/:id/messages", s.messageHandler.ListChannelMessages)
+				// 動態牆貼文列表
+				channels.GET("/:id/posts", s.messageHandler.ListPosts)
 				// 訊息發送套用 rate limit：每秒最多 10 則
 				if s.rdb != nil {
 					channels.POST("/:id/messages",
@@ -378,6 +380,11 @@ func (s *Server) setupRoutes() {
 				messages.PUT("/:id", s.messageHandler.UpdateMessage)
 				messages.PATCH("/:id", s.messageHandler.UpdateMessage)
 				messages.DELETE("/:id", s.messageHandler.DeleteMessage)
+
+				// 動態牆留言與按讚
+				messages.GET("/:id/comments", s.messageHandler.ListComments)
+				messages.PUT("/:id/like", s.messageHandler.LikePost)
+				messages.DELETE("/:id/like", s.messageHandler.UnlikePost)
 
 				// 翻譯 & 猜測遊戲
 				messages.GET("/:id/translation", s.translationHandler.GetTranslation)

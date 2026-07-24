@@ -65,6 +65,8 @@ type MessageService interface {
 	SetLikeRepo(r repository.MessageLikeRepository)
 	LikePost(messageID, userID uint) (int64, error)
 	UnlikePost(messageID, userID uint) (int64, error)
+	ListPosts(channelID, userID uint, limit int, before uint) (*PostListResponse, error)
+	ListComments(postID, userID uint, limit int, before uint) (*MessageListResponse, error)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
 	CreateMessageWS(
 		userID, channelID uint,
@@ -164,7 +166,9 @@ func (s *messageService) LikePost(messageID, userID uint) (int64, error) {
 		return 0, err
 	}
 
-	if err := s.likeRepo.Create(&model.MessageLike{MessageID: messageID, UserID: userID}); err != nil {
+	if err := s.likeRepo.Create(
+		&model.MessageLike{MessageID: messageID, UserID: userID},
+	); err != nil {
 		return 0, err
 	}
 
@@ -221,6 +225,118 @@ type MessageListResponse struct {
 	HasMore  bool             `json:"has_more"`
 }
 
+// PostResponse 貼文（含讚數、留言數、我是否讚過）
+type PostResponse struct {
+	*model.Message
+
+	LikeCount    int64 `json:"like_count"`
+	CommentCount int64 `json:"comment_count"`
+	LikedByMe    bool  `json:"liked_by_me"`
+}
+
+// PostListResponse 貼文列表回應
+type PostListResponse struct {
+	Posts   []*PostResponse `json:"posts"`
+	HasMore bool            `json:"has_more"`
+}
+
+// ListPosts 回傳 feed 頻道貼文（新到舊），每筆帶讚數/留言數/我是否讚過
+func (s *messageService) ListPosts(
+	channelID, userID uint,
+	limit int,
+	before uint,
+) (*PostListResponse, error) {
+	channel, err := s.channelRepo.GetByID(channelID)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+
+	if err := s.ensureChannelAccess(channel, channelID, userID); err != nil {
+		return nil, err
+	}
+
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	posts, err := s.messageRepo.GetPostsByChannelCursor(channelID, before, limit+1)
+	if err != nil {
+		return nil, err
+	}
+
+	hasMore := false
+	if len(posts) > limit {
+		hasMore = true
+		posts = posts[:limit]
+	}
+
+	ids := make([]uint, len(posts))
+	for i, p := range posts {
+		ids[i] = p.ID
+	}
+
+	var likeCounts map[uint]int64
+
+	var liked map[uint]bool
+
+	if s.likeRepo != nil {
+		likeCounts, _ = s.likeRepo.CountByMessageIDs(ids)
+		liked, _ = s.likeRepo.LikedMessageIDs(userID, ids)
+	}
+
+	commentCounts, _ := s.messageRepo.CountCommentsByPostIDs(ids)
+
+	out := make([]*PostResponse, len(posts))
+	for i, p := range posts {
+		out[i] = &PostResponse{
+			Message:      p,
+			LikeCount:    likeCounts[p.ID],
+			CommentCount: commentCounts[p.ID],
+			LikedByMe:    liked[p.ID],
+		}
+	}
+
+	return &PostListResponse{Posts: out, HasMore: hasMore}, nil
+}
+
+// ListComments 回傳某貼文的留言（時間順序）
+func (s *messageService) ListComments(
+	postID, userID uint,
+	limit int,
+	before uint,
+) (*MessageListResponse, error) {
+	post, err := s.messageRepo.GetByID(postID)
+	if err != nil {
+		return nil, ErrMessageNotFound
+	}
+
+	channel, err := s.channelRepo.GetByID(post.ChannelID)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+
+	if err := s.ensureChannelAccess(channel, post.ChannelID, userID); err != nil {
+		return nil, err
+	}
+
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	comments, err := s.messageRepo.GetCommentsByPostCursor(postID, before, limit+1)
+	if err != nil {
+		return nil, err
+	}
+
+	hasMore := false
+	if len(comments) > limit {
+		hasMore = true
+		comments = comments[len(comments)-limit:]
+	}
+
+	return &MessageListResponse{Messages: comments, HasMore: hasMore}, nil
+}
+
 // CreateMessage 建立訊息
 func (s *messageService) CreateMessage(
 	userID uint,
@@ -256,9 +372,11 @@ func (s *messageService) CreateMessage(
 		if perr != nil {
 			return nil, errors.New("parent post not found")
 		}
+
 		if parent.ChannelID != req.ChannelID {
 			return nil, errors.New("parent post is in a different channel")
 		}
+
 		if parent.ParentID != nil {
 			return nil, errors.New("cannot comment on a comment")
 		}

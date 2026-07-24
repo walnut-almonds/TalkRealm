@@ -358,7 +358,9 @@ func TestMessageService_DeleteMessage_FeedPostCascades(t *testing.T) {
 
 func TestMessageService_DeleteMessage_CommentClearsOwnLikes(t *testing.T) {
 	comment := &model.Message{ID: 8, ChannelID: 1, UserID: 5, ParentID: testutil.PtrUint(7)}
+
 	var clearedIDs []uint
+
 	deleted := false
 	mockMsg := &testutil.MockMessageRepository{
 		GetByIDFn: func(id uint) (*model.Message, error) { return comment, nil },
@@ -415,11 +417,13 @@ func TestMessageService_CreateMessage_SetsParentID(t *testing.T) {
 	post := &model.Message{ID: 7, ChannelID: 1, ParentID: nil}
 
 	var created *model.Message
+
 	mockMsg := &testutil.MockMessageRepository{
 		GetByIDFn: func(id uint) (*model.Message, error) {
 			if id == 7 {
 				return post, nil
 			}
+
 			return created, nil
 		},
 		CreateFn: func(m *model.Message) error { m.ID = 8; created = m; return nil },
@@ -443,18 +447,29 @@ func TestMessageService_CreateMessage_SetsParentID(t *testing.T) {
 
 func TestMessageService_CreateMessage_RejectsCommentOnComment(t *testing.T) {
 	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "feed"}
-	comment := &model.Message{ID: 7, ChannelID: 1, ParentID: testutil.PtrUint(3)} // already a comment
+	comment := &model.Message{
+		ID:        7,
+		ChannelID: 1,
+		ParentID:  testutil.PtrUint(3),
+	} // already a comment
 
 	mockMsg := &testutil.MockMessageRepository{
 		GetByIDFn: func(id uint) (*model.Message, error) { return comment, nil },
 		CreateFn:  func(m *model.Message) error { return nil },
 	}
-	mockCh := &testutil.MockChannelRepository{GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil }}
-	mockMember := &testutil.MockGuildMemberRepository{GetMemberFn: func(g, u uint) (*model.GuildMember, error) { return &model.GuildMember{UserID: u}, nil }}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
+	}
+	mockMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(g, u uint) (*model.GuildMember, error) { return &model.GuildMember{UserID: u}, nil },
+	}
 	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
 
 	parent := uint(7)
-	_, err := svc.CreateMessage(5, &service.CreateMessageRequest{ChannelID: 1, Content: "x", ParentID: &parent})
+	_, err := svc.CreateMessage(
+		5,
+		&service.CreateMessageRequest{ChannelID: 1, Content: "x", ParentID: &parent},
+	)
 	require.Error(t, err)
 }
 
@@ -487,4 +502,34 @@ func TestMessageService_LikePost_ReturnsCountAndBroadcasts(t *testing.T) {
 	require.Len(t, ws.ChannelBroadcasts, 1)
 	assert.Equal(t, "post_like", ws.ChannelBroadcasts[0].MsgType)
 	assert.Equal(t, uint(1), ws.ChannelBroadcasts[0].ID)
+}
+
+func TestMessageService_ListPosts_EnrichesCounts(t *testing.T) {
+	posts := []*model.Message{{ID: 7, ChannelID: 1}, {ID: 6, ChannelID: 1}}
+	mockMsg := &testutil.MockMessageRepository{
+		GetPostsByChannelCursorFn: func(cid, before uint, limit int) ([]*model.Message, error) { return posts, nil },
+		CountCommentsByPostIDsFn:  func(ids []uint) (map[uint]int64, error) { return map[uint]int64{7: 2}, nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) {
+			return &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "feed"}, nil
+		},
+	}
+	mockMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(g, u uint) (*model.GuildMember, error) { return &model.GuildMember{UserID: u}, nil },
+	}
+	mockLike := &testutil.MockMessageLikeRepository{
+		CountByMessageIDsFn: func(ids []uint) (map[uint]int64, error) { return map[uint]int64{7: 4}, nil },
+		LikedMessageIDsFn:   func(uid uint, ids []uint) (map[uint]bool, error) { return map[uint]bool{7: true}, nil },
+	}
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
+	svc.SetLikeRepo(mockLike)
+
+	resp, err := svc.ListPosts(1, 5, 20, 0)
+	require.NoError(t, err)
+	require.Len(t, resp.Posts, 2)
+	assert.Equal(t, int64(4), resp.Posts[0].LikeCount)
+	assert.Equal(t, int64(2), resp.Posts[0].CommentCount)
+	assert.True(t, resp.Posts[0].LikedByMe)
+	assert.Equal(t, int64(0), resp.Posts[1].LikeCount)
 }

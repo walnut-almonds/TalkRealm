@@ -1045,6 +1045,8 @@ type MockMessageService struct {
 	CreateMessageWSFn     func(userID, channelID uint, content, contentType, nonce string, fileIDs []uint) (any, error)
 	LikePostFn            func(messageID, userID uint) (int64, error)
 	UnlikePostFn          func(messageID, userID uint) (int64, error)
+	ListPostsFn           func(channelID, userID uint, limit int, before uint) (*service.PostListResponse, error)
+	ListCommentsFn        func(postID, userID uint, limit int, before uint) (*service.MessageListResponse, error)
 }
 
 var _ service.MessageService = (*MockMessageService)(nil)
@@ -1125,6 +1127,30 @@ func (m *MockMessageService) UnlikePost(messageID, userID uint) (int64, error) {
 	}
 
 	return 0, nil
+}
+
+func (m *MockMessageService) ListPosts(
+	channelID, userID uint,
+	limit int,
+	before uint,
+) (*service.PostListResponse, error) {
+	if m.ListPostsFn != nil {
+		return m.ListPostsFn(channelID, userID, limit, before)
+	}
+
+	return nil, nil //nolint:nilnil
+}
+
+func (m *MockMessageService) ListComments(
+	postID, userID uint,
+	limit int,
+	before uint,
+) (*service.MessageListResponse, error) {
+	if m.ListCommentsFn != nil {
+		return m.ListCommentsFn(postID, userID, limit, before)
+	}
+
+	return nil, nil //nolint:nilnil
 }
 
 func (m *MockMessageService) CreateMessageWS(
@@ -1248,7 +1274,10 @@ func (m *MockWebSocketManager) BroadcastToChannel(channelID uint, msgType string
 }
 
 func (m *MockWebSocketManager) BroadcastToUser(userID uint, msgType string, data any) {
-	m.UserBroadcasts = append(m.UserBroadcasts, WSBroadcast{ID: userID, MsgType: msgType, Data: data})
+	m.UserBroadcasts = append(
+		m.UserBroadcasts,
+		WSBroadcast{ID: userID, MsgType: msgType, Data: data},
+	)
 }
 
 func (m *MockWebSocketManager) IsUserOnline(userID uint) bool {
