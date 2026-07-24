@@ -397,6 +397,10 @@ type MockMessageRepository struct {
 	GetByChannelIDCursorFn     func(channelID, before uint, limit int) ([]*model.Message, error)
 	GetByUserIDFn              func(userID uint, offset, limit int) ([]*model.Message, error)
 	CountByUserInGuildsSinceFn func(userID uint, guildIDs []uint, since time.Time) (map[uint]int64, error)
+	GetPostsByChannelCursorFn  func(channelID, before uint, limit int) ([]*model.Message, error)
+	GetCommentsByPostCursorFn  func(postID, before uint, limit int) ([]*model.Message, error)
+	CountCommentsByPostIDsFn   func(ids []uint) (map[uint]int64, error)
+	DeletePostCascadeFn        func(postID uint) error
 }
 
 var _ repository.MessageRepository = (*MockMessageRepository)(nil)
@@ -484,6 +488,44 @@ func (m *MockMessageRepository) CountByUserInGuildsSince(
 	}
 
 	return map[uint]int64{}, nil
+}
+
+func (m *MockMessageRepository) GetPostsByChannelCursor(
+	channelID, before uint,
+	limit int,
+) ([]*model.Message, error) {
+	if m.GetPostsByChannelCursorFn != nil {
+		return m.GetPostsByChannelCursorFn(channelID, before, limit)
+	}
+
+	return nil, nil
+}
+
+func (m *MockMessageRepository) GetCommentsByPostCursor(
+	postID, before uint,
+	limit int,
+) ([]*model.Message, error) {
+	if m.GetCommentsByPostCursorFn != nil {
+		return m.GetCommentsByPostCursorFn(postID, before, limit)
+	}
+
+	return nil, nil
+}
+
+func (m *MockMessageRepository) CountCommentsByPostIDs(ids []uint) (map[uint]int64, error) {
+	if m.CountCommentsByPostIDsFn != nil {
+		return m.CountCommentsByPostIDsFn(ids)
+	}
+
+	return map[uint]int64{}, nil
+}
+
+func (m *MockMessageRepository) DeletePostCascade(postID uint) error {
+	if m.DeletePostCascadeFn != nil {
+		return m.DeletePostCascadeFn(postID)
+	}
+
+	return nil
 }
 
 // ---------------------------------------------------------------------------

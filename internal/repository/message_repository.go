@@ -20,6 +20,10 @@ type MessageRepository interface {
 	GetByUserID(userID uint, offset, limit int) ([]*model.Message, error)
 	// CountByUserInGuildsSince 回傳 userID 在指定 guildIDs 內各 guild 的訊息數量（since 之後）
 	CountByUserInGuildsSince(userID uint, guildIDs []uint, since time.Time) (map[uint]int64, error)
+	GetPostsByChannelCursor(channelID, before uint, limit int) ([]*model.Message, error)
+	GetCommentsByPostCursor(postID, before uint, limit int) ([]*model.Message, error)
+	CountCommentsByPostIDs(ids []uint) (map[uint]int64, error)
+	DeletePostCascade(postID uint) error
 }
 
 type messageRepository struct {
@@ -178,4 +182,108 @@ func (r *messageRepository) CountByUserInGuildsSince(
 	}
 
 	return result, nil
+}
+
+// GetPostsByChannelCursor 取得 feed 頻道的貼文（parent_id IS NULL，新到舊 cursor 分頁）
+func (r *messageRepository) GetPostsByChannelCursor(
+	channelID, before uint,
+	limit int,
+) ([]*model.Message, error) {
+	var posts []*model.Message
+
+	q := r.db.
+		Preload("User").Preload("Attachments.File").
+		Where("channel_id = ? AND parent_id IS NULL", channelID).
+		Order("id DESC").
+		Limit(limit)
+
+	if before > 0 {
+		q = q.Where("id < ?", before)
+	}
+
+	// 貼文列表保持新到舊，不反轉
+	return posts, q.Find(&posts).Error
+}
+
+// GetCommentsByPostCursor 取得某貼文的留言（parent_id = postID，回傳時間順序）
+func (r *messageRepository) GetCommentsByPostCursor(
+	postID, before uint,
+	limit int,
+) ([]*model.Message, error) {
+	var comments []*model.Message
+
+	q := r.db.
+		Preload("User").Preload("Attachments.File").
+		Where("parent_id = ?", postID).
+		Order("id DESC").
+		Limit(limit)
+
+	if before > 0 {
+		q = q.Where("id < ?", before)
+	}
+
+	if err := q.Find(&comments).Error; err != nil {
+		return nil, err
+	}
+	// Reverse to chronological (ascending) order for the caller
+	for i, j := 0, len(comments)-1; i < j; i, j = i+1, j-1 {
+		comments[i], comments[j] = comments[j], comments[i]
+	}
+
+	return comments, nil
+}
+
+// CountCommentsByPostIDs 批次計算每則貼文的留言數（避免 N+1）
+func (r *messageRepository) CountCommentsByPostIDs(ids []uint) (map[uint]int64, error) {
+	out := make(map[uint]int64, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+
+	type row struct {
+		ParentID uint
+		Cnt      int64
+	}
+
+	var rows []row
+
+	err := r.db.Model(&model.Message{}).
+		Select("parent_id, COUNT(*) AS cnt").
+		Where("parent_id IN ?", ids).
+		Group("parent_id").Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, x := range rows {
+		out[x.ParentID] = x.Cnt
+	}
+
+	return out, nil
+}
+
+// DeletePostCascade 於單一 transaction 內刪除貼文、其留言、及全部相關讚
+func (r *messageRepository) DeletePostCascade(postID uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var commentIDs []uint
+		if err := tx.Model(&model.Message{}).
+			Where("parent_id = ?", postID).
+			Pluck("id", &commentIDs).Error; err != nil {
+			return err
+		}
+
+		ids := append(commentIDs, postID) //nolint:gocritic
+
+		if err := tx.Where("message_id IN ?", ids).
+			Delete(&model.MessageLike{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("parent_id = ?", postID).
+			Delete(&model.Message{}).Error; err != nil {
+			return err
+		}
+
+		return tx.Delete(&model.Message{}, postID).Error
+	})
 }
