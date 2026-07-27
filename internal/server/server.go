@@ -41,6 +41,7 @@ type Server struct {
 	guildMemberRepo    repository.GuildMemberRepository
 	unreadHandler      *handler.UnreadHandler
 	learnHandler       *handler.LearnHandler
+	feedHandler        *handler.FeedHandler
 }
 
 // New 創建新的伺服器實例
@@ -196,6 +197,16 @@ func New(cfg *config.Config) (*Server, error) {
 	learnService := service.NewLearnService(learnRepo, userRepo, friendshipRepo, levelStore)
 	learnHandler := handler.NewLearnHandler(learnService)
 
+	// 個人動態牆（feed）服務：重用既有 friendshipRepo 提供追蹤建議
+	feedService := service.NewFeedService(
+		repository.NewFollowRepository(db),
+		repository.NewFeedPostRepository(db),
+		repository.NewFeedPostLikeRepository(db),
+		repository.NewFeedCommentRepository(db),
+		friendshipRepo,
+	)
+	feedHandler := handler.NewFeedHandler(feedService)
+
 	// 固定關卡開機冪等生成（已存在的關卡不重生）；失敗僅降級警告，不擋開機
 	if n, err := learnService.EnsureCampaignLevels(); err != nil {
 		logger.Warn("Failed to ensure learn campaign levels", "error", err, "created", n)
@@ -223,6 +234,7 @@ func New(cfg *config.Config) (*Server, error) {
 		interactionHandler: interactionHandler,
 		unreadHandler:      unreadHandler,
 		learnHandler:       learnHandler,
+		feedHandler:        feedHandler,
 	}
 
 	// 設定路由
@@ -425,6 +437,27 @@ func (s *Server) setupRoutes() {
 				learn.GET("/srs/overview", s.learnHandler.GetSRSOverview)
 				learn.POST("/srs", s.learnHandler.StartSRS)
 				learn.POST("/srs/:id/answer", s.learnHandler.AnswerSRS)
+			}
+
+			// 個人動態牆（跨社群 feed）
+			feed := protected.Group("/feed")
+			{
+				feed.GET("/suggestions", s.feedHandler.Suggestions)
+				feed.POST("/follows/:userId", s.feedHandler.Follow)
+				feed.DELETE("/follows/:userId", s.feedHandler.Unfollow)
+				feed.GET("/users/:userId/following", s.feedHandler.ListFollowing)
+				feed.GET("/users/:userId/followers", s.feedHandler.ListFollowers)
+				feed.GET("/users/:userId/posts", s.feedHandler.ProfilePosts)
+				feed.GET("/timeline", s.feedHandler.Timeline)
+				feed.POST("/posts", s.feedHandler.CreatePost)
+				feed.PUT("/posts/:id", s.feedHandler.UpdatePost)
+				feed.DELETE("/posts/:id", s.feedHandler.DeletePost)
+				feed.PUT("/posts/:id/like", s.feedHandler.LikePost)
+				feed.DELETE("/posts/:id/like", s.feedHandler.UnlikePost)
+				feed.GET("/posts/:id/comments", s.feedHandler.ListComments)
+				feed.POST("/posts/:id/comments", s.feedHandler.AddComment)
+				feed.PUT("/comments/:id", s.feedHandler.UpdateComment)
+				feed.DELETE("/comments/:id", s.feedHandler.DeleteComment)
 			}
 		}
 
