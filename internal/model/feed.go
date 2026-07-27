@@ -11,6 +11,8 @@ type Follow struct {
 	ID         uint      `gorm:"primarykey"                              json:"id"`
 	FollowerID uint      `gorm:"not null;uniqueIndex:idx_follow_pair;index" json:"follower_id"`
 	FolloweeID uint      `gorm:"not null;uniqueIndex:idx_follow_pair;index" json:"followee_id"`
+	Follower   User      `gorm:"foreignKey:FollowerID"                   json:"follower,omitempty"`
+	Followee   User      `gorm:"foreignKey:FolloweeID"                   json:"followee,omitempty"`
 	CreatedAt  time.Time `                                               json:"created_at"`
 }
 

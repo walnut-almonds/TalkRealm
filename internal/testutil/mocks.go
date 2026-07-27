@@ -743,6 +743,88 @@ func (m *MockGuildInviteRepository) Delete(id uint) error {
 }
 
 // ---------------------------------------------------------------------------
+// MockFollowRepository
+// ---------------------------------------------------------------------------
+
+// MockFollowRepository is a test double for repository.FollowRepository.
+type MockFollowRepository struct {
+	FollowFn         func(followerID, followeeID uint) error
+	UnfollowFn       func(followerID, followeeID uint) error
+	IsFollowingFn    func(followerID, followeeID uint) (bool, error)
+	FolloweeIDsFn    func(followerID uint) ([]uint, error)
+	ListFollowingFn  func(userID uint) ([]*model.Follow, error)
+	ListFollowersFn  func(userID uint) ([]*model.Follow, error)
+	CountFollowingFn func(userID uint) (int64, error)
+	CountFollowersFn func(userID uint) (int64, error)
+}
+
+var _ repository.FollowRepository = (*MockFollowRepository)(nil)
+
+func (m *MockFollowRepository) Follow(followerID, followeeID uint) error {
+	if m.FollowFn != nil {
+		return m.FollowFn(followerID, followeeID)
+	}
+
+	return nil
+}
+
+func (m *MockFollowRepository) Unfollow(followerID, followeeID uint) error {
+	if m.UnfollowFn != nil {
+		return m.UnfollowFn(followerID, followeeID)
+	}
+
+	return nil
+}
+
+func (m *MockFollowRepository) IsFollowing(followerID, followeeID uint) (bool, error) {
+	if m.IsFollowingFn != nil {
+		return m.IsFollowingFn(followerID, followeeID)
+	}
+
+	return false, nil
+}
+
+func (m *MockFollowRepository) FolloweeIDs(followerID uint) ([]uint, error) {
+	if m.FolloweeIDsFn != nil {
+		return m.FolloweeIDsFn(followerID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFollowRepository) ListFollowing(userID uint) ([]*model.Follow, error) {
+	if m.ListFollowingFn != nil {
+		return m.ListFollowingFn(userID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFollowRepository) ListFollowers(userID uint) ([]*model.Follow, error) {
+	if m.ListFollowersFn != nil {
+		return m.ListFollowersFn(userID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFollowRepository) CountFollowing(userID uint) (int64, error) {
+	if m.CountFollowingFn != nil {
+		return m.CountFollowingFn(userID)
+	}
+
+	return 0, nil
+}
+
+func (m *MockFollowRepository) CountFollowers(userID uint) (int64, error) {
+	if m.CountFollowersFn != nil {
+		return m.CountFollowersFn(userID)
+	}
+
+	return 0, nil
+}
+
+// ---------------------------------------------------------------------------
 // Mock Service interfaces (for handler tests)
 // ---------------------------------------------------------------------------
 
