@@ -1023,6 +1023,88 @@ func (m *MockFeedCommentRepository) CountByPostIDs(ids []uint) (map[uint]int64, 
 }
 
 // ---------------------------------------------------------------------------
+// MockFriendshipRepository
+// ---------------------------------------------------------------------------
+
+// MockFriendshipRepository is a test double for repository.FriendshipRepository.
+type MockFriendshipRepository struct {
+	CreateFn               func(requesterID, addresseeID uint) (*model.Friendship, error)
+	GetBetweenFn           func(userA, userB uint) (*model.Friendship, error)
+	UpdateStatusFn         func(requesterID, addresseeID uint, status string) error
+	DeleteFn               func(userA, userB uint) error
+	ListFriendsFn          func(userID uint) ([]*model.Friendship, error)
+	ListIncomingRequestsFn func(userID uint) ([]*model.Friendship, error)
+	ListOutgoingRequestsFn func(userID uint) ([]*model.Friendship, error)
+	FriendIDsFn            func(userID uint) ([]uint, error)
+}
+
+var _ repository.FriendshipRepository = (*MockFriendshipRepository)(nil)
+
+func (m *MockFriendshipRepository) Create(requesterID, addresseeID uint) (*model.Friendship, error) {
+	if m.CreateFn != nil {
+		return m.CreateFn(requesterID, addresseeID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFriendshipRepository) GetBetween(userA, userB uint) (*model.Friendship, error) {
+	if m.GetBetweenFn != nil {
+		return m.GetBetweenFn(userA, userB)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFriendshipRepository) UpdateStatus(requesterID, addresseeID uint, status string) error {
+	if m.UpdateStatusFn != nil {
+		return m.UpdateStatusFn(requesterID, addresseeID, status)
+	}
+
+	return nil
+}
+
+func (m *MockFriendshipRepository) Delete(userA, userB uint) error {
+	if m.DeleteFn != nil {
+		return m.DeleteFn(userA, userB)
+	}
+
+	return nil
+}
+
+func (m *MockFriendshipRepository) ListFriends(userID uint) ([]*model.Friendship, error) {
+	if m.ListFriendsFn != nil {
+		return m.ListFriendsFn(userID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFriendshipRepository) ListIncomingRequests(userID uint) ([]*model.Friendship, error) {
+	if m.ListIncomingRequestsFn != nil {
+		return m.ListIncomingRequestsFn(userID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFriendshipRepository) ListOutgoingRequests(userID uint) ([]*model.Friendship, error) {
+	if m.ListOutgoingRequestsFn != nil {
+		return m.ListOutgoingRequestsFn(userID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFriendshipRepository) FriendIDs(userID uint) ([]uint, error) {
+	if m.FriendIDsFn != nil {
+		return m.FriendIDsFn(userID)
+	}
+
+	return nil, nil
+}
+
+// ---------------------------------------------------------------------------
 // Mock Service interfaces (for handler tests)
 // ---------------------------------------------------------------------------
 
