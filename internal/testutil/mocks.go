@@ -898,6 +898,131 @@ func (m *MockFeedPostRepository) DeleteCascade(postID uint) error {
 }
 
 // ---------------------------------------------------------------------------
+// MockFeedPostLikeRepository
+// ---------------------------------------------------------------------------
+
+// MockFeedPostLikeRepository is a test double for repository.FeedPostLikeRepository.
+type MockFeedPostLikeRepository struct {
+	CreateFn         func(like *model.FeedPostLike) error
+	DeleteFn         func(postID, userID uint) error
+	CountByPostIDFn  func(postID uint) (int64, error)
+	CountByPostIDsFn func(ids []uint) (map[uint]int64, error)
+	LikedPostIDsFn   func(userID uint, ids []uint) (map[uint]bool, error)
+}
+
+var _ repository.FeedPostLikeRepository = (*MockFeedPostLikeRepository)(nil)
+
+func (m *MockFeedPostLikeRepository) Create(like *model.FeedPostLike) error {
+	if m.CreateFn != nil {
+		return m.CreateFn(like)
+	}
+
+	return nil
+}
+
+func (m *MockFeedPostLikeRepository) Delete(postID, userID uint) error {
+	if m.DeleteFn != nil {
+		return m.DeleteFn(postID, userID)
+	}
+
+	return nil
+}
+
+func (m *MockFeedPostLikeRepository) CountByPostID(postID uint) (int64, error) {
+	if m.CountByPostIDFn != nil {
+		return m.CountByPostIDFn(postID)
+	}
+
+	return 0, nil
+}
+
+func (m *MockFeedPostLikeRepository) CountByPostIDs(ids []uint) (map[uint]int64, error) {
+	if m.CountByPostIDsFn != nil {
+		return m.CountByPostIDsFn(ids)
+	}
+
+	return map[uint]int64{}, nil
+}
+
+func (m *MockFeedPostLikeRepository) LikedPostIDs(
+	userID uint,
+	ids []uint,
+) (map[uint]bool, error) {
+	if m.LikedPostIDsFn != nil {
+		return m.LikedPostIDsFn(userID, ids)
+	}
+
+	return map[uint]bool{}, nil
+}
+
+// ---------------------------------------------------------------------------
+// MockFeedCommentRepository
+// ---------------------------------------------------------------------------
+
+// MockFeedCommentRepository is a test double for repository.FeedCommentRepository.
+type MockFeedCommentRepository struct {
+	CreateFn         func(c *model.FeedComment) error
+	GetByIDFn        func(id uint) (*model.FeedComment, error)
+	UpdateFn         func(c *model.FeedComment) error
+	DeleteFn         func(id uint) error
+	ByPostCursorFn   func(postID, before uint, limit int) ([]*model.FeedComment, error)
+	CountByPostIDsFn func(ids []uint) (map[uint]int64, error)
+}
+
+var _ repository.FeedCommentRepository = (*MockFeedCommentRepository)(nil)
+
+func (m *MockFeedCommentRepository) Create(c *model.FeedComment) error {
+	if m.CreateFn != nil {
+		return m.CreateFn(c)
+	}
+
+	return nil
+}
+
+func (m *MockFeedCommentRepository) GetByID(id uint) (*model.FeedComment, error) {
+	if m.GetByIDFn != nil {
+		return m.GetByIDFn(id)
+	}
+
+	return nil, nil //nolint:nilnil
+}
+
+func (m *MockFeedCommentRepository) Update(c *model.FeedComment) error {
+	if m.UpdateFn != nil {
+		return m.UpdateFn(c)
+	}
+
+	return nil
+}
+
+func (m *MockFeedCommentRepository) Delete(id uint) error {
+	if m.DeleteFn != nil {
+		return m.DeleteFn(id)
+	}
+
+	return nil
+}
+
+func (m *MockFeedCommentRepository) ByPostCursor(
+	postID, before uint,
+	limit int,
+) ([]*model.FeedComment, error) {
+	if m.ByPostCursorFn != nil {
+		return m.ByPostCursorFn(postID, before, limit)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFeedCommentRepository) CountByPostIDs(ids []uint) (map[uint]int64, error) {
+	if m.CountByPostIDsFn != nil {
+		return m.CountByPostIDsFn(ids)
+	}
+
+	return map[uint]int64{}, nil
+}
+
+// ---------------------------------------------------------------------------
 // Mock Service interfaces (for handler tests)
 // ---------------------------------------------------------------------------
 
