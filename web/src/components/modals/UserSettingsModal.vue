@@ -152,7 +152,6 @@ async function changePassword() {
             <select v-model="gifProvider">
               <option value="auto">{{ t('settings.gifProviderAuto') }}</option>
               <option value="tenor-v2">{{ t('settings.gifProviderV2') }}</option>
-              <option value="tenor-v1">{{ t('settings.gifProviderV1') }}</option>
             </select>
           </div>
           <div class="form-group">

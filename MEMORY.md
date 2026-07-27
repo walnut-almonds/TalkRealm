@@ -48,7 +48,7 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 
 ## Pitfalls
 - **OG 預覽對非 HTML 連結**：`GET /api/v1/og` 遇到 `image/*` 或其他非 `text/html` 內容時，現在改為回 `200`（image 會帶最小預覽 `{image:url}`，其他類型回空 OG）而非 `422`。可避免前端在訊息含 CDN 圖片連結（例如 `googleusercontent` avatar URL）時持續出現 console `Unprocessable Content`。
-- **Tenor key 相容性**：`LIVDSRZULELA` 在 Tenor v2 (`tenor.googleapis.com/v2`) 目前會回 `API_KEY_INVALID`（400），但在 v1 (`g.tenor.com/v1`) 仍可用。前端 `searchGIFs` 應採「有 `VITE_TENOR_API_KEY` 才走 v2，否則/失敗 fallback v1」策略，避免 GIF picker 直接壞掉。
+- **Tenor v1 已全面停用（2026-07 確認）**：`g.tenor.com/v1`（含舊 demo key `LIVDSRZULELA`）現在對任何 key 都回 `403 {"code":7,"error":"Tenor API is discontinued"}`，不再只是特定 key 失效。`web/src/api/index.js` 的 `searchGIFs` 已移除 v1 fallback，改為「沒有使用者自帶的 Tenor v2 API Key（設定於 UserSettingsModal，存 localStorage）就直接丟出『請填入 API Key』錯誤」，不再打死掉的 v1 端點。GIF picker 開新視窗發生錯誤時，先確認是否為此情況，而非程式碼回歸。
 - DM 與群組訊息共用 `MessageItem` 時，編輯/刪除/翻譯 API 不能固定呼叫 `/messages/:id/*`；DM 需要走 `/dm/messages/:id/*`。建議以 `isDM` prop 分流，否則 DM 會出現 404/權限錯誤。
 - Vue SFC 大改版時要避免「新版內容 + 舊版內容同檔重複貼上」；會造成 `<script>/<template>/<style>` 區塊重複、前端編譯直接失敗。
 - DM 與群組訊息整合後，後端 `message_create` payload 主要欄位是 `channel_id`（不再保證有 `dm_channel_id`）。前端 DM store 若仍只讀 `dm_channel_id`，會導致私訊新訊息不顯示、頻道排序不更新。
@@ -94,6 +94,8 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - 檔案上傳採 Pre-signed URL 模式，API Server 不處理 binary
 
 ## Last Updated
+2026-07-27
+ — 修 GIF picker 開新視窗發生錯誤：根因是 Tenor v1 API 已被 Google 全面停用（見 Pitfalls），前端不再 fallback v1，改為缺 API Key 時直接提示使用者去設定填入
 2026-07-23
  — SRS 加當場重新學習佇列：答錯的卡（新舊皆然）5 分鐘後或「前面沒別的卡就直接」再出現，反覆到答對一次才退場；長期排程改退場時才寫（乾淨進位/lapse 重置），節奏邏輯放前端佇列（見 Architecture Notes）；新增 `TestSRSWrongRequeuesUntilCorrect`，瀏覽器實測「錯→循環→重現→答對→完成」+38 XP
  — Learn 例句填空 SRS 間隔重複複習上線（新表 LearnSentence + LearnWordRecord SRS 欄位 + `data/sentences.csv` LLM 範例 35 句 + hub「複習」分頁 + 打字/語音作答，見 Architecture Notes「Learn 例句填空 SRS 複習」）；含 7 個新單元測試 + 真 Postgres smoke（抓到並修掉 DISTINCT+ORDER BY random() 的 42P10）+ 瀏覽器完整流程驗證。**部署提醒**：sentences.csv 已加進 Dockerfile COPY 與開機 SeedSentences

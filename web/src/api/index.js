@@ -5,7 +5,6 @@ const wsOrigin = origin.replace(/^http/, 'ws')
 export const API_BASE = origin
 export const WS_URL = `${wsOrigin}/api/v1/ws`
 const TENOR_BASE = 'https://tenor.googleapis.com/v2'
-const TENOR_LEGACY_BASE = 'https://g.tenor.com/v1'
 
 export const EP = {
     REGISTER: '/api/v1/auth/register',
@@ -349,94 +348,49 @@ class ApiClient {
     }
 
     // ── GIF ──
+    // Tenor's free/keyless v1 API (g.tenor.com/v1) was permanently discontinued
+    // by Google, so v2 + a real registered API key is the only working path now.
     async searchGIFs(query = '', limit = 18, cursor = '') {
         const cappedLimit = Math.min(Math.max(Number(limit) || 18, 1), 30)
         const gifCfg = this.getGIFConfig()
-        const provider = gifCfg.provider || 'auto'
 
         const v2Key = gifCfg.apiKey || import.meta.env.VITE_TENOR_API_KEY || ''
         const clientKey = gifCfg.clientKey || import.meta.env.VITE_TENOR_CLIENT_KEY || 'talkrealm-web'
 
-        const tryV2 = provider !== 'tenor-v1'
-        const tryV1 = provider !== 'tenor-v2'
-
-        // Tenor v2 requires a valid Google API key. If not configured,
-        // or if the key is rejected, fallback to Tenor v1 demo key.
-        if (tryV2 && v2Key) {
-            const endpoint = query ? 'search' : 'featured'
-            const params = new URLSearchParams({
-                key: v2Key,
-                client_key: clientKey,
-                media_filter: 'gif,tinygif',
-                contentfilter: 'medium',
-                locale: 'zh_TW',
-                limit: String(cappedLimit),
-            })
-            if (query) params.set('q', query)
-            if (cursor) params.set('pos', cursor)
-
-            const res = await fetch(`${TENOR_BASE}/${endpoint}?${params.toString()}`)
-            const data = await res.json().catch(() => ({}))
-            if (res.ok) {
-                return {
-                    items: (data.results || []).map((item) => {
-                        const gif = item?.media_formats?.gif?.url || ''
-                        const tiny = item?.media_formats?.tinygif?.url || gif
-                        return {
-                            id: item.id,
-                            title: item.content_description || 'GIF',
-                            url: gif,
-                            previewUrl: tiny,
-                            source: 'tenor-v2',
-                        }
-                    }).filter(item => item.url),
-                    next: data.next || '',
-                }
-            }
-            // If user configured a key but it's invalid, continue to v1 fallback.
-            // Other errors should still fallback to keep GIF UX available.
-            console.warn('Tenor v2 request failed, fallback to v1:', data?.error?.message || res.statusText)
-            if (!tryV1) {
-                throw new Error(data?.error?.message || data?.error || 'GIF 服務暫時不可用')
-            }
-        } else if (provider === 'tenor-v2') {
+        if (!v2Key) {
             throw new Error('請先在使用者設定中填入 Tenor API Key')
         }
 
-        if (!tryV1) {
-            throw new Error('目前 GIF provider 設定不支援此請求')
-        }
-
-        const legacyKey = 'LIVDSRZULELA'
-        const legacyEndpoint = query ? 'search' : 'trending'
-        const legacyParams = new URLSearchParams({
-            key: legacyKey,
+        const endpoint = query ? 'search' : 'featured'
+        const params = new URLSearchParams({
+            key: v2Key,
+            client_key: clientKey,
+            media_filter: 'gif,tinygif',
+            contentfilter: 'medium',
+            locale: 'zh_TW',
             limit: String(cappedLimit),
-            media_filter: 'minimal',
         })
-        if (query) legacyParams.set('q', query)
-        if (cursor) legacyParams.set('pos', cursor)
+        if (query) params.set('q', query)
+        if (cursor) params.set('pos', cursor)
 
-        const legacyRes = await fetch(`${TENOR_LEGACY_BASE}/${legacyEndpoint}?${legacyParams.toString()}`)
-        const legacyData = await legacyRes.json().catch(() => ({}))
-        if (!legacyRes.ok) {
-            throw new Error(legacyData?.error || 'GIF 服務暫時不可用')
+        const res = await fetch(`${TENOR_BASE}/${endpoint}?${params.toString()}`)
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+            throw new Error(data?.error?.message || data?.error || 'GIF 服務暫時不可用')
         }
-
         return {
-            items: (legacyData.results || []).map((item) => {
-                const media = item?.media?.[0] || {}
-                const gif = media?.gif?.url || media?.tinygif?.url || ''
-                const tiny = media?.tinygif?.url || media?.nanogif?.url || gif
+            items: (data.results || []).map((item) => {
+                const gif = item?.media_formats?.gif?.url || ''
+                const tiny = item?.media_formats?.tinygif?.url || gif
                 return {
                     id: item.id,
                     title: item.content_description || 'GIF',
                     url: gif,
                     previewUrl: tiny,
-                    source: 'tenor-v1',
+                    source: 'tenor-v2',
                 }
             }).filter(item => item.url),
-            next: legacyData.next || '',
+            next: data.next || '',
         }
     }
 
