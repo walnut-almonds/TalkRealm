@@ -41,9 +41,16 @@ type FeedService interface {
 	ListFollowing(userID uint) (*FollowListResponse, error)
 	ListFollowers(userID uint) (*FollowListResponse, error)
 	CreatePost(authorID uint, content string, fileIDs []uint) (*FeedPostResponse, error)
-	Timeline(userID uint, before uint, limit int) (*TimelineResponse, error)
-	ProfilePosts(targetID, viewerID uint, before uint, limit int) (*TimelineResponse, error)
-	// comment/like methods added in Task 7
+	Timeline(userID, before uint, limit int) (*TimelineResponse, error)
+	ProfilePosts(targetID, viewerID, before uint, limit int) (*TimelineResponse, error)
+	UpdatePost(postID, userID uint, content string) (*FeedPostResponse, error)
+	DeletePost(postID, userID uint) error
+	LikePost(postID, userID uint) (int64, error)
+	UnlikePost(postID, userID uint) (int64, error)
+	ListComments(postID, before uint, limit int) (*CommentListResponse, error)
+	AddComment(postID, authorID uint, content string) (*model.FeedComment, error)
+	UpdateComment(commentID, userID uint, content string) (*model.FeedComment, error)
+	DeleteComment(commentID, userID uint) error
 }
 
 type feedService struct {
@@ -94,11 +101,13 @@ func (s *feedService) Suggestions(userID uint) ([]*model.User, error) {
 	}
 
 	var out []*model.User
+
 	for _, f := range friends {
 		other := friendCounterpart(f, userID)
 		if other == nil || other.ID == userID || followed[other.ID] {
 			continue
 		}
+
 		out = append(out, other)
 	}
 
@@ -112,6 +121,7 @@ func (s *feedService) ListFollowing(userID uint) (*FollowListResponse, error) {
 	}
 
 	cnt, _ := s.followRepo.CountFollowing(userID)
+
 	users := make([]*model.User, 0, len(rows))
 	for _, r := range rows {
 		u := r.Followee
@@ -128,6 +138,7 @@ func (s *feedService) ListFollowers(userID uint) (*FollowListResponse, error) {
 	}
 
 	cnt, _ := s.followRepo.CountFollowers(userID)
+
 	users := make([]*model.User, 0, len(rows))
 	for _, r := range rows {
 		u := r.Follower
@@ -148,7 +159,11 @@ func friendCounterpart(f *model.Friendship, self uint) *model.User {
 	return &f.Requester
 }
 
-func (s *feedService) CreatePost(authorID uint, content string, fileIDs []uint) (*FeedPostResponse, error) {
+func (s *feedService) CreatePost(
+	authorID uint,
+	content string,
+	fileIDs []uint,
+) (*FeedPostResponse, error) {
 	if content == "" && len(fileIDs) == 0 {
 		return nil, errors.New("empty post")
 	}
@@ -170,7 +185,7 @@ func (s *feedService) CreatePost(authorID uint, content string, fileIDs []uint) 
 	return s.enrich([]*model.FeedPost{full}, authorID)[0], nil
 }
 
-func (s *feedService) Timeline(userID uint, before uint, limit int) (*TimelineResponse, error) {
+func (s *feedService) Timeline(userID, before uint, limit int) (*TimelineResponse, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -195,7 +210,10 @@ func (s *feedService) Timeline(userID uint, before uint, limit int) (*TimelineRe
 	return &TimelineResponse{Posts: s.enrich(posts, userID), HasMore: hasMore}, nil
 }
 
-func (s *feedService) ProfilePosts(targetID, viewerID uint, before uint, limit int) (*TimelineResponse, error) {
+func (s *feedService) ProfilePosts(
+	targetID, viewerID, before uint,
+	limit int,
+) (*TimelineResponse, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -245,4 +263,148 @@ func (s *feedService) enrich(posts []*model.FeedPost, viewerID uint) []*FeedPost
 	}
 
 	return out
+}
+
+// CommentListResponse 貼文留言列表回應
+type CommentListResponse struct {
+	Comments []*model.FeedComment `json:"comments"`
+	HasMore  bool                 `json:"has_more"`
+}
+
+// getOwnedPost 取貼文並驗證 userID 為作者，非作者回 ErrNotFeedOwner。
+func (s *feedService) getOwnedPost(postID, userID uint) (*model.FeedPost, error) {
+	p, err := s.postRepo.GetByID(postID)
+	if err != nil {
+		return nil, ErrFeedPostNotFound
+	}
+
+	if p.AuthorID != userID {
+		return nil, ErrNotFeedOwner
+	}
+
+	return p, nil
+}
+
+func (s *feedService) UpdatePost(postID, userID uint, content string) (*FeedPostResponse, error) {
+	p, err := s.getOwnedPost(postID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	p.Content = content
+
+	p.IsEdited = true
+	if err := s.postRepo.Update(p); err != nil {
+		return nil, err
+	}
+
+	full, err := s.postRepo.GetByID(postID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.enrich([]*model.FeedPost{full}, userID)[0], nil
+}
+
+func (s *feedService) DeletePost(postID, userID uint) error {
+	if _, err := s.getOwnedPost(postID, userID); err != nil {
+		return err
+	}
+
+	return s.postRepo.DeleteCascade(postID)
+}
+
+func (s *feedService) LikePost(postID, userID uint) (int64, error) {
+	if _, err := s.postRepo.GetByID(postID); err != nil {
+		return 0, ErrFeedPostNotFound
+	}
+
+	if err := s.likeRepo.Create(&model.FeedPostLike{PostID: postID, UserID: userID}); err != nil {
+		return 0, err
+	}
+
+	return s.likeRepo.CountByPostID(postID)
+}
+
+func (s *feedService) UnlikePost(postID, userID uint) (int64, error) {
+	if err := s.likeRepo.Delete(postID, userID); err != nil {
+		return 0, err
+	}
+
+	return s.likeRepo.CountByPostID(postID)
+}
+
+func (s *feedService) ListComments(postID, before uint, limit int) (*CommentListResponse, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	cs, err := s.commentRepo.ByPostCursor(postID, before, limit+1)
+	if err != nil {
+		return nil, err
+	}
+
+	hasMore := false
+	if len(cs) > limit {
+		hasMore = true
+		cs = cs[len(cs)-limit:]
+	}
+
+	return &CommentListResponse{Comments: cs, HasMore: hasMore}, nil
+}
+
+func (s *feedService) AddComment(
+	postID, authorID uint,
+	content string,
+) (*model.FeedComment, error) {
+	if content == "" {
+		return nil, errors.New("empty comment")
+	}
+
+	if _, err := s.postRepo.GetByID(postID); err != nil {
+		return nil, ErrFeedPostNotFound
+	}
+
+	c := &model.FeedComment{PostID: postID, AuthorID: authorID, Content: content}
+	if err := s.commentRepo.Create(c); err != nil {
+		return nil, err
+	}
+
+	return s.commentRepo.GetByID(c.ID)
+}
+
+func (s *feedService) UpdateComment(
+	commentID, userID uint,
+	content string,
+) (*model.FeedComment, error) {
+	c, err := s.commentRepo.GetByID(commentID)
+	if err != nil {
+		return nil, errors.New("comment not found")
+	}
+
+	if c.AuthorID != userID {
+		return nil, ErrNotFeedOwner
+	}
+
+	c.Content = content
+
+	c.IsEdited = true
+	if err := s.commentRepo.Update(c); err != nil {
+		return nil, err
+	}
+
+	return s.commentRepo.GetByID(commentID)
+}
+
+func (s *feedService) DeleteComment(commentID, userID uint) error {
+	c, err := s.commentRepo.GetByID(commentID)
+	if err != nil {
+		return errors.New("comment not found")
+	}
+
+	if c.AuthorID != userID {
+		return ErrNotFeedOwner
+	}
+
+	return s.commentRepo.Delete(commentID)
 }

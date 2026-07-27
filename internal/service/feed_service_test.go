@@ -41,6 +41,7 @@ func TestFeedService_Suggestions_ExcludesAlreadyFollowed(t *testing.T) {
 
 func TestFeedService_Timeline_IncludesSelfAndEnriches(t *testing.T) {
 	var gotAuthorIDs []uint
+
 	post := &model.FeedPost{ID: 9, AuthorID: 2}
 	follow := &testutil.MockFollowRepository{
 		FolloweeIDsFn: func(_ uint) ([]uint, error) { return []uint{2, 3}, nil },
@@ -67,4 +68,37 @@ func TestFeedService_Timeline_IncludesSelfAndEnriches(t *testing.T) {
 	assert.Equal(t, int64(4), resp.Posts[0].LikeCount)
 	assert.Equal(t, int64(2), resp.Posts[0].CommentCount)
 	assert.True(t, resp.Posts[0].LikedByMe)
+}
+
+func TestFeedService_DeletePost_OwnerCascades(t *testing.T) {
+	cascaded := false
+	posts := &testutil.MockFeedPostRepository{
+		GetByIDFn:       func(_ uint) (*model.FeedPost, error) { return &model.FeedPost{ID: 7, AuthorID: 5}, nil },
+		DeleteCascadeFn: func(_ uint) error { cascaded = true; return nil },
+	}
+	svc := service.NewFeedService(nil, posts, nil, nil, nil)
+	require.NoError(t, svc.DeletePost(7, 5))
+	assert.True(t, cascaded)
+}
+
+func TestFeedService_DeletePost_NonOwnerRejected(t *testing.T) {
+	posts := &testutil.MockFeedPostRepository{
+		GetByIDFn: func(_ uint) (*model.FeedPost, error) { return &model.FeedPost{ID: 7, AuthorID: 99}, nil },
+	}
+	svc := service.NewFeedService(nil, posts, nil, nil, nil)
+	require.ErrorIs(t, svc.DeletePost(7, 5), service.ErrNotFeedOwner)
+}
+
+func TestFeedService_LikePost_ReturnsCount(t *testing.T) {
+	posts := &testutil.MockFeedPostRepository{
+		GetByIDFn: func(_ uint) (*model.FeedPost, error) { return &model.FeedPost{ID: 7}, nil },
+	}
+	likes := &testutil.MockFeedPostLikeRepository{
+		CreateFn:        func(_ *model.FeedPostLike) error { return nil },
+		CountByPostIDFn: func(_ uint) (int64, error) { return 3, nil },
+	}
+	svc := service.NewFeedService(nil, posts, likes, nil, nil)
+	n, err := svc.LikePost(7, 5)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), n)
 }
