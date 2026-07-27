@@ -74,6 +74,18 @@ export const EP = {
     LEARN_SRS_OVERVIEW: '/api/v1/learn/srs/overview',
     LEARN_SRS_START: '/api/v1/learn/srs',
     LEARN_SRS_ANSWER: (id) => `/api/v1/learn/srs/${id}/answer`,
+    // Feed (cross-community personal feed)
+    FEED_TIMELINE: '/api/v1/feed/timeline',
+    FEED_POSTS: '/api/v1/feed/posts',
+    FEED_POST: (id) => `/api/v1/feed/posts/${id}`,
+    FEED_POST_LIKE: (id) => `/api/v1/feed/posts/${id}/like`,
+    FEED_POST_COMMENTS: (id) => `/api/v1/feed/posts/${id}/comments`,
+    FEED_COMMENT: (id) => `/api/v1/feed/comments/${id}`,
+    FEED_SUGGESTIONS: '/api/v1/feed/suggestions',
+    FEED_FOLLOW: (userId) => `/api/v1/feed/follows/${userId}`,
+    FEED_USER_POSTS: (userId) => `/api/v1/feed/users/${userId}/posts`,
+    FEED_FOLLOWING: (userId) => `/api/v1/feed/users/${userId}/following`,
+    FEED_FOLLOWERS: (userId) => `/api/v1/feed/users/${userId}/followers`,
 }
 
 export const STORAGE_KEYS = {
@@ -237,6 +249,34 @@ class ApiClient {
     }
     likePost(id) { return this.put(EP.MESSAGE_LIKE(id), {}) }
     unlikePost(id) { return this.del(EP.MESSAGE_LIKE(id)) }
+
+    // ── Feed (cross-community personal feed) ──
+    getTimeline(limit = 20, before = null) {
+        const q = new URLSearchParams({ limit })
+        if (before) q.set('before', before)
+        return this.get(`${EP.FEED_TIMELINE}?${q}`)
+    }
+    createFeedPost(content, fileIds = []) { return this.post(EP.FEED_POSTS, { content, file_ids: fileIds }) }
+    updateFeedPost(id, content) { return this.put(EP.FEED_POST(id), { content }) }
+    deleteFeedPost(id) { return this.del(EP.FEED_POST(id)) }
+    likeFeedPost(id) { return this.put(EP.FEED_POST_LIKE(id), {}) }
+    unlikeFeedPost(id) { return this.del(EP.FEED_POST_LIKE(id)) }
+    getFeedComments(id, limit = 50, before = null) {
+        const q = new URLSearchParams({ limit })
+        if (before) q.set('before', before)
+        return this.get(`${EP.FEED_POST_COMMENTS(id)}?${q}`)
+    }
+    addFeedComment(id, content) { return this.post(EP.FEED_POST_COMMENTS(id), { content }) }
+    getUserPosts(userId, limit = 20, before = null) {
+        const q = new URLSearchParams({ limit })
+        if (before) q.set('before', before)
+        return this.get(`${EP.FEED_USER_POSTS(userId)}?${q}`)
+    }
+    getFollowSuggestions() { return this.get(EP.FEED_SUGGESTIONS) }
+    follow(userId) { return this.post(EP.FEED_FOLLOW(userId), {}) }
+    unfollow(userId) { return this.del(EP.FEED_FOLLOW(userId)) }
+    getFollowing(userId) { return this.get(EP.FEED_FOLLOWING(userId)) }
+    getFollowers(userId) { return this.get(EP.FEED_FOLLOWERS(userId)) }
 
     // ── Invite ──
     createInvite(guildId) { return this.post(EP.CREATE_INVITE(guildId), {}) }

@@ -2,6 +2,30 @@ import en from './en.js'
 
 export default {
     ...en,
+    feed: {
+        composePlaceholder: '有什么新鲜事？',
+        publish: '发布',
+        publishing: '发布中...',
+        like: '赞',
+        comment: '评论',
+        comments: '评论',
+        addComment: '评论',
+        commentPlaceholder: '写下评论...',
+        follow: '关注',
+        unfollow: '取消关注',
+        following: '关注中',
+        followers: '粉丝',
+        posts: '贴文',
+        suggestionsTitle: '推荐关注',
+        edit: '编辑',
+        delete: '删除',
+        edited: '已编辑',
+        deleteConfirm: '确定删除这则贴文？',
+        empty: '还没有贴文，关注他人或发布你的第一则贴文吧。',
+        emptyComments: '还没有评论。',
+        emptySuggestions: '暂时没有推荐。',
+        loadMore: '载入更多'
+    },
     common: {
         ...en.common,
         save: '储存',

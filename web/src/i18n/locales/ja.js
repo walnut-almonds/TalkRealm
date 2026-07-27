@@ -2,6 +2,30 @@ import en from './en.js'
 
 export default {
     ...en,
+    feed: {
+        composePlaceholder: 'いま何してる？',
+        publish: '投稿',
+        publishing: '投稿中...',
+        like: 'いいね',
+        comment: 'コメント',
+        comments: 'コメント',
+        addComment: 'コメント',
+        commentPlaceholder: 'コメントを書く...',
+        follow: 'フォロー',
+        unfollow: 'フォロー解除',
+        following: 'フォロー中',
+        followers: 'フォロワー',
+        posts: '投稿',
+        suggestionsTitle: 'おすすめのユーザー',
+        edit: '編集',
+        delete: '削除',
+        edited: '編集済み',
+        deleteConfirm: 'この投稿を削除しますか？',
+        empty: 'まだ投稿がありません。フォローするか、最初の投稿をしてみましょう。',
+        emptyComments: 'まだコメントがありません。',
+        emptySuggestions: '今はおすすめがありません。',
+        loadMore: 'もっと読み込む'
+    },
     common: {
         ...en.common,
         save: '保存',

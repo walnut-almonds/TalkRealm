@@ -2,6 +2,30 @@ import en from './en.js'
 
 export default {
     ...en,
+    feed: {
+        composePlaceholder: '有什麼新鮮事？',
+        publish: '發布',
+        publishing: '發布中...',
+        like: '讚',
+        comment: '留言',
+        comments: '留言',
+        addComment: '留言',
+        commentPlaceholder: '寫下留言...',
+        follow: '追蹤',
+        unfollow: '取消追蹤',
+        following: '追蹤中',
+        followers: '粉絲',
+        posts: '貼文',
+        suggestionsTitle: '推薦追蹤',
+        edit: '編輯',
+        delete: '刪除',
+        edited: '已編輯',
+        deleteConfirm: '確定刪除這則貼文？',
+        empty: '還沒有貼文，追蹤他人或發布你的第一則貼文吧。',
+        emptyComments: '還沒有留言。',
+        emptySuggestions: '暫時沒有推薦。',
+        loadMore: '載入更多'
+    },
     common: {
         ...en.common,
         save: '儲存',

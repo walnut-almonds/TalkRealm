@@ -1,4 +1,28 @@
 export default {
+    feed: {
+        composePlaceholder: "What's on your mind?",
+        publish: 'Post',
+        publishing: 'Posting...',
+        like: 'Like',
+        comment: 'Comment',
+        comments: 'Comments',
+        addComment: 'Comment',
+        commentPlaceholder: 'Write a comment...',
+        follow: 'Follow',
+        unfollow: 'Unfollow',
+        following: 'Following',
+        followers: 'Followers',
+        posts: 'Posts',
+        suggestionsTitle: 'Who to follow',
+        edit: 'Edit',
+        delete: 'Delete',
+        edited: 'edited',
+        deleteConfirm: 'Delete this post?',
+        empty: 'No posts yet. Follow people or share your first post.',
+        emptyComments: 'No comments yet.',
+        emptySuggestions: 'No suggestions right now.',
+        loadMore: 'Load more'
+    },
     common: {
         save: 'Save',
         saving: 'Saving...',
