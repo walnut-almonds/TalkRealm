@@ -825,6 +825,79 @@ func (m *MockFollowRepository) CountFollowers(userID uint) (int64, error) {
 }
 
 // ---------------------------------------------------------------------------
+// MockFeedPostRepository
+// ---------------------------------------------------------------------------
+
+// MockFeedPostRepository is a test double for repository.FeedPostRepository.
+type MockFeedPostRepository struct {
+	CreateFn         func(p *model.FeedPost) error
+	GetByIDFn        func(id uint) (*model.FeedPost, error)
+	UpdateFn         func(p *model.FeedPost) error
+	AttachFilesFn    func(postID uint, fileIDs []uint) error
+	TimelineCursorFn func(authorIDs []uint, before uint, limit int) ([]*model.FeedPost, error)
+	ByAuthorCursorFn func(authorID, before uint, limit int) ([]*model.FeedPost, error)
+	DeleteCascadeFn  func(postID uint) error
+}
+
+var _ repository.FeedPostRepository = (*MockFeedPostRepository)(nil)
+
+func (m *MockFeedPostRepository) Create(p *model.FeedPost) error {
+	if m.CreateFn != nil {
+		return m.CreateFn(p)
+	}
+
+	return nil
+}
+
+func (m *MockFeedPostRepository) GetByID(id uint) (*model.FeedPost, error) {
+	if m.GetByIDFn != nil {
+		return m.GetByIDFn(id)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFeedPostRepository) Update(p *model.FeedPost) error {
+	if m.UpdateFn != nil {
+		return m.UpdateFn(p)
+	}
+
+	return nil
+}
+
+func (m *MockFeedPostRepository) AttachFiles(postID uint, fileIDs []uint) error {
+	if m.AttachFilesFn != nil {
+		return m.AttachFilesFn(postID, fileIDs)
+	}
+
+	return nil
+}
+
+func (m *MockFeedPostRepository) TimelineCursor(authorIDs []uint, before uint, limit int) ([]*model.FeedPost, error) {
+	if m.TimelineCursorFn != nil {
+		return m.TimelineCursorFn(authorIDs, before, limit)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFeedPostRepository) ByAuthorCursor(authorID, before uint, limit int) ([]*model.FeedPost, error) {
+	if m.ByAuthorCursorFn != nil {
+		return m.ByAuthorCursorFn(authorID, before, limit)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFeedPostRepository) DeleteCascade(postID uint) error {
+	if m.DeleteCascadeFn != nil {
+		return m.DeleteCascadeFn(postID)
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // Mock Service interfaces (for handler tests)
 // ---------------------------------------------------------------------------
 
