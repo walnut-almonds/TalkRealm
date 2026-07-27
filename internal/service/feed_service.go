@@ -19,6 +19,20 @@ type FollowListResponse struct {
 	Count int64         `json:"count"`
 }
 
+// FeedPostResponse 貼文加上按讚/留言統計的 enrichment DTO
+type FeedPostResponse struct {
+	*model.FeedPost
+	LikeCount    int64 `json:"like_count"`
+	CommentCount int64 `json:"comment_count"`
+	LikedByMe    bool  `json:"liked_by_me"`
+}
+
+// TimelineResponse 時間軸/個人頁貼文列表回應
+type TimelineResponse struct {
+	Posts   []*FeedPostResponse `json:"posts"`
+	HasMore bool                `json:"has_more"`
+}
+
 // FeedService 個人動態牆服務（follow 部分，貼文/留言方法於 Task 6-7 加入）
 type FeedService interface {
 	Follow(followerID, followeeID uint) error
@@ -26,7 +40,10 @@ type FeedService interface {
 	Suggestions(userID uint) ([]*model.User, error)
 	ListFollowing(userID uint) (*FollowListResponse, error)
 	ListFollowers(userID uint) (*FollowListResponse, error)
-	// post/comment methods added in Tasks 6-7
+	CreatePost(authorID uint, content string, fileIDs []uint) (*FeedPostResponse, error)
+	Timeline(userID uint, before uint, limit int) (*TimelineResponse, error)
+	ProfilePosts(targetID, viewerID uint, before uint, limit int) (*TimelineResponse, error)
+	// comment/like methods added in Task 7
 }
 
 type feedService struct {
@@ -129,4 +146,103 @@ func friendCounterpart(f *model.Friendship, self uint) *model.User {
 	}
 
 	return &f.Requester
+}
+
+func (s *feedService) CreatePost(authorID uint, content string, fileIDs []uint) (*FeedPostResponse, error) {
+	if content == "" && len(fileIDs) == 0 {
+		return nil, errors.New("empty post")
+	}
+
+	p := &model.FeedPost{AuthorID: authorID, Content: content}
+	if err := s.postRepo.Create(p); err != nil {
+		return nil, err
+	}
+
+	if err := s.postRepo.AttachFiles(p.ID, fileIDs); err != nil {
+		return nil, err
+	}
+
+	full, err := s.postRepo.GetByID(p.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.enrich([]*model.FeedPost{full}, authorID)[0], nil
+}
+
+func (s *feedService) Timeline(userID uint, before uint, limit int) (*TimelineResponse, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	ids, err := s.followRepo.FolloweeIDs(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	ids = append(ids, userID) // include self
+
+	posts, err := s.postRepo.TimelineCursor(ids, before, limit+1)
+	if err != nil {
+		return nil, err
+	}
+
+	hasMore := len(posts) > limit
+	if hasMore {
+		posts = posts[:limit]
+	}
+
+	return &TimelineResponse{Posts: s.enrich(posts, userID), HasMore: hasMore}, nil
+}
+
+func (s *feedService) ProfilePosts(targetID, viewerID uint, before uint, limit int) (*TimelineResponse, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	posts, err := s.postRepo.ByAuthorCursor(targetID, before, limit+1)
+	if err != nil {
+		return nil, err
+	}
+
+	hasMore := len(posts) > limit
+	if hasMore {
+		posts = posts[:limit]
+	}
+
+	return &TimelineResponse{Posts: s.enrich(posts, viewerID), HasMore: hasMore}, nil
+}
+
+// enrich 批次補上按讚/留言統計與 viewer 是否已讚，避免 N+1。
+// likeRepo/commentRepo 可為 nil（部分呼叫端不需要）。
+func (s *feedService) enrich(posts []*model.FeedPost, viewerID uint) []*FeedPostResponse {
+	ids := make([]uint, len(posts))
+	for i, p := range posts {
+		ids[i] = p.ID
+	}
+
+	var likeCounts, commentCounts map[uint]int64
+
+	var liked map[uint]bool
+
+	if s.likeRepo != nil {
+		likeCounts, _ = s.likeRepo.CountByPostIDs(ids)
+		liked, _ = s.likeRepo.LikedPostIDs(viewerID, ids)
+	}
+
+	if s.commentRepo != nil {
+		commentCounts, _ = s.commentRepo.CountByPostIDs(ids)
+	}
+
+	out := make([]*FeedPostResponse, len(posts))
+	for i, p := range posts {
+		out[i] = &FeedPostResponse{
+			FeedPost:     p,
+			LikeCount:    likeCounts[p.ID],
+			CommentCount: commentCounts[p.ID],
+			LikedByMe:    liked[p.ID],
+		}
+	}
+
+	return out
 }

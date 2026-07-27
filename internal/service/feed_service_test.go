@@ -38,3 +38,33 @@ func TestFeedService_Suggestions_ExcludesAlreadyFollowed(t *testing.T) {
 	require.Len(t, sugg, 1)
 	assert.Equal(t, uint(3), sugg[0].ID)
 }
+
+func TestFeedService_Timeline_IncludesSelfAndEnriches(t *testing.T) {
+	var gotAuthorIDs []uint
+	post := &model.FeedPost{ID: 9, AuthorID: 2}
+	follow := &testutil.MockFollowRepository{
+		FolloweeIDsFn: func(_ uint) ([]uint, error) { return []uint{2, 3}, nil },
+	}
+	posts := &testutil.MockFeedPostRepository{
+		TimelineCursorFn: func(ids []uint, _ uint, _ int) ([]*model.FeedPost, error) {
+			gotAuthorIDs = ids
+			return []*model.FeedPost{post}, nil
+		},
+	}
+	likes := &testutil.MockFeedPostLikeRepository{
+		CountByPostIDsFn: func(_ []uint) (map[uint]int64, error) { return map[uint]int64{9: 4}, nil },
+		LikedPostIDsFn:   func(_ uint, _ []uint) (map[uint]bool, error) { return map[uint]bool{9: true}, nil },
+	}
+	comments := &testutil.MockFeedCommentRepository{
+		CountByPostIDsFn: func(_ []uint) (map[uint]int64, error) { return map[uint]int64{9: 2}, nil },
+	}
+	svc := service.NewFeedService(follow, posts, likes, comments, nil)
+
+	resp, err := svc.Timeline(5, 0, 20)
+	require.NoError(t, err)
+	assert.Contains(t, gotAuthorIDs, uint(5)) // self included
+	require.Len(t, resp.Posts, 1)
+	assert.Equal(t, int64(4), resp.Posts[0].LikeCount)
+	assert.Equal(t, int64(2), resp.Posts[0].CommentCount)
+	assert.True(t, resp.Posts[0].LikedByMe)
+}
