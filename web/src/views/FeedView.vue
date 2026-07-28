@@ -5,6 +5,8 @@ import { useAppStore } from '@/stores/useAppStore.js'
 import { api } from '@/api/index.js'
 import FeedComposer from '@/components/feed/FeedComposer.vue'
 import FeedPostCard from '@/components/feed/FeedPostCard.vue'
+import FeedProfile from '@/components/feed/FeedProfile.vue'
+import FeedFollowSuggestions from '@/components/feed/FeedFollowSuggestions.vue'
 
 const store = useAppStore()
 const { t } = useI18n()
@@ -13,6 +15,11 @@ const posts = ref([])            // newest-first
 const hasMore = ref(false)
 const loading = ref(false)
 const container = ref(null)
+const activeProfileUserId = ref(null)  // when set, show that user's profile instead of the timeline
+
+function openProfile(userId) {
+  if (userId) activeProfileUserId.value = userId
+}
 
 async function load() {
   loading.value = true
@@ -63,7 +70,13 @@ onMounted(load)
 
 <template>
   <div class="feed-view">
-    <div class="feed-main" ref="container" @scroll="onScroll">
+    <FeedProfile
+      v-if="activeProfileUserId"
+      :userId="activeProfileUserId"
+      @close="activeProfileUserId = null"
+      @open-profile="openProfile"
+    />
+    <div v-else class="feed-main" ref="container" @scroll="onScroll">
       <div class="feed-column">
         <FeedComposer @posted="onPosted" />
 
@@ -77,15 +90,16 @@ onMounted(load)
           :key="post.id"
           :post="post"
           @deleted="onDeleted"
+          @author-click="openProfile"
         />
 
         <div v-if="loading && posts.length" class="feed-loading-more">…</div>
       </div>
     </div>
 
-    <!-- Wide-screen right column: FeedFollowSuggestions mounts here (Task 11) -->
+    <!-- Wide-screen right column: follow suggestions -->
     <aside class="feed-aside">
-      <!-- placeholder -->
+      <FeedFollowSuggestions @open-profile="openProfile" />
     </aside>
   </div>
 </template>
