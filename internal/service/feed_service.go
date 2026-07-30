@@ -213,7 +213,10 @@ func (s *feedService) Timeline(userID, before uint, limit int) (*TimelineRespons
 	return &TimelineResponse{Posts: s.enrich(posts, userID), HasMore: hasMore}, nil
 }
 
-func (s *feedService) DiscoverTimeline(viewerID uint, offset, limit int) (*TimelineResponse, error) {
+func (s *feedService) DiscoverTimeline(
+	viewerID uint,
+	offset, limit int,
+) (*TimelineResponse, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -254,7 +257,14 @@ func (s *feedService) DiscoverTimeline(viewerID uint, offset, limit int) (*Timel
 	for i, p := range candidates {
 		arr[i] = scored{
 			p,
-			scorePost(p.ID, likeCounts[p.ID], commentCounts[p.ID], affinity[p.AuthorID], p.CreatedAt, now),
+			scorePost(
+				p.ID,
+				likeCounts[p.ID],
+				commentCounts[p.ID],
+				affinity[p.AuthorID],
+				p.CreatedAt,
+				now,
+			),
 		}
 	}
 

@@ -123,7 +123,8 @@ func TestFeedService_DiscoverTimeline_RanksAndPaginates(t *testing.T) {
 					return p, nil
 				}
 			}
-			return nil, nil
+
+			return nil, service.ErrFeedPostNotFound
 		},
 	}
 	likes := &testutil.MockFeedPostLikeRepository{

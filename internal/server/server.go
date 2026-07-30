@@ -449,6 +449,7 @@ func (s *Server) setupRoutes() {
 				feed.GET("/users/:userId/followers", s.feedHandler.ListFollowers)
 				feed.GET("/users/:userId/posts", s.feedHandler.ProfilePosts)
 				feed.GET("/timeline", s.feedHandler.Timeline)
+				feed.GET("/discover", s.feedHandler.Discover)
 				feed.POST("/posts", s.feedHandler.CreatePost)
 				feed.PUT("/posts/:id", s.feedHandler.UpdatePost)
 				feed.DELETE("/posts/:id", s.feedHandler.DeletePost)

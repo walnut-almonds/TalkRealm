@@ -269,6 +269,36 @@ func (h *FeedHandler) Timeline(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// Discover 探索時間軸（為你推薦）
+//
+//	@Summary		探索時間軸
+//	@Description	取得演算法排序的「為你推薦」時間軸（offset-based 分頁）
+//	@Tags			feed
+//	@Produce		json
+//	@Param			offset	query		int	false	"略過的貼文數"
+//	@Param			limit	query		int	false	"每次取得數量 (1-100)"	default(20)
+//	@Success		200		{object}	service.TimelineResponse
+//	@Failure		401		{object}	map[string]string
+//	@Failure		500		{object}	map[string]string
+//	@Router			/api/v1/feed/discover [get]
+func (h *FeedHandler) Discover(c *gin.Context) {
+	userID, ok := feedUserID(c)
+	if !ok {
+		return
+	}
+
+	offset, _ := strconv.Atoi(c.Query("offset"))
+	limit, _ := strconv.Atoi(c.Query("limit"))
+
+	resp, err := h.feedService.DiscoverTimeline(userID, offset, limit)
+	if err != nil {
+		feedError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 // CreatePost 建立貼文
 //
 //	@Summary		建立貼文

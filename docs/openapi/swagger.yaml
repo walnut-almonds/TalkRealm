@@ -1600,6 +1600,41 @@ paths:
       summary: 更新留言
       tags:
       - feed
+  /api/v1/feed/discover:
+    get:
+      description: 取得演算法排序的「為你推薦」時間軸（offset-based 分頁）
+      parameters:
+      - description: 略過的貼文數
+        in: query
+        name: offset
+        type: integer
+      - default: 20
+        description: 每次取得數量 (1-100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.TimelineResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 探索時間軸
+      tags:
+      - feed
   /api/v1/feed/follows/{userId}:
     delete:
       description: 取消追蹤指定使用者
