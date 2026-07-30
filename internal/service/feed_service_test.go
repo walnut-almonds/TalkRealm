@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,4 +102,49 @@ func TestFeedService_LikePost_ReturnsCount(t *testing.T) {
 	n, err := svc.LikePost(7, 5)
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), n)
+}
+
+func TestFeedService_DiscoverTimeline_RanksAndPaginates(t *testing.T) {
+	now := time.Now()
+	// two candidates: post 8 by author 3 (high affinity), post 9 by author 2 (no affinity)
+	cands := []*model.FeedPost{
+		{ID: 9, AuthorID: 2, CreatedAt: now.Add(-time.Hour)},
+		{ID: 8, AuthorID: 3, CreatedAt: now.Add(-time.Hour)},
+	}
+	posts := &testutil.MockFeedPostRepository{
+		RecentCandidatesFn: func(excl uint, since time.Time, limit int) ([]*model.FeedPost, error) {
+			assert.Equal(t, uint(5), excl) // excludes viewer's own posts
+			return cands, nil
+		},
+		AuthorAffinityFn: func(viewerID uint) (map[uint]int64, error) { return map[uint]int64{3: 8}, nil },
+		GetByIDFn: func(id uint) (*model.FeedPost, error) {
+			for _, p := range cands {
+				if p.ID == id {
+					return p, nil
+				}
+			}
+			return nil, nil
+		},
+	}
+	likes := &testutil.MockFeedPostLikeRepository{
+		CountByPostIDsFn: func(ids []uint) (map[uint]int64, error) { return map[uint]int64{}, nil },
+		LikedPostIDsFn:   func(uid uint, ids []uint) (map[uint]bool, error) { return map[uint]bool{}, nil },
+	}
+	comments := &testutil.MockFeedCommentRepository{
+		CountByPostIDsFn: func(ids []uint) (map[uint]int64, error) { return map[uint]int64{}, nil },
+	}
+	svc := service.NewFeedService(nil, posts, likes, comments, nil)
+
+	resp, err := svc.DiscoverTimeline(5, 0, 20)
+	require.NoError(t, err)
+	require.Len(t, resp.Posts, 2)
+	// author 3 has affinity 8 → post 8 outranks post 9 (same time, no engagement)
+	assert.Equal(t, uint(8), resp.Posts[0].ID)
+	assert.False(t, resp.HasMore)
+
+	// offset pagination
+	page2, err := svc.DiscoverTimeline(5, 1, 1)
+	require.NoError(t, err)
+	require.Len(t, page2.Posts, 1)
+	assert.Equal(t, uint(9), page2.Posts[0].ID)
 }

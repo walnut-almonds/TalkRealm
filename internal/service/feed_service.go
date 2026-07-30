@@ -2,6 +2,8 @@ package service
 
 import (
 	"errors"
+	"sort"
+	"time"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"github.com/walnut-almonds/talkrealm/internal/repository"
@@ -42,6 +44,7 @@ type FeedService interface {
 	ListFollowers(userID uint) (*FollowListResponse, error)
 	CreatePost(authorID uint, content string, fileIDs []uint) (*FeedPostResponse, error)
 	Timeline(userID, before uint, limit int) (*TimelineResponse, error)
+	DiscoverTimeline(viewerID uint, offset, limit int) (*TimelineResponse, error)
 	ProfilePosts(targetID, viewerID, before uint, limit int) (*TimelineResponse, error)
 	UpdatePost(postID, userID uint, content string) (*FeedPostResponse, error)
 	DeletePost(postID, userID uint) error
@@ -208,6 +211,71 @@ func (s *feedService) Timeline(userID, before uint, limit int) (*TimelineRespons
 	}
 
 	return &TimelineResponse{Posts: s.enrich(posts, userID), HasMore: hasMore}, nil
+}
+
+func (s *feedService) DiscoverTimeline(viewerID uint, offset, limit int) (*TimelineResponse, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	if offset < 0 {
+		offset = 0
+	}
+
+	since := time.Now().AddDate(0, 0, -DiscoverWindowDays)
+
+	candidates, err := s.postRepo.RecentCandidates(viewerID, since, DiscoverPoolSize)
+	if err != nil {
+		return nil, err
+	}
+
+	affinity, err := s.postRepo.AuthorAffinity(viewerID)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint, len(candidates))
+	for i, p := range candidates {
+		ids[i] = p.ID
+	}
+
+	likeCounts, _ := s.likeRepo.CountByPostIDs(ids)
+
+	commentCounts, _ := s.commentRepo.CountByPostIDs(ids)
+
+	now := time.Now()
+
+	type scored struct {
+		p *model.FeedPost
+		s float64
+	}
+
+	arr := make([]scored, len(candidates))
+	for i, p := range candidates {
+		arr[i] = scored{
+			p,
+			scorePost(p.ID, likeCounts[p.ID], commentCounts[p.ID], affinity[p.AuthorID], p.CreatedAt, now),
+		}
+	}
+
+	sort.SliceStable(arr, func(i, j int) bool { return arr[i].s > arr[j].s })
+
+	hasMore := offset+limit < len(arr)
+	if offset > len(arr) {
+		offset = len(arr)
+	}
+
+	end := offset + limit
+	if end > len(arr) {
+		end = len(arr)
+	}
+
+	page := make([]*model.FeedPost, 0, end-offset)
+	for _, x := range arr[offset:end] {
+		page = append(page, x.p)
+	}
+
+	return &TimelineResponse{Posts: s.enrich(page, viewerID), HasMore: hasMore}, nil
 }
 
 func (s *feedService) ProfilePosts(
