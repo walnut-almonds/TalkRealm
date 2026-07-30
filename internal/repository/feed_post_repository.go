@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"gorm.io/gorm"
 )
@@ -13,6 +15,8 @@ type FeedPostRepository interface {
 	TimelineCursor(authorIDs []uint, before uint, limit int) ([]*model.FeedPost, error)
 	ByAuthorCursor(authorID, before uint, limit int) ([]*model.FeedPost, error)
 	DeleteCascade(postID uint) error
+	RecentCandidates(excludeAuthorID uint, since time.Time, limit int) ([]*model.FeedPost, error)
+	AuthorAffinity(viewerID uint) (map[uint]int64, error)
 }
 
 type feedPostRepository struct{ db *gorm.DB }
@@ -66,6 +70,47 @@ func (r *feedPostRepository) ByAuthorCursor(authorID, before uint, limit int) ([
 		q = q.Where("id < ?", before)
 	}
 	return posts, q.Find(&posts).Error
+}
+
+func (r *feedPostRepository) RecentCandidates(excludeAuthorID uint, since time.Time, limit int) ([]*model.FeedPost, error) {
+	var posts []*model.FeedPost
+	err := r.db.Preload("Author").Preload("Attachments.File").
+		Where("author_id <> ? AND created_at >= ?", excludeAuthorID, since).
+		Order("id DESC").Limit(limit).Find(&posts).Error
+	return posts, err
+}
+
+func (r *feedPostRepository) AuthorAffinity(viewerID uint) (map[uint]int64, error) {
+	out := make(map[uint]int64)
+	type row struct {
+		AuthorID uint
+		Cnt      int64
+	}
+	// viewer's likes, grouped by the liked post's author
+	var likeRows []row
+	if err := r.db.Table("feed_post_likes AS fpl").
+		Select("fp.author_id AS author_id, COUNT(*) AS cnt").
+		Joins("JOIN feed_posts AS fp ON fp.id = fpl.post_id").
+		Where("fpl.user_id = ?", viewerID).
+		Group("fp.author_id").Scan(&likeRows).Error; err != nil {
+		return nil, err
+	}
+	for _, x := range likeRows {
+		out[x.AuthorID] += x.Cnt
+	}
+	// viewer's comments, grouped by the commented post's author
+	var commentRows []row
+	if err := r.db.Table("feed_comments AS fc").
+		Select("fp.author_id AS author_id, COUNT(*) AS cnt").
+		Joins("JOIN feed_posts AS fp ON fp.id = fc.post_id").
+		Where("fc.author_id = ?", viewerID).
+		Group("fp.author_id").Scan(&commentRows).Error; err != nil {
+		return nil, err
+	}
+	for _, x := range commentRows {
+		out[x.AuthorID] += x.Cnt
+	}
+	return out, nil
 }
 
 func (r *feedPostRepository) DeleteCascade(postID uint) error {

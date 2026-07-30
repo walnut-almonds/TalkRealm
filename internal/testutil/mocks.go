@@ -830,13 +830,15 @@ func (m *MockFollowRepository) CountFollowers(userID uint) (int64, error) {
 
 // MockFeedPostRepository is a test double for repository.FeedPostRepository.
 type MockFeedPostRepository struct {
-	CreateFn         func(p *model.FeedPost) error
-	GetByIDFn        func(id uint) (*model.FeedPost, error)
-	UpdateFn         func(p *model.FeedPost) error
-	AttachFilesFn    func(postID uint, fileIDs []uint) error
-	TimelineCursorFn func(authorIDs []uint, before uint, limit int) ([]*model.FeedPost, error)
-	ByAuthorCursorFn func(authorID, before uint, limit int) ([]*model.FeedPost, error)
-	DeleteCascadeFn  func(postID uint) error
+	CreateFn           func(p *model.FeedPost) error
+	GetByIDFn          func(id uint) (*model.FeedPost, error)
+	UpdateFn           func(p *model.FeedPost) error
+	AttachFilesFn      func(postID uint, fileIDs []uint) error
+	TimelineCursorFn   func(authorIDs []uint, before uint, limit int) ([]*model.FeedPost, error)
+	ByAuthorCursorFn   func(authorID, before uint, limit int) ([]*model.FeedPost, error)
+	DeleteCascadeFn    func(postID uint) error
+	RecentCandidatesFn func(excludeAuthorID uint, since time.Time, limit int) ([]*model.FeedPost, error)
+	AuthorAffinityFn   func(viewerID uint) (map[uint]int64, error)
 }
 
 var _ repository.FeedPostRepository = (*MockFeedPostRepository)(nil)
@@ -895,6 +897,22 @@ func (m *MockFeedPostRepository) DeleteCascade(postID uint) error {
 	}
 
 	return nil
+}
+
+func (m *MockFeedPostRepository) RecentCandidates(excludeAuthorID uint, since time.Time, limit int) ([]*model.FeedPost, error) {
+	if m.RecentCandidatesFn != nil {
+		return m.RecentCandidatesFn(excludeAuthorID, since, limit)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFeedPostRepository) AuthorAffinity(viewerID uint) (map[uint]int64, error) {
+	if m.AuthorAffinityFn != nil {
+		return m.AuthorAffinityFn(viewerID)
+	}
+
+	return map[uint]int64{}, nil
 }
 
 // ---------------------------------------------------------------------------
