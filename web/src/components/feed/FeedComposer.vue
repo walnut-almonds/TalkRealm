@@ -12,6 +12,18 @@ const { t } = useI18n()
 const text = ref('')
 const fileIds = ref([])
 const posting = ref(false)
+const inputEl = ref(null)
+
+// Twitter-style: textarea grows with content so you always see what you typed.
+function autoGrow() {
+  const el = inputEl.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 240) + 'px'
+}
+function resetHeight() {
+  if (inputEl.value) inputEl.value.style.height = 'auto'
+}
 
 const { pendingChips, uploadFile, removeChip, clearChips } = useFileUpload({
   addFileId: (id) => fileIds.value.push(id),
@@ -38,6 +50,7 @@ async function submit() {
     text.value = ''
     fileIds.value = []
     clearChips()
+    resetHeight()
   } catch (e) {
     store.showNotification(e.message || 'Failed', 'error')
   } finally {
@@ -48,12 +61,20 @@ async function submit() {
 
 <template>
   <div class="feed-compose">
-    <textarea
-      v-model="text"
-      class="feed-compose-input"
-      rows="2"
-      :placeholder="t('feed.composePlaceholder')"
-    ></textarea>
+    <div class="feed-compose-main">
+      <div class="feed-compose-avatar">
+        <img v-if="store.user?.avatar" :src="store.user.avatar" :alt="store.user?.nickname || store.user?.username" />
+        <i v-else class="fas fa-user"></i>
+      </div>
+      <textarea
+        ref="inputEl"
+        v-model="text"
+        class="feed-compose-input"
+        rows="1"
+        :placeholder="t('feed.composePlaceholder')"
+        @input="autoGrow"
+      ></textarea>
+    </div>
     <div v-if="pendingChips.length" class="feed-compose-chips">
       <div v-for="chip in pendingChips" :key="chip.id" class="file-chip">
         <span class="file-chip-name">{{ chip.name }}</span>
@@ -69,7 +90,7 @@ async function submit() {
         <input type="file" multiple style="display:none" @change="onFileInput" />
       </label>
       <button
-        class="btn-primary btn-sm"
+        class="btn-primary btn-sm feed-post-btn"
         :disabled="posting || (!text.trim() && fileIds.length === 0)"
         @click="submit"
       >
@@ -84,24 +105,47 @@ async function submit() {
   background: var(--bg-secondary, #2f3136);
   border: 1px solid var(--border-color, #40444b);
   border-radius: var(--radius, 8px);
-  padding: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.feed-compose-input {
-  width: 100%;
+.feed-compose-main {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.feed-compose-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
   background: var(--bg-input, #40444b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #8e9297);
+}
+.feed-compose-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.feed-compose-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
   border: none;
-  border-radius: var(--radius, 8px);
   color: var(--text-primary, #dcddde);
-  font-size: 14px;
-  padding: 10px 12px;
+  font-size: 17px;
+  line-height: 1.55;
+  padding: 8px 0;
   resize: none;
   outline: none;
   font-family: inherit;
-  line-height: 1.5;
+  min-height: 52px;
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .feed-compose-input::placeholder { color: var(--text-muted, #8e9297); }
@@ -111,6 +155,15 @@ async function submit() {
   align-items: center;
   gap: 10px;
   justify-content: flex-end;
+  padding-left: 56px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color, #40444b);
+}
+
+.feed-post-btn {
+  width: auto;
+  min-width: 96px;
+  padding: 8px 22px;
 }
 
 .feed-attach-btn {

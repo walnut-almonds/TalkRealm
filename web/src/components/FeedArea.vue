@@ -23,6 +23,18 @@ const container = ref(null)
 // ── Compose box (top) ─────────────────────────────────────────
 const composeText = ref('')
 const composeFileIds = ref([])
+const inputEl = ref(null)
+
+// Twitter-style: textarea grows with content so you always see what you typed.
+function autoGrow() {
+  const el = inputEl.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 240) + 'px'
+}
+function resetHeight() {
+  if (inputEl.value) inputEl.value.style.height = 'auto'
+}
 const { pendingChips, uploadFile, removeChip, clearChips } = useFileUpload({
   checkReady: () => !!store.currentChannel,
   onNotReady: () => store.showNotification(t('chat.selectChannelFirst'), 'error'),
@@ -54,6 +66,7 @@ async function submitPost() {
     composeText.value = ''
     composeFileIds.value = []
     clearChips()
+    resetHeight()
   } catch (e) {
     store.showNotification(e.message || t('createChannel.createFailed'), 'error')
   } finally {
@@ -235,12 +248,20 @@ watch(() => store.currentChannel?.id, () => {
     <div class="feed-scroll" ref="container" @scroll="onScroll">
       <!-- Compose -->
       <div class="feed-compose" v-if="store.currentChannel">
-        <textarea
-          v-model="composeText"
-          class="feed-compose-input"
-          rows="2"
-          :placeholder="t('wall.composePlaceholder')"
-        ></textarea>
+        <div class="feed-compose-main">
+          <div class="feed-compose-avatar">
+            <img v-if="store.user?.avatar" :src="store.user.avatar" :alt="store.user?.nickname || store.user?.username" />
+            <i v-else class="fas fa-user"></i>
+          </div>
+          <textarea
+            ref="inputEl"
+            v-model="composeText"
+            class="feed-compose-input"
+            rows="1"
+            :placeholder="t('wall.composePlaceholder')"
+            @input="autoGrow"
+          ></textarea>
+        </div>
         <div v-if="pendingChips.length" class="feed-compose-chips">
           <div v-for="chip in pendingChips" :key="chip.id" class="file-chip">
             <span class="file-chip-name">{{ chip.name }}</span>
@@ -256,7 +277,7 @@ watch(() => store.currentChannel?.id, () => {
             <input type="file" multiple style="display:none" @change="onFileInput" />
           </label>
           <button
-            class="btn-primary btn-sm"
+            class="btn-primary btn-sm feed-post-btn"
             :disabled="posting || (!composeText.trim() && composeFileIds.length === 0)"
             @click="submitPost"
           >
@@ -337,13 +358,51 @@ watch(() => store.currentChannel?.id, () => {
   background: var(--bg-secondary, #2f3136);
   border: 1px solid var(--border-color, #40444b);
   border-radius: var(--radius, 8px);
-  padding: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.feed-compose-input,
+.feed-compose-main {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.feed-compose-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--bg-input, #40444b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #8e9297);
+}
+.feed-compose-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Compose input: Twitter-style — text sits on the card, roomy, auto-growing */
+.feed-compose-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #dcddde);
+  font-size: 17px;
+  line-height: 1.55;
+  padding: 8px 0;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  min-height: 52px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* Comment input keeps the compact filled-box look */
 .feed-comment-input {
   width: 100%;
   background: var(--bg-input, #40444b);
@@ -368,6 +427,15 @@ watch(() => store.currentChannel?.id, () => {
   align-items: center;
   gap: 10px;
   justify-content: flex-end;
+  padding-left: 56px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color, #40444b);
+}
+
+.feed-post-btn {
+  width: auto;
+  min-width: 96px;
+  padding: 8px 22px;
 }
 
 .feed-attach-btn {
