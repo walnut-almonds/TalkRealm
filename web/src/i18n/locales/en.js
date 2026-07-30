@@ -21,7 +21,9 @@ export default {
         empty: 'No posts yet. Follow people or share your first post.',
         emptyComments: 'No comments yet.',
         emptySuggestions: 'No suggestions right now.',
-        loadMore: 'Load more'
+        loadMore: 'Load more',
+        tabForYou: 'For You',
+        tabFollowing: 'Following'
     },
     common: {
         save: 'Save',

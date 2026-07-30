@@ -24,7 +24,9 @@ export default {
         empty: '还没有贴文，关注他人或发布你的第一则贴文吧。',
         emptyComments: '还没有评论。',
         emptySuggestions: '暂时没有推荐。',
-        loadMore: '载入更多'
+        loadMore: '载入更多',
+        tabForYou: '为你推荐',
+        tabFollowing: '关注中'
     },
     common: {
         ...en.common,

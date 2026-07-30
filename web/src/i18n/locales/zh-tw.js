@@ -24,7 +24,9 @@ export default {
         empty: '還沒有貼文，追蹤他人或發布你的第一則貼文吧。',
         emptyComments: '還沒有留言。',
         emptySuggestions: '暫時沒有推薦。',
-        loadMore: '載入更多'
+        loadMore: '載入更多',
+        tabForYou: '為你推薦',
+        tabFollowing: '追蹤中'
     },
     common: {
         ...en.common,

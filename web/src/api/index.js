@@ -76,6 +76,7 @@ export const EP = {
     LEARN_SRS_ANSWER: (id) => `/api/v1/learn/srs/${id}/answer`,
     // Feed (cross-community personal feed)
     FEED_TIMELINE: '/api/v1/feed/timeline',
+    FEED_DISCOVER: '/api/v1/feed/discover',
     FEED_POSTS: '/api/v1/feed/posts',
     FEED_POST: (id) => `/api/v1/feed/posts/${id}`,
     FEED_POST_LIKE: (id) => `/api/v1/feed/posts/${id}/like`,
@@ -255,6 +256,10 @@ class ApiClient {
         const q = new URLSearchParams({ limit })
         if (before) q.set('before', before)
         return this.get(`${EP.FEED_TIMELINE}?${q}`)
+    }
+    getDiscover(offset = 0, limit = 20) {
+        const q = new URLSearchParams({ offset, limit })
+        return this.get(`${EP.FEED_DISCOVER}?${q}`)
     }
     createFeedPost(content, fileIds = []) { return this.post(EP.FEED_POSTS, { content, file_ids: fileIds }) }
     updateFeedPost(id, content) { return this.put(EP.FEED_POST(id), { content }) }

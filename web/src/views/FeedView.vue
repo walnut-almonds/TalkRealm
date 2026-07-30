@@ -15,6 +15,7 @@ const posts = ref([])            // newest-first
 const hasMore = ref(false)
 const loading = ref(false)
 const container = ref(null)
+const tab = ref('following')     // 'following' (cursor) | 'discover' (offset)
 const activeProfileUserId = ref(null)  // when set, show that user's profile instead of the timeline
 
 function openProfile(userId) {
@@ -24,7 +25,7 @@ function openProfile(userId) {
 async function load() {
   loading.value = true
   try {
-    const res = await api.getTimeline()
+    const res = tab.value === 'discover' ? await api.getDiscover(0, 20) : await api.getTimeline()
     posts.value = res.posts || []
     hasMore.value = !!res.has_more
   } catch (e) {
@@ -36,10 +37,11 @@ async function load() {
 
 async function loadOlder() {
   if (!hasMore.value || loading.value || posts.value.length === 0) return
-  const before = posts.value[posts.value.length - 1].id
   loading.value = true
   try {
-    const res = await api.getTimeline(20, before)
+    const res = tab.value === 'discover'
+      ? await api.getDiscover(posts.value.length, 20)
+      : await api.getTimeline(20, posts.value[posts.value.length - 1].id)
     posts.value.push(...(res.posts || []))
     hasMore.value = !!res.has_more
   } catch (e) {
@@ -47,6 +49,14 @@ async function loadOlder() {
   } finally {
     loading.value = false
   }
+}
+
+function switchTab(next) {
+  if (tab.value === next) return
+  tab.value = next
+  posts.value = []
+  hasMore.value = false
+  load()
 }
 
 // Newest-first timeline grows downward: load older when scrolled near the bottom.
@@ -78,6 +88,11 @@ onMounted(load)
     />
     <div v-else class="feed-main" ref="container" @scroll="onScroll">
       <div class="feed-column">
+        <div class="feed-tabs">
+          <button class="feed-tab" :class="{ active: tab === 'discover' }" @click="switchTab('discover')">{{ t('feed.tabForYou') }}</button>
+          <button class="feed-tab" :class="{ active: tab === 'following' }" @click="switchTab('following')">{{ t('feed.tabFollowing') }}</button>
+        </div>
+
         <FeedComposer @posted="onPosted" />
 
         <div v-if="!loading && posts.length === 0" class="feed-empty">
@@ -135,6 +150,32 @@ onMounted(load)
   border-left: 1px solid var(--border-color, #40444b);
   padding: 16px;
   overflow-y: auto;
+}
+
+.feed-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color, #40444b);
+}
+
+.feed-tab {
+  background: none;
+  border: none;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted, #8e9297);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.feed-tab:hover { color: var(--text-color, #dcddde); }
+
+.feed-tab.active {
+  color: var(--accent, #5865f2);
+  border-bottom-color: var(--accent, #5865f2);
 }
 
 .feed-loading-more {

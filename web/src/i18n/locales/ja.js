@@ -24,7 +24,9 @@ export default {
         empty: 'まだ投稿がありません。フォローするか、最初の投稿をしてみましょう。',
         emptyComments: 'まだコメントがありません。',
         emptySuggestions: '今はおすすめがありません。',
-        loadMore: 'もっと読み込む'
+        loadMore: 'もっと読み込む',
+        tabForYou: 'おすすめ',
+        tabFollowing: 'フォロー中'
     },
     common: {
         ...en.common,
