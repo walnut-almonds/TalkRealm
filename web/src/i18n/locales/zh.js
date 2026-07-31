@@ -26,7 +26,8 @@ export default {
         emptySuggestions: '暂时没有推荐。',
         loadMore: '载入更多',
         tabForYou: '为你推荐',
-        tabFollowing: '关注中'
+        tabFollowing: '关注中',
+        newPosts: '{count} 条新动态'
     },
     common: {
         ...en.common,

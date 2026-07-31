@@ -26,7 +26,8 @@ export default {
         emptySuggestions: '今はおすすめがありません。',
         loadMore: 'もっと読み込む',
         tabForYou: 'おすすめ',
-        tabFollowing: 'フォロー中'
+        tabFollowing: 'フォロー中',
+        newPosts: '{count}件の新着'
     },
     common: {
         ...en.common,

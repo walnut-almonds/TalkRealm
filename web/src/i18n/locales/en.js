@@ -23,7 +23,8 @@ export default {
         emptySuggestions: 'No suggestions right now.',
         loadMore: 'Load more',
         tabForYou: 'For You',
-        tabFollowing: 'Following'
+        tabFollowing: 'Following',
+        newPosts: '{count} new posts'
     },
     common: {
         save: 'Save',

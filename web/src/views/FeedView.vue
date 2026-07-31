@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { api } from '@/api/index.js'
+import { useWebSocket } from '@/composables/useWebSocket.js'
 import FeedComposer from '@/components/feed/FeedComposer.vue'
 import FeedPostCard from '@/components/feed/FeedPostCard.vue'
 import FeedProfile from '@/components/feed/FeedProfile.vue'
@@ -10,10 +11,12 @@ import FeedFollowSuggestions from '@/components/feed/FeedFollowSuggestions.vue'
 
 const store = useAppStore()
 const { t } = useI18n()
+const ws = useWebSocket()
 
 const posts = ref([])            // newest-first
 const hasMore = ref(false)
 const loading = ref(false)
+const newCount = ref(0)          // live "N new posts" pill counter
 const container = ref(null)
 const tab = ref('discover')      // 'discover' (offset, default) | 'following' (cursor)
 const activeProfileUserId = ref(null)  // when set, show that user's profile instead of the timeline
@@ -23,6 +26,7 @@ function openProfile(userId) {
 }
 
 async function load() {
+  newCount.value = 0
   loading.value = true
   try {
     const res = tab.value === 'discover' ? await api.getDiscover(0, 20) : await api.getTimeline()
@@ -56,7 +60,25 @@ function switchTab(next) {
   tab.value = next
   posts.value = []
   hasMore.value = false
+  newCount.value = 0
   load()
+}
+
+function loadNew() {
+  newCount.value = 0
+  load()
+}
+
+// Live feed signals: new-post pings bump the pill; like/comment pings update loaded posts.
+function onWSFeed(type, data) {
+  if (type === 'feed_new_post') {
+    newCount.value++
+    return
+  }
+  const post = posts.value.find(p => p.id === data.post_id)
+  if (!post) return
+  if (type === 'feed_post_like' && typeof data.like_count === 'number') post.like_count = data.like_count
+  else if (type === 'feed_comment_count' && typeof data.comment_count === 'number') post.comment_count = data.comment_count
 }
 
 // Newest-first timeline grows downward: load older when scrolled near the bottom.
@@ -75,7 +97,11 @@ function onDeleted(id) {
   if (i !== -1) posts.value.splice(i, 1)
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  ws.onMessage(onWSFeed)
+})
+onUnmounted(() => ws.offMessage(onWSFeed))
 </script>
 
 <template>
@@ -88,6 +114,10 @@ onMounted(load)
     />
     <div v-else class="feed-main" ref="container" @scroll="onScroll">
       <div class="feed-column">
+        <button v-if="newCount > 0" class="feed-newposts-pill" @click="loadNew">
+          {{ t('feed.newPosts', { count: newCount }) }} ↑
+        </button>
+
         <div class="feed-tabs">
           <button class="feed-tab" :class="{ active: tab === 'discover' }" @click="switchTab('discover')">{{ t('feed.tabForYou') }}</button>
           <button class="feed-tab" :class="{ active: tab === 'following' }" @click="switchTab('following')">{{ t('feed.tabFollowing') }}</button>
@@ -177,6 +207,21 @@ onMounted(load)
   color: var(--accent, #5865f2);
   border-bottom-color: var(--accent, #5865f2);
 }
+
+.feed-newposts-pill {
+  align-self: center;
+  background: var(--accent, #5865f2);
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: filter 0.1s;
+}
+.feed-newposts-pill:hover { filter: brightness(1.08); }
 
 .feed-loading-more {
   text-align: center;

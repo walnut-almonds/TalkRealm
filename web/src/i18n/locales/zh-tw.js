@@ -26,7 +26,8 @@ export default {
         emptySuggestions: '暫時沒有推薦。',
         loadMore: '載入更多',
         tabForYou: '為你推薦',
-        tabFollowing: '追蹤中'
+        tabFollowing: '追蹤中',
+        newPosts: '{count} 則新貼文'
     },
     common: {
         ...en.common,

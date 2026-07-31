@@ -121,6 +121,9 @@ function createWebSocketManager() {
             case 'message_update': notify('message_update', msg.d); break
             case 'message_delete': notify('message_delete', msg.d); break
             case 'post_like': notify('post_like', msg.d); break
+            case 'feed_new_post': notify('feed_new_post', msg.d); break
+            case 'feed_post_like': notify('feed_post_like', msg.d); break
+            case 'feed_comment_count': notify('feed_comment_count', msg.d); break
             case 'dm_message_create': notify('dm_message', msg.d); break
             case 'typing_start': notify('typing', msg.d); break
             case 'presence_update': notify('user_status', msg.d); break
