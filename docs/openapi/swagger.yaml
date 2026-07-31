@@ -418,7 +418,7 @@ definitions:
     properties:
       comments:
         items:
-          $ref: '#/definitions/model.FeedComment'
+          $ref: '#/definitions/service.FeedCommentResponse'
         type: array
       has_more:
         type: boolean
@@ -544,6 +544,29 @@ definitions:
       score:
         description: played 時
         type: integer
+    type: object
+  service.FeedCommentResponse:
+    properties:
+      author:
+        $ref: '#/definitions/model.User'
+      author_id:
+        type: integer
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_edited:
+        type: boolean
+      like_count:
+        type: integer
+      liked_by_me:
+        type: boolean
+      post_id:
+        type: integer
+      updated_at:
+        type: string
     type: object
   service.FeedPostResponse:
     properties:
@@ -1645,6 +1668,57 @@ paths:
               type: string
             type: object
       summary: 更新留言
+      tags:
+      - feed
+  /api/v1/feed/comments/{id}/like:
+    delete:
+      description: 收回對留言的讚，回傳最新讚數
+      parameters:
+      - description: 留言 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 收回留言讚
+      tags:
+      - feed
+    put:
+      description: 對留言按讚（idempotent），回傳最新讚數
+      parameters:
+      - description: 留言 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 留言按讚
       tags:
       - feed
   /api/v1/feed/discover:

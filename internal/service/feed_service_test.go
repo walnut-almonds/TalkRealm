@@ -104,6 +104,21 @@ func TestFeedService_LikePost_ReturnsCount(t *testing.T) {
 	assert.Equal(t, int64(3), n)
 }
 
+func TestFeedService_LikeComment_ReturnsCount(t *testing.T) {
+	comments := &testutil.MockFeedCommentRepository{
+		GetByIDFn: func(_ uint) (*model.FeedComment, error) { return &model.FeedComment{ID: 7}, nil },
+	}
+	likes := &testutil.MockFeedCommentLikeRepository{
+		CreateFn:           func(_ *model.FeedCommentLike) error { return nil },
+		CountByCommentIDFn: func(_ uint) (int64, error) { return 3, nil },
+	}
+	svc := service.NewFeedService(nil, nil, nil, comments, nil)
+	svc.SetCommentLikeRepo(likes)
+	n, err := svc.LikeComment(7, 5)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), n)
+}
+
 func TestFeedService_DiscoverTimeline_RanksAndPaginates(t *testing.T) {
 	now := time.Now()
 	// two candidates: post 8 by author 3 (high affinity), post 9 by author 2 (no affinity)

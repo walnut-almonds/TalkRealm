@@ -82,6 +82,7 @@ export const EP = {
     FEED_POST_LIKE: (id) => `/api/v1/feed/posts/${id}/like`,
     FEED_POST_COMMENTS: (id) => `/api/v1/feed/posts/${id}/comments`,
     FEED_COMMENT: (id) => `/api/v1/feed/comments/${id}`,
+    FEED_COMMENT_LIKE: (id) => `/api/v1/feed/comments/${id}/like`,
     FEED_SUGGESTIONS: '/api/v1/feed/suggestions',
     FEED_FOLLOW: (userId) => `/api/v1/feed/follows/${userId}`,
     FEED_USER_POSTS: (userId) => `/api/v1/feed/users/${userId}/posts`,
@@ -266,6 +267,8 @@ class ApiClient {
     deleteFeedPost(id) { return this.del(EP.FEED_POST(id)) }
     likeFeedPost(id) { return this.put(EP.FEED_POST_LIKE(id), {}) }
     unlikeFeedPost(id) { return this.del(EP.FEED_POST_LIKE(id)) }
+    likeFeedComment(id) { return this.put(EP.FEED_COMMENT_LIKE(id), {}) }
+    unlikeFeedComment(id) { return this.del(EP.FEED_COMMENT_LIKE(id)) }
     getFeedComments(id, limit = 50, before = null) {
         const q = new URLSearchParams({ limit })
         if (before) q.set('before', before)

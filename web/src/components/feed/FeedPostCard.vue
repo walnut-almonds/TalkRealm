@@ -95,6 +95,20 @@ async function submitComment() {
   }
 }
 
+async function toggleCommentLike(c) {
+  const wasLiked = c.liked_by_me
+  c.liked_by_me = !wasLiked
+  c.like_count = (c.like_count || 0) + (wasLiked ? -1 : 1)
+  try {
+    const res = wasLiked ? await api.unlikeFeedComment(c.id) : await api.likeFeedComment(c.id)
+    if (res && typeof res.like_count === 'number') c.like_count = res.like_count
+  } catch (e) {
+    c.liked_by_me = wasLiked
+    c.like_count = (c.like_count || 0) + (wasLiked ? 1 : -1)
+    store.showNotification(e.message || 'Like failed', 'error')
+  }
+}
+
 function commentAuthorName(c) {
   const a = c.author || {}
   return a.nickname || a.username || t('chat.unknownUser')
@@ -236,6 +250,15 @@ async function remove() {
           </div>
           <div class="feed-comment-text">{{ c.content }}</div>
         </div>
+        <button
+          class="feed-comment-like"
+          :class="{ liked: c.liked_by_me }"
+          :title="t('feed.like')"
+          @click="toggleCommentLike(c)"
+        >
+          <i class="fas fa-heart"></i>
+          <span v-if="c.like_count" class="feed-comment-like-count">{{ c.like_count }}</span>
+        </button>
       </div>
       <div class="feed-comment-box">
         <textarea
@@ -330,6 +353,23 @@ async function remove() {
 .feed-comment-author { font-weight: 600; font-size: 13px; color: var(--text-primary, #dcddde); }
 .feed-comment-time { font-size: 11px; color: var(--text-muted, #8e9297); }
 .feed-comment-text { font-size: 14px; color: var(--text-normal, #dcddde); white-space: pre-wrap; word-break: break-word; }
+
+.feed-comment-like {
+  background: none;
+  border: none;
+  color: var(--text-muted, #8e9297);
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  transition: color 0.1s;
+}
+.feed-comment-like:hover { color: var(--text-primary, #dcddde); }
+.feed-comment-like.liked { color: var(--danger, #ed4245); }
+.feed-comment-like-count { font-size: 11px; }
 
 .feed-comment-box {
   display: flex;

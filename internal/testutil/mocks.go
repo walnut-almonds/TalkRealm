@@ -875,7 +875,11 @@ func (m *MockFeedPostRepository) AttachFiles(postID uint, fileIDs []uint) error 
 	return nil
 }
 
-func (m *MockFeedPostRepository) TimelineCursor(authorIDs []uint, before uint, limit int) ([]*model.FeedPost, error) {
+func (m *MockFeedPostRepository) TimelineCursor(
+	authorIDs []uint,
+	before uint,
+	limit int,
+) ([]*model.FeedPost, error) {
 	if m.TimelineCursorFn != nil {
 		return m.TimelineCursorFn(authorIDs, before, limit)
 	}
@@ -883,7 +887,10 @@ func (m *MockFeedPostRepository) TimelineCursor(authorIDs []uint, before uint, l
 	return nil, nil
 }
 
-func (m *MockFeedPostRepository) ByAuthorCursor(authorID, before uint, limit int) ([]*model.FeedPost, error) {
+func (m *MockFeedPostRepository) ByAuthorCursor(
+	authorID, before uint,
+	limit int,
+) ([]*model.FeedPost, error) {
 	if m.ByAuthorCursorFn != nil {
 		return m.ByAuthorCursorFn(authorID, before, limit)
 	}
@@ -899,7 +906,11 @@ func (m *MockFeedPostRepository) DeleteCascade(postID uint) error {
 	return nil
 }
 
-func (m *MockFeedPostRepository) RecentCandidates(excludeAuthorID uint, since time.Time, limit int) ([]*model.FeedPost, error) {
+func (m *MockFeedPostRepository) RecentCandidates(
+	excludeAuthorID uint,
+	since time.Time,
+	limit int,
+) ([]*model.FeedPost, error) {
 	if m.RecentCandidatesFn != nil {
 		return m.RecentCandidatesFn(excludeAuthorID, since, limit)
 	}
@@ -968,6 +979,64 @@ func (m *MockFeedPostLikeRepository) LikedPostIDs(
 ) (map[uint]bool, error) {
 	if m.LikedPostIDsFn != nil {
 		return m.LikedPostIDsFn(userID, ids)
+	}
+
+	return map[uint]bool{}, nil
+}
+
+// ---------------------------------------------------------------------------
+// MockFeedCommentLikeRepository
+// ---------------------------------------------------------------------------
+
+// MockFeedCommentLikeRepository is a test double for repository.FeedCommentLikeRepository.
+type MockFeedCommentLikeRepository struct {
+	CreateFn            func(like *model.FeedCommentLike) error
+	DeleteFn            func(commentID, userID uint) error
+	CountByCommentIDFn  func(commentID uint) (int64, error)
+	CountByCommentIDsFn func(ids []uint) (map[uint]int64, error)
+	LikedCommentIDsFn   func(userID uint, ids []uint) (map[uint]bool, error)
+}
+
+var _ repository.FeedCommentLikeRepository = (*MockFeedCommentLikeRepository)(nil)
+
+func (m *MockFeedCommentLikeRepository) Create(like *model.FeedCommentLike) error {
+	if m.CreateFn != nil {
+		return m.CreateFn(like)
+	}
+
+	return nil
+}
+
+func (m *MockFeedCommentLikeRepository) Delete(commentID, userID uint) error {
+	if m.DeleteFn != nil {
+		return m.DeleteFn(commentID, userID)
+	}
+
+	return nil
+}
+
+func (m *MockFeedCommentLikeRepository) CountByCommentID(commentID uint) (int64, error) {
+	if m.CountByCommentIDFn != nil {
+		return m.CountByCommentIDFn(commentID)
+	}
+
+	return 0, nil
+}
+
+func (m *MockFeedCommentLikeRepository) CountByCommentIDs(ids []uint) (map[uint]int64, error) {
+	if m.CountByCommentIDsFn != nil {
+		return m.CountByCommentIDsFn(ids)
+	}
+
+	return map[uint]int64{}, nil
+}
+
+func (m *MockFeedCommentLikeRepository) LikedCommentIDs(
+	userID uint,
+	ids []uint,
+) (map[uint]bool, error) {
+	if m.LikedCommentIDsFn != nil {
+		return m.LikedCommentIDsFn(userID, ids)
 	}
 
 	return map[uint]bool{}, nil
@@ -1058,7 +1127,9 @@ type MockFriendshipRepository struct {
 
 var _ repository.FriendshipRepository = (*MockFriendshipRepository)(nil)
 
-func (m *MockFriendshipRepository) Create(requesterID, addresseeID uint) (*model.Friendship, error) {
+func (m *MockFriendshipRepository) Create(
+	requesterID, addresseeID uint,
+) (*model.Friendship, error) {
 	if m.CreateFn != nil {
 		return m.CreateFn(requesterID, addresseeID)
 	}
@@ -1074,7 +1145,10 @@ func (m *MockFriendshipRepository) GetBetween(userA, userB uint) (*model.Friends
 	return nil, nil
 }
 
-func (m *MockFriendshipRepository) UpdateStatus(requesterID, addresseeID uint, status string) error {
+func (m *MockFriendshipRepository) UpdateStatus(
+	requesterID, addresseeID uint,
+	status string,
+) error {
 	if m.UpdateStatusFn != nil {
 		return m.UpdateStatusFn(requesterID, addresseeID, status)
 	}

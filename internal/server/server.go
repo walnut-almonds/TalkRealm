@@ -205,6 +205,7 @@ func New(cfg *config.Config) (*Server, error) {
 		repository.NewFeedCommentRepository(db),
 		friendshipRepo,
 	)
+	feedService.SetCommentLikeRepo(repository.NewFeedCommentLikeRepository(db))
 	feedHandler := handler.NewFeedHandler(feedService)
 
 	// 固定關卡開機冪等生成（已存在的關卡不重生）；失敗僅降級警告，不擋開機

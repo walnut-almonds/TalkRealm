@@ -885,6 +885,82 @@
                 }
             }
         },
+        "/api/v1/feed/comments/{id}/like": {
+            "put": {
+                "description": "對留言按讚（idempotent），回傳最新讚數",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feed"
+                ],
+                "summary": "留言按讚",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "留言 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "收回對留言的讚，回傳最新讚數",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feed"
+                ],
+                "summary": "收回留言讚",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "留言 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/feed/discover": {
             "get": {
                 "description": "取得演算法排序的「為你推薦」時間軸（offset-based 分頁）",
@@ -4427,7 +4503,7 @@
                 "comments": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.FeedComment"
+                        "$ref": "#/definitions/service.FeedCommentResponse"
                     }
                 },
                 "has_more": {
@@ -4611,6 +4687,41 @@
                 "score": {
                     "description": "played 時",
                     "type": "integer"
+                }
+            }
+        },
+        "service.FeedCommentResponse": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "$ref": "#/definitions/model.User"
+                },
+                "author_id": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_edited": {
+                    "type": "boolean"
+                },
+                "like_count": {
+                    "type": "integer"
+                },
+                "liked_by_me": {
+                    "type": "boolean"
+                },
+                "post_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         },

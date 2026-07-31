@@ -50,18 +50,27 @@ type FeedService interface {
 	DeletePost(postID, userID uint) error
 	LikePost(postID, userID uint) (int64, error)
 	UnlikePost(postID, userID uint) (int64, error)
-	ListComments(postID, before uint, limit int) (*CommentListResponse, error)
+	LikeComment(commentID, userID uint) (int64, error)
+	UnlikeComment(commentID, userID uint) (int64, error)
+	SetCommentLikeRepo(r repository.FeedCommentLikeRepository)
+	ListComments(postID, viewerID, before uint, limit int) (*CommentListResponse, error)
 	AddComment(postID, authorID uint, content string) (*model.FeedComment, error)
 	UpdateComment(commentID, userID uint, content string) (*model.FeedComment, error)
 	DeleteComment(commentID, userID uint) error
 }
 
 type feedService struct {
-	followRepo  repository.FollowRepository
-	postRepo    repository.FeedPostRepository
-	likeRepo    repository.FeedPostLikeRepository
-	commentRepo repository.FeedCommentRepository
-	friendRepo  repository.FriendshipRepository
+	followRepo      repository.FollowRepository
+	postRepo        repository.FeedPostRepository
+	likeRepo        repository.FeedPostLikeRepository
+	commentRepo     repository.FeedCommentRepository
+	friendRepo      repository.FriendshipRepository
+	commentLikeRepo repository.FeedCommentLikeRepository
+}
+
+// SetCommentLikeRepo 注入留言按讚 repository（避免更動 5 參數的 NewFeedService 簽名）。
+func (s *feedService) SetCommentLikeRepo(r repository.FeedCommentLikeRepository) {
+	s.commentLikeRepo = r
 }
 
 // NewFeedService 建立 feed 服務。參數順序固定，後續 task 依賴此 5 參數順序。
@@ -72,7 +81,13 @@ func NewFeedService(
 	commentRepo repository.FeedCommentRepository,
 	friendRepo repository.FriendshipRepository,
 ) FeedService {
-	return &feedService{followRepo, postRepo, likeRepo, commentRepo, friendRepo}
+	return &feedService{
+		followRepo:  followRepo,
+		postRepo:    postRepo,
+		likeRepo:    likeRepo,
+		commentRepo: commentRepo,
+		friendRepo:  friendRepo,
+	}
 }
 
 func (s *feedService) Follow(followerID, followeeID uint) error {
@@ -343,10 +358,17 @@ func (s *feedService) enrich(posts []*model.FeedPost, viewerID uint) []*FeedPost
 	return out
 }
 
+// FeedCommentResponse 留言加上按讚統計與 viewer 是否已讚的 enrichment DTO
+type FeedCommentResponse struct {
+	*model.FeedComment
+	LikeCount int64 `json:"like_count"`
+	LikedByMe bool  `json:"liked_by_me"`
+}
+
 // CommentListResponse 貼文留言列表回應
 type CommentListResponse struct {
-	Comments []*model.FeedComment `json:"comments"`
-	HasMore  bool                 `json:"has_more"`
+	Comments []*FeedCommentResponse `json:"comments"`
+	HasMore  bool                   `json:"has_more"`
 }
 
 // getOwnedPost 取貼文並驗證 userID 為作者，非作者回 ErrNotFeedOwner。
@@ -412,7 +434,10 @@ func (s *feedService) UnlikePost(postID, userID uint) (int64, error) {
 	return s.likeRepo.CountByPostID(postID)
 }
 
-func (s *feedService) ListComments(postID, before uint, limit int) (*CommentListResponse, error) {
+func (s *feedService) ListComments(
+	postID, viewerID, before uint,
+	limit int,
+) (*CommentListResponse, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
@@ -428,7 +453,61 @@ func (s *feedService) ListComments(postID, before uint, limit int) (*CommentList
 		cs = cs[len(cs)-limit:]
 	}
 
-	return &CommentListResponse{Comments: cs, HasMore: hasMore}, nil
+	return &CommentListResponse{Comments: s.enrichComments(cs, viewerID), HasMore: hasMore}, nil
+}
+
+// enrichComments 批次補上留言按讚數與 viewer 是否已讚，避免 N+1。
+// commentLikeRepo 可為 nil（部分呼叫端未注入）。
+func (s *feedService) enrichComments(
+	cs []*model.FeedComment,
+	viewerID uint,
+) []*FeedCommentResponse {
+	ids := make([]uint, len(cs))
+	for i, c := range cs {
+		ids[i] = c.ID
+	}
+
+	var likeCounts map[uint]int64
+
+	var liked map[uint]bool
+
+	if s.commentLikeRepo != nil {
+		likeCounts, _ = s.commentLikeRepo.CountByCommentIDs(ids)
+		liked, _ = s.commentLikeRepo.LikedCommentIDs(viewerID, ids)
+	}
+
+	out := make([]*FeedCommentResponse, len(cs))
+	for i, c := range cs {
+		out[i] = &FeedCommentResponse{
+			FeedComment: c,
+			LikeCount:   likeCounts[c.ID],
+			LikedByMe:   liked[c.ID],
+		}
+	}
+
+	return out
+}
+
+func (s *feedService) LikeComment(commentID, userID uint) (int64, error) {
+	if _, err := s.commentRepo.GetByID(commentID); err != nil {
+		return 0, ErrFeedPostNotFound
+	}
+
+	if err := s.commentLikeRepo.Create(
+		&model.FeedCommentLike{CommentID: commentID, UserID: userID},
+	); err != nil {
+		return 0, err
+	}
+
+	return s.commentLikeRepo.CountByCommentID(commentID)
+}
+
+func (s *feedService) UnlikeComment(commentID, userID uint) (int64, error) {
+	if err := s.commentLikeRepo.Delete(commentID, userID); err != nil {
+		return 0, err
+	}
+
+	return s.commentLikeRepo.CountByCommentID(commentID)
 }
 
 func (s *feedService) AddComment(

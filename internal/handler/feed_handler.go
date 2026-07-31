@@ -466,6 +466,68 @@ func (h *FeedHandler) UnlikePost(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"post_id": uint(postID), "like_count": n})
 }
 
+// LikeComment 對留言按讚
+//
+//	@Summary		留言按讚
+//	@Description	對留言按讚（idempotent），回傳最新讚數
+//	@Tags			feed
+//	@Produce		json
+//	@Param			id	path		int	true	"留言 ID"
+//	@Success		200	{object}	map[string]interface{}
+//	@Failure		404	{object}	map[string]string
+//	@Router			/api/v1/feed/comments/{id}/like [put]
+func (h *FeedHandler) LikeComment(c *gin.Context) {
+	userID, ok := feedUserID(c)
+	if !ok {
+		return
+	}
+
+	commentID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment id"})
+		return
+	}
+
+	n, err := h.feedService.LikeComment(uint(commentID), userID)
+	if err != nil {
+		feedError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"comment_id": uint(commentID), "like_count": n})
+}
+
+// UnlikeComment 收回留言的讚
+//
+//	@Summary		收回留言讚
+//	@Description	收回對留言的讚，回傳最新讚數
+//	@Tags			feed
+//	@Produce		json
+//	@Param			id	path		int	true	"留言 ID"
+//	@Success		200	{object}	map[string]interface{}
+//	@Failure		404	{object}	map[string]string
+//	@Router			/api/v1/feed/comments/{id}/like [delete]
+func (h *FeedHandler) UnlikeComment(c *gin.Context) {
+	userID, ok := feedUserID(c)
+	if !ok {
+		return
+	}
+
+	commentID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment id"})
+		return
+	}
+
+	n, err := h.feedService.UnlikeComment(uint(commentID), userID)
+	if err != nil {
+		feedError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"comment_id": uint(commentID), "like_count": n})
+}
+
 // ListComments 列出貼文留言
 //
 //	@Summary		列出留言
@@ -479,7 +541,8 @@ func (h *FeedHandler) UnlikePost(c *gin.Context) {
 //	@Failure		401		{object}	map[string]string
 //	@Router			/api/v1/feed/posts/{id}/comments [get]
 func (h *FeedHandler) ListComments(c *gin.Context) {
-	if _, ok := feedUserID(c); !ok {
+	viewerID, ok := feedUserID(c)
+	if !ok {
 		return
 	}
 
@@ -491,7 +554,7 @@ func (h *FeedHandler) ListComments(c *gin.Context) {
 
 	limit, before := parseListQuery(c, 50)
 
-	resp, err := h.feedService.ListComments(uint(postID), before, limit)
+	resp, err := h.feedService.ListComments(uint(postID), viewerID, before, limit)
 	if err != nil {
 		feedError(c, err)
 		return
