@@ -15,7 +15,7 @@ const posts = ref([])            // newest-first
 const hasMore = ref(false)
 const loading = ref(false)
 const container = ref(null)
-const tab = ref('following')     // 'following' (cursor) | 'discover' (offset)
+const tab = ref('discover')      // 'discover' (offset, default) | 'following' (cursor)
 const activeProfileUserId = ref(null)  // when set, show that user's profile instead of the timeline
 
 function openProfile(userId) {

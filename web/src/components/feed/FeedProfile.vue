@@ -16,8 +16,15 @@ const hasMore = ref(false)
 const loading = ref(false)
 const followingCount = ref(0)
 const followersCount = ref(0)
+const followersList = ref([])
+const followingList = ref([])
+const listView = ref(null) // null = posts | 'followers' | 'following'
 const isFollowing = ref(false)
 const busy = ref(false)
+
+const shownList = computed(() => (listView.value === 'followers' ? followersList.value : followingList.value))
+
+function personName(u) { return u.nickname || u.username }
 
 const isSelf = computed(() => store.user?.id === props.userId)
 const name = computed(() => (user.value ? user.value.nickname || user.value.username : ''))
@@ -34,10 +41,13 @@ async function load() {
     user.value = pub
     posts.value = timeline.posts || []
     hasMore.value = !!timeline.has_more
+    followersList.value = followers.users || []
+    followingList.value = following.users || []
     followersCount.value = followers.count || 0
     followingCount.value = following.count || 0
+    listView.value = null
     // I follow this user iff I'm among their followers
-    isFollowing.value = !!(followers.users || []).find(u => u.id === store.user?.id)
+    isFollowing.value = !!followersList.value.find(u => u.id === store.user?.id)
   } catch (e) {
     store.showNotification(e.message || 'Failed to load profile', 'error')
   } finally {
@@ -104,8 +114,12 @@ onMounted(load)
       <div class="feed-profile-meta">
         <h2 class="feed-profile-name">{{ name }}</h2>
         <div class="feed-profile-stats">
-          <span><strong>{{ followersCount }}</strong> {{ t('feed.followers') }}</span>
-          <span><strong>{{ followingCount }}</strong> {{ t('feed.following') }}</span>
+          <button class="feed-stat" :class="{ active: listView === 'followers' }" @click="listView = listView === 'followers' ? null : 'followers'">
+            <strong>{{ followersCount }}</strong> {{ t('feed.followers') }}
+          </button>
+          <button class="feed-stat" :class="{ active: listView === 'following' }" @click="listView = listView === 'following' ? null : 'following'">
+            <strong>{{ followingCount }}</strong> {{ t('feed.following') }}
+          </button>
         </div>
       </div>
       <button
@@ -119,7 +133,28 @@ onMounted(load)
       </button>
     </div>
 
-    <div class="feed-profile-posts">
+    <!-- Followers / following list -->
+    <div v-if="listView" class="feed-profile-posts">
+      <div v-if="shownList.length === 0" class="feed-empty">
+        <i class="fas fa-users"></i>
+        <p>{{ listView === 'followers' ? t('feed.followers') : t('feed.following') }}</p>
+      </div>
+      <div
+        v-for="u in shownList"
+        :key="u.id"
+        class="feed-userlist-row"
+        @click="emit('open-profile', u.id)"
+      >
+        <div class="message-avatar feed-userlist-avatar">
+          <img v-if="u.avatar" :src="u.avatar" :alt="personName(u)" />
+          <i v-else class="fas fa-user"></i>
+        </div>
+        <span class="feed-userlist-name">{{ personName(u) }}</span>
+      </div>
+    </div>
+
+    <!-- Posts -->
+    <div v-else class="feed-profile-posts">
       <div v-if="!loading && posts.length === 0" class="feed-empty">
         <i class="fas fa-rss"></i>
         <p>{{ t('feed.empty') }}</p>
@@ -151,8 +186,33 @@ onMounted(load)
 .feed-profile-avatar { width: 56px; height: 56px; flex-shrink: 0; }
 .feed-profile-meta { flex: 1; min-width: 0; }
 .feed-profile-name { font-size: 20px; margin: 0; color: var(--text-primary, #dcddde); }
-.feed-profile-stats { display: flex; gap: 16px; font-size: 13px; color: var(--text-muted, #8e9297); margin-top: 4px; }
-.feed-profile-stats strong { color: var(--text-primary, #dcddde); }
+.feed-profile-stats { display: flex; gap: 16px; margin-top: 4px; }
+.feed-stat {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--text-muted, #8e9297);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.1s, border-color 0.1s;
+}
+.feed-stat:hover { color: var(--text-primary, #dcddde); }
+.feed-stat.active { color: var(--text-primary, #dcddde); border-bottom-color: var(--accent, #5865f2); }
+.feed-stat strong { color: var(--text-primary, #dcddde); }
+
+.feed-userlist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-radius: var(--radius, 8px);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.feed-userlist-row:hover { background: var(--bg-hover, #4f545c); }
+.feed-userlist-avatar { width: 40px; height: 40px; flex-shrink: 0; }
+.feed-userlist-name { font-weight: 600; font-size: 15px; color: var(--text-primary, #dcddde); }
 .feed-follow-btn.following { background: var(--bg-input, #40444b); }
 .feed-profile-posts { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
 .feed-empty { display: flex; flex-direction: column; align-items: center; color: var(--text-muted, #8e9297); gap: 12px; padding: 48px 16px; }
