@@ -37,6 +37,7 @@ func (r *followRepository) Unfollow(followerID, followeeID uint) error {
 
 func (r *followRepository) IsFollowing(followerID, followeeID uint) (bool, error) {
 	var n int64
+
 	err := r.db.Model(&model.Follow{}).
 		Where("follower_id = ? AND followee_id = ?", followerID, followeeID).Count(&n).Error
 
@@ -45,6 +46,7 @@ func (r *followRepository) IsFollowing(followerID, followeeID uint) (bool, error
 
 func (r *followRepository) FolloweeIDs(followerID uint) ([]uint, error) {
 	var ids []uint
+
 	err := r.db.Model(&model.Follow{}).
 		Where("follower_id = ?", followerID).Pluck("followee_id", &ids).Error
 
@@ -53,6 +55,7 @@ func (r *followRepository) FolloweeIDs(followerID uint) ([]uint, error) {
 
 func (r *followRepository) FollowerIDs(followeeID uint) ([]uint, error) {
 	var ids []uint
+
 	err := r.db.Model(&model.Follow{}).
 		Where("followee_id = ?", followeeID).Pluck("follower_id", &ids).Error
 
@@ -61,6 +64,7 @@ func (r *followRepository) FollowerIDs(followeeID uint) ([]uint, error) {
 
 func (r *followRepository) ListFollowing(userID uint) ([]*model.Follow, error) {
 	var out []*model.Follow
+
 	err := r.db.Preload("Followee").Where("follower_id = ?", userID).
 		Order("id DESC").Find(&out).Error
 
@@ -69,6 +73,7 @@ func (r *followRepository) ListFollowing(userID uint) ([]*model.Follow, error) {
 
 func (r *followRepository) ListFollowers(userID uint) ([]*model.Follow, error) {
 	var out []*model.Follow
+
 	err := r.db.Preload("Follower").Where("followee_id = ?", userID).
 		Order("id DESC").Find(&out).Error
 
@@ -77,6 +82,7 @@ func (r *followRepository) ListFollowers(userID uint) ([]*model.Follow, error) {
 
 func (r *followRepository) CountFollowing(userID uint) (int64, error) {
 	var n int64
+
 	err := r.db.Model(&model.Follow{}).Where("follower_id = ?", userID).Count(&n).Error
 
 	return n, err
@@ -84,6 +90,7 @@ func (r *followRepository) CountFollowing(userID uint) (int64, error) {
 
 func (r *followRepository) CountFollowers(userID uint) (int64, error) {
 	var n int64
+
 	err := r.db.Model(&model.Follow{}).Where("followee_id = ?", userID).Count(&n).Error
 
 	return n, err
