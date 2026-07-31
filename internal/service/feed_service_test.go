@@ -164,3 +164,69 @@ func TestFeedService_DiscoverTimeline_RanksAndPaginates(t *testing.T) {
 	require.Len(t, page2.Posts, 1)
 	assert.Equal(t, uint(9), page2.Posts[0].ID)
 }
+
+func TestFeedService_CreatePost_BroadcastsNewPostToFollowersNotAuthor(t *testing.T) {
+	created := &model.FeedPost{ID: 8, AuthorID: 5}
+	posts := &testutil.MockFeedPostRepository{
+		CreateFn:      func(p *model.FeedPost) error { p.ID = 8; return nil },
+		AttachFilesFn: func(postID uint, ids []uint) error { return nil },
+		GetByIDFn:     func(id uint) (*model.FeedPost, error) { return created, nil },
+	}
+	likes := &testutil.MockFeedPostLikeRepository{
+		CountByPostIDsFn: func(ids []uint) (map[uint]int64, error) { return map[uint]int64{}, nil },
+		LikedPostIDsFn:   func(uid uint, ids []uint) (map[uint]bool, error) { return map[uint]bool{}, nil },
+	}
+	comments := &testutil.MockFeedCommentRepository{
+		CountByPostIDsFn: func(ids []uint) (map[uint]int64, error) { return map[uint]int64{}, nil },
+	}
+	follow := &testutil.MockFollowRepository{
+		FollowerIDsFn: func(followeeID uint) ([]uint, error) { return []uint{2, 3}, nil },
+	}
+	ws := &testutil.MockWebSocketManager{}
+	svc := service.NewFeedService(follow, posts, likes, comments, nil)
+	svc.SetWebSocketManager(ws)
+
+	_, err := svc.CreatePost(5, "hi", nil)
+	require.NoError(t, err)
+	// followers 2 and 3 receive feed_new_post; author 5 does NOT
+	got := map[uint]bool{}
+
+	for _, b := range ws.UserBroadcasts {
+		if b.MsgType == "feed_new_post" {
+			got[b.ID] = true
+		}
+	}
+
+	assert.True(t, got[2] && got[3])
+	assert.False(t, got[5], "author must not receive feed_new_post")
+}
+
+func TestFeedService_LikePost_BroadcastsLikeCount(t *testing.T) {
+	posts := &testutil.MockFeedPostRepository{
+		GetByIDFn: func(id uint) (*model.FeedPost, error) { return &model.FeedPost{ID: 7, AuthorID: 5}, nil },
+	}
+	likes := &testutil.MockFeedPostLikeRepository{
+		CreateFn:        func(l *model.FeedPostLike) error { return nil },
+		CountByPostIDFn: func(id uint) (int64, error) { return 3, nil },
+	}
+	follow := &testutil.MockFollowRepository{
+		FollowerIDsFn: func(followeeID uint) ([]uint, error) { return []uint{2}, nil },
+	}
+	ws := &testutil.MockWebSocketManager{}
+	svc := service.NewFeedService(follow, posts, likes, nil, nil)
+	svc.SetWebSocketManager(ws)
+
+	n, err := svc.LikePost(7, 9)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), n)
+	// follower 2 AND author 5 receive feed_post_like
+	recipients := map[uint]bool{}
+
+	for _, b := range ws.UserBroadcasts {
+		if b.MsgType == "feed_post_like" {
+			recipients[b.ID] = true
+		}
+	}
+
+	assert.True(t, recipients[2] && recipients[5])
+}

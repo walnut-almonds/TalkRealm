@@ -53,6 +53,7 @@ type FeedService interface {
 	LikeComment(commentID, userID uint) (int64, error)
 	UnlikeComment(commentID, userID uint) (int64, error)
 	SetCommentLikeRepo(r repository.FeedCommentLikeRepository)
+	SetWebSocketManager(m WebSocketManager)
 	ListComments(postID, viewerID, before uint, limit int) (*CommentListResponse, error)
 	AddComment(postID, authorID uint, content string) (*model.FeedComment, error)
 	UpdateComment(commentID, userID uint, content string) (*model.FeedComment, error)
@@ -66,11 +67,41 @@ type feedService struct {
 	commentRepo     repository.FeedCommentRepository
 	friendRepo      repository.FriendshipRepository
 	commentLikeRepo repository.FeedCommentLikeRepository
+	wsManager       WebSocketManager
 }
 
 // SetCommentLikeRepo 注入留言按讚 repository（避免更動 5 參數的 NewFeedService 簽名）。
 func (s *feedService) SetCommentLikeRepo(r repository.FeedCommentLikeRepository) {
 	s.commentLikeRepo = r
+}
+
+func (s *feedService) SetWebSocketManager(m WebSocketManager) { s.wsManager = m }
+
+// broadcastToFollowers pushes an event to every follower of authorID (and to the
+// author too when includeAuthor). Fan-out of a signal only — not materialization.
+// ponytail: synchronous fan-out; move to a goroutine/queue only if follower counts get large.
+func (s *feedService) broadcastToFollowers(
+	authorID uint,
+	includeAuthor bool,
+	event string,
+	data any,
+) {
+	if s.wsManager == nil {
+		return
+	}
+
+	ids, err := s.followRepo.FollowerIDs(authorID)
+	if err != nil {
+		return
+	}
+
+	for _, uid := range ids {
+		s.wsManager.BroadcastToUser(uid, event, data)
+	}
+
+	if includeAuthor {
+		s.wsManager.BroadcastToUser(authorID, event, data)
+	}
 }
 
 // NewFeedService 建立 feed 服務。參數順序固定，後續 task 依賴此 5 參數順序。
@@ -200,7 +231,11 @@ func (s *feedService) CreatePost(
 		return nil, err
 	}
 
-	return s.enrich([]*model.FeedPost{full}, authorID)[0], nil
+	resp := s.enrich([]*model.FeedPost{full}, authorID)[0]
+
+	s.broadcastToFollowers(authorID, false, "feed_new_post", map[string]any{"author_id": authorID})
+
+	return resp, nil
 }
 
 func (s *feedService) Timeline(userID, before uint, limit int) (*TimelineResponse, error) {
@@ -415,7 +450,8 @@ func (s *feedService) DeletePost(postID, userID uint) error {
 }
 
 func (s *feedService) LikePost(postID, userID uint) (int64, error) {
-	if _, err := s.postRepo.GetByID(postID); err != nil {
+	post, err := s.postRepo.GetByID(postID)
+	if err != nil {
 		return 0, ErrFeedPostNotFound
 	}
 
@@ -423,15 +459,43 @@ func (s *feedService) LikePost(postID, userID uint) (int64, error) {
 		return 0, err
 	}
 
-	return s.likeRepo.CountByPostID(postID)
+	n, err := s.likeRepo.CountByPostID(postID)
+	if err != nil {
+		return 0, err
+	}
+
+	s.broadcastToFollowers(
+		post.AuthorID,
+		true,
+		"feed_post_like",
+		map[string]any{"post_id": postID, "like_count": n},
+	)
+
+	return n, nil
 }
 
 func (s *feedService) UnlikePost(postID, userID uint) (int64, error) {
+	post, postErr := s.postRepo.GetByID(postID)
+
 	if err := s.likeRepo.Delete(postID, userID); err != nil {
 		return 0, err
 	}
 
-	return s.likeRepo.CountByPostID(postID)
+	n, err := s.likeRepo.CountByPostID(postID)
+	if err != nil {
+		return 0, err
+	}
+
+	if postErr == nil {
+		s.broadcastToFollowers(
+			post.AuthorID,
+			true,
+			"feed_post_like",
+			map[string]any{"post_id": postID, "like_count": n},
+		)
+	}
+
+	return n, nil
 }
 
 func (s *feedService) ListComments(
@@ -518,7 +582,8 @@ func (s *feedService) AddComment(
 		return nil, errors.New("empty comment")
 	}
 
-	if _, err := s.postRepo.GetByID(postID); err != nil {
+	post, err := s.postRepo.GetByID(postID)
+	if err != nil {
 		return nil, ErrFeedPostNotFound
 	}
 
@@ -527,7 +592,24 @@ func (s *feedService) AddComment(
 		return nil, err
 	}
 
-	return s.commentRepo.GetByID(c.ID)
+	full, err := s.commentRepo.GetByID(c.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	cnt := int64(0)
+	if counts, cerr := s.commentRepo.CountByPostIDs([]uint{postID}); cerr == nil {
+		cnt = counts[postID]
+	}
+
+	s.broadcastToFollowers(
+		post.AuthorID,
+		true,
+		"feed_comment_count",
+		map[string]any{"post_id": postID, "comment_count": cnt},
+	)
+
+	return full, nil
 }
 
 func (s *feedService) UpdateComment(
