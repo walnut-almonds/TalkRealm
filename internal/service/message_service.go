@@ -66,7 +66,7 @@ type MessageService interface {
 	LikePost(messageID, userID uint) (int64, error)
 	UnlikePost(messageID, userID uint) (int64, error)
 	ListPosts(channelID, userID uint, limit int, before uint) (*PostListResponse, error)
-	ListComments(postID, userID uint, limit int, before uint) (*MessageListResponse, error)
+	ListComments(postID, userID uint, limit int, before uint) (*WallCommentListResponse, error)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
 	CreateMessageWS(
 		userID, channelID uint,
@@ -240,6 +240,21 @@ type PostListResponse struct {
 	HasMore bool            `json:"has_more"`
 }
 
+// WallCommentResponse 動態牆留言（含讚數、我是否讚過）
+// ponytail: Wall 前綴避開與 feed_service.go 同名 DTO 衝突（同 package）
+type WallCommentResponse struct {
+	*model.Message
+
+	LikeCount int64 `json:"like_count"`
+	LikedByMe bool  `json:"liked_by_me"`
+}
+
+// WallCommentListResponse 動態牆留言列表回應
+type WallCommentListResponse struct {
+	Comments []*WallCommentResponse `json:"comments"`
+	HasMore  bool                   `json:"has_more"`
+}
+
 // ListPosts 回傳 feed 頻道貼文（新到舊），每筆帶讚數/留言數/我是否讚過
 func (s *messageService) ListPosts(
 	channelID, userID uint,
@@ -304,7 +319,7 @@ func (s *messageService) ListComments(
 	postID, userID uint,
 	limit int,
 	before uint,
-) (*MessageListResponse, error) {
+) (*WallCommentListResponse, error) {
 	post, err := s.messageRepo.GetByID(postID)
 	if err != nil {
 		return nil, ErrMessageNotFound
@@ -334,7 +349,30 @@ func (s *messageService) ListComments(
 		comments = comments[len(comments)-limit:]
 	}
 
-	return &MessageListResponse{Messages: comments, HasMore: hasMore}, nil
+	ids := make([]uint, len(comments))
+	for i, c := range comments {
+		ids[i] = c.ID
+	}
+
+	var likeCounts map[uint]int64
+
+	var liked map[uint]bool
+
+	if s.likeRepo != nil {
+		likeCounts, _ = s.likeRepo.CountByMessageIDs(ids)
+		liked, _ = s.likeRepo.LikedMessageIDs(userID, ids)
+	}
+
+	out := make([]*WallCommentResponse, len(comments))
+	for i, c := range comments {
+		out[i] = &WallCommentResponse{
+			Message:   c,
+			LikeCount: likeCounts[c.ID],
+			LikedByMe: liked[c.ID],
+		}
+	}
+
+	return &WallCommentListResponse{Comments: out, HasMore: hasMore}, nil
 }
 
 // CreateMessage 建立訊息

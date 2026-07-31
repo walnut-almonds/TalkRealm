@@ -269,7 +269,7 @@ func (h *MessageHandler) ListPosts(c *gin.Context) {
 //	@Param			id		path		int	true	"貼文 ID"
 //	@Param			before	query		int	false	"留言 ID，取得此 ID 之前的留言"
 //	@Param			limit	query		int	false	"每次取得數量 (1-100)"	default(50)
-//	@Success		200		{object}	service.MessageListResponse
+//	@Success		200		{object}	service.WallCommentListResponse
 //	@Failure		400		{object}	map[string]string
 //	@Failure		403		{object}	map[string]string
 //	@Failure		404		{object}	map[string]string

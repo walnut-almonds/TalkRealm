@@ -1426,7 +1426,7 @@ type MockMessageService struct {
 	LikePostFn            func(messageID, userID uint) (int64, error)
 	UnlikePostFn          func(messageID, userID uint) (int64, error)
 	ListPostsFn           func(channelID, userID uint, limit int, before uint) (*service.PostListResponse, error)
-	ListCommentsFn        func(postID, userID uint, limit int, before uint) (*service.MessageListResponse, error)
+	ListCommentsFn        func(postID, userID uint, limit int, before uint) (*service.WallCommentListResponse, error)
 }
 
 var _ service.MessageService = (*MockMessageService)(nil)
@@ -1525,7 +1525,7 @@ func (m *MockMessageService) ListComments(
 	postID, userID uint,
 	limit int,
 	before uint,
-) (*service.MessageListResponse, error) {
+) (*service.WallCommentListResponse, error) {
 	if m.ListCommentsFn != nil {
 		return m.ListCommentsFn(postID, userID, limit, before)
 	}

@@ -3317,7 +3317,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/service.MessageListResponse"
+                            "$ref": "#/definitions/service.WallCommentListResponse"
                         }
                     },
                     "400": {
@@ -5302,6 +5302,75 @@
                         "ja",
                         "en"
                     ]
+                }
+            }
+        },
+        "service.WallCommentListResponse": {
+            "type": "object",
+            "properties": {
+                "comments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.WallCommentResponse"
+                    }
+                },
+                "has_more": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "service.WallCommentResponse": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "description": "附件",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MessageAttachment"
+                    }
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_edited": {
+                    "description": "是否被編輯過",
+                    "type": "boolean"
+                },
+                "like_count": {
+                    "type": "integer"
+                },
+                "liked_by_me": {
+                    "type": "boolean"
+                },
+                "nonce": {
+                    "description": "client 產生的冪等 key（可選）",
+                    "type": "string"
+                },
+                "parent_id": {
+                    "description": "nil = 貼文/一般訊息；有值 = 留言，指向貼文",
+                    "type": "integer"
+                },
+                "type": {
+                    "description": "text, image, file",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/model.User"
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         },

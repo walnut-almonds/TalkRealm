@@ -131,7 +131,7 @@ async function toggleComments(post) {
     post._commentsLoading = true
     try {
       const res = await api.getComments(post.id)
-      post._comments = res.messages || []
+      post._comments = res.comments || []
     } catch (e) {
       post._comments = []
       store.showNotification(e.message || 'Failed to load comments', 'error')
@@ -315,11 +315,17 @@ watch(() => store.currentChannel?.id, () => {
           <div v-if="post._commentsLoading" class="feed-comments-loading">
             {{ t('wall.loadingComments') }}
           </div>
-          <MessageItem
-            v-for="c in (post._comments || [])"
-            :key="c.id"
-            :message="c"
-          />
+          <div v-for="c in (post._comments || [])" :key="c.id" class="feed-comment-row">
+            <MessageItem :message="c" />
+            <button
+              class="feed-action feed-comment-like"
+              :class="{ liked: c.liked_by_me }"
+              @click="toggleLike(c)"
+            >
+              <i class="fas fa-heart"></i>
+              <span v-if="c.like_count" class="feed-count">{{ c.like_count }}</span>
+            </button>
+          </div>
           <div class="feed-comment-box">
             <textarea
               v-model="post._commentDraft"
@@ -526,6 +532,20 @@ watch(() => store.currentChannel?.id, () => {
   color: var(--text-muted, #8e9297);
   font-size: 12px;
   padding: 6px 0;
+}
+
+.feed-comment-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.feed-comment-row > :first-child { flex: 1; min-width: 0; }
+
+.feed-comment-like {
+  padding: 4px 6px;
+  font-size: 11px;
+  align-self: center;
 }
 
 .feed-comment-box {
