@@ -460,6 +460,8 @@ func (s *Server) setupRoutes() {
 				feed.POST("/posts/:id/comments", s.feedHandler.AddComment)
 				feed.PUT("/comments/:id", s.feedHandler.UpdateComment)
 				feed.DELETE("/comments/:id", s.feedHandler.DeleteComment)
+				feed.PUT("/comments/:id/like", s.feedHandler.LikeComment)
+				feed.DELETE("/comments/:id/like", s.feedHandler.UnlikeComment)
 			}
 		}
 
