@@ -12,6 +12,7 @@ type FollowRepository interface {
 	Unfollow(followerID, followeeID uint) error
 	IsFollowing(followerID, followeeID uint) (bool, error)
 	FolloweeIDs(followerID uint) ([]uint, error)
+	FollowerIDs(followeeID uint) ([]uint, error)
 	ListFollowing(userID uint) ([]*model.Follow, error)
 	ListFollowers(userID uint) ([]*model.Follow, error)
 	CountFollowing(userID uint) (int64, error)
@@ -46,6 +47,14 @@ func (r *followRepository) FolloweeIDs(followerID uint) ([]uint, error) {
 	var ids []uint
 	err := r.db.Model(&model.Follow{}).
 		Where("follower_id = ?", followerID).Pluck("followee_id", &ids).Error
+
+	return ids, err
+}
+
+func (r *followRepository) FollowerIDs(followeeID uint) ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&model.Follow{}).
+		Where("followee_id = ?", followeeID).Pluck("follower_id", &ids).Error
 
 	return ids, err
 }

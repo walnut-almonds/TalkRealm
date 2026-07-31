@@ -752,6 +752,7 @@ type MockFollowRepository struct {
 	UnfollowFn       func(followerID, followeeID uint) error
 	IsFollowingFn    func(followerID, followeeID uint) (bool, error)
 	FolloweeIDsFn    func(followerID uint) ([]uint, error)
+	FollowerIDsFn    func(followeeID uint) ([]uint, error)
 	ListFollowingFn  func(userID uint) ([]*model.Follow, error)
 	ListFollowersFn  func(userID uint) ([]*model.Follow, error)
 	CountFollowingFn func(userID uint) (int64, error)
@@ -787,6 +788,14 @@ func (m *MockFollowRepository) IsFollowing(followerID, followeeID uint) (bool, e
 func (m *MockFollowRepository) FolloweeIDs(followerID uint) ([]uint, error) {
 	if m.FolloweeIDsFn != nil {
 		return m.FolloweeIDsFn(followerID)
+	}
+
+	return nil, nil
+}
+
+func (m *MockFollowRepository) FollowerIDs(followeeID uint) ([]uint, error) {
+	if m.FollowerIDsFn != nil {
+		return m.FollowerIDsFn(followeeID)
 	}
 
 	return nil, nil
