@@ -748,15 +748,16 @@ func (m *MockGuildInviteRepository) Delete(id uint) error {
 
 // MockFollowRepository is a test double for repository.FollowRepository.
 type MockFollowRepository struct {
-	FollowFn         func(followerID, followeeID uint) error
-	UnfollowFn       func(followerID, followeeID uint) error
-	IsFollowingFn    func(followerID, followeeID uint) (bool, error)
-	FolloweeIDsFn    func(followerID uint) ([]uint, error)
-	FollowerIDsFn    func(followeeID uint) ([]uint, error)
-	ListFollowingFn  func(userID uint) ([]*model.Follow, error)
-	ListFollowersFn  func(userID uint) ([]*model.Follow, error)
-	CountFollowingFn func(userID uint) (int64, error)
-	CountFollowersFn func(userID uint) (int64, error)
+	FollowFn                func(followerID, followeeID uint) error
+	UnfollowFn              func(followerID, followeeID uint) error
+	IsFollowingFn           func(followerID, followeeID uint) (bool, error)
+	FolloweeIDsFn           func(followerID uint) ([]uint, error)
+	FollowerIDsFn           func(followeeID uint) ([]uint, error)
+	SecondDegreeAuthorIDsFn func(viewerID uint) (map[uint]bool, error)
+	ListFollowingFn         func(userID uint) ([]*model.Follow, error)
+	ListFollowersFn         func(userID uint) ([]*model.Follow, error)
+	CountFollowingFn        func(userID uint) (int64, error)
+	CountFollowersFn        func(userID uint) (int64, error)
 }
 
 var _ repository.FollowRepository = (*MockFollowRepository)(nil)
@@ -799,6 +800,14 @@ func (m *MockFollowRepository) FollowerIDs(followeeID uint) ([]uint, error) {
 	}
 
 	return nil, nil
+}
+
+func (m *MockFollowRepository) SecondDegreeAuthorIDs(viewerID uint) (map[uint]bool, error) {
+	if m.SecondDegreeAuthorIDsFn != nil {
+		return m.SecondDegreeAuthorIDsFn(viewerID)
+	}
+
+	return map[uint]bool{}, nil
 }
 
 func (m *MockFollowRepository) ListFollowing(userID uint) ([]*model.Follow, error) {

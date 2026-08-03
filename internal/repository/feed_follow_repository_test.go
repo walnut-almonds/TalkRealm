@@ -53,3 +53,18 @@ func TestFollowRepository_FollowerIDs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []uint{1, 3}, ids)
 }
+
+func TestFollowRepository_SecondDegreeAuthorIDs(t *testing.T) {
+	db, mock, sqlDB := newTestDB(t)
+	defer func() { _ = sqlDB.Close() }()
+
+	mock.ExpectQuery(`SELECT DISTINCT f2\.followee_id`).
+		WithArgs(1, 1, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"followee_id"}).AddRow(7).AddRow(9))
+
+	repo := repository.NewFollowRepository(db)
+	set, err := repo.SecondDegreeAuthorIDs(1)
+	require.NoError(t, err)
+	assert.True(t, set[7] && set[9])
+	assert.False(t, set[1])
+}
