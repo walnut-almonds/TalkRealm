@@ -296,6 +296,9 @@ func (s *feedService) DiscoverTimeline(
 
 	commentCounts, _ := s.commentRepo.CountByPostIDs(ids)
 
+	likedSet, _ := s.likeRepo.LikedPostIDs(viewerID, ids)
+	secondSet, _ := s.followRepo.SecondDegreeAuthorIDs(viewerID)
+
 	now := time.Now()
 
 	type scored struct {
@@ -312,6 +315,8 @@ func (s *feedService) DiscoverTimeline(
 				likeCounts[p.ID],
 				commentCounts[p.ID],
 				affinity[p.AuthorID],
+				likedSet[p.ID],
+				secondSet[p.AuthorID],
 				p.CreatedAt,
 				now,
 			),

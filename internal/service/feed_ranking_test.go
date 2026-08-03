@@ -22,22 +22,41 @@ func TestScorePost_CommentWeightAndAffinityAndDecay(t *testing.T) {
 	created := now.Add(-2 * time.Hour)
 
 	// comments weigh more than likes (same post id → same jitter)
-	moreLikes := scorePost(1, 4, 0, 0, created, now)
-	moreComments := scorePost(1, 0, 4, 0, created, now)
+	moreLikes := scorePost(1, 4, 0, 0, false, false, created, now)
+	moreComments := scorePost(1, 0, 4, 0, false, false, created, now)
 	assert.Greater(t, moreComments, moreLikes)
 
 	// affinity boosts score (same post id, same time → same jitter)
-	noAff := scorePost(1, 1, 0, 0, created, now)
-	withAff := scorePost(1, 1, 0, 5, created, now)
+	noAff := scorePost(1, 1, 0, 0, false, false, created, now)
+	withAff := scorePost(1, 1, 0, 5, false, false, created, now)
 	assert.Greater(t, withAff, noAff)
 
 	// affinity is capped
-	capped := scorePost(1, 1, 0, rankAffinityCap, created, now)
-	over := scorePost(1, 1, 0, rankAffinityCap+50, created, now)
+	capped := scorePost(1, 1, 0, rankAffinityCap, false, false, created, now)
+	over := scorePost(1, 1, 0, rankAffinityCap+50, false, false, created, now)
 	assert.Equal(t, capped, over)
 
 	// older post (same id, same engagement) scores lower — decay
-	old := scorePost(1, 5, 0, 0, now.Add(-48*time.Hour), now)
-	fresh := scorePost(1, 5, 0, 0, now.Add(-1*time.Hour), now)
+	old := scorePost(1, 5, 0, 0, false, false, now.Add(-48*time.Hour), now)
+	fresh := scorePost(1, 5, 0, 0, false, false, now.Add(-1*time.Hour), now)
 	assert.Greater(t, fresh, old)
+}
+
+func TestScorePost_LikedPenaltyAndSecondDegree(t *testing.T) {
+	now := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
+	created := now.Add(-2 * time.Hour)
+
+	base := scorePost(1, 4, 0, 0, false, false, created, now)
+
+	// liked-by-me multiplies the score by rankLikedPenalty (same post/time → same jitter)
+	liked := scorePost(1, 4, 0, 0, true, false, created, now)
+	assert.InDelta(t, base*rankLikedPenalty, liked, 1e-9)
+
+	// second-degree adds a boost → strictly higher than base
+	second := scorePost(1, 4, 0, 0, false, true, created, now)
+	assert.Greater(t, second, base)
+
+	// both: boost applied then penalty
+	both := scorePost(1, 4, 0, 0, true, true, created, now)
+	assert.InDelta(t, second*rankLikedPenalty, both, 1e-9)
 }

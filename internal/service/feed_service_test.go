@@ -149,7 +149,10 @@ func TestFeedService_DiscoverTimeline_RanksAndPaginates(t *testing.T) {
 	comments := &testutil.MockFeedCommentRepository{
 		CountByPostIDsFn: func(ids []uint) (map[uint]int64, error) { return map[uint]int64{}, nil },
 	}
-	svc := service.NewFeedService(nil, posts, likes, comments, nil)
+	follow := &testutil.MockFollowRepository{
+		SecondDegreeAuthorIDsFn: func(viewerID uint) (map[uint]bool, error) { return map[uint]bool{}, nil },
+	}
+	svc := service.NewFeedService(follow, posts, likes, comments, nil)
 
 	resp, err := svc.DiscoverTimeline(5, 0, 20)
 	require.NoError(t, err)
