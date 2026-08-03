@@ -2,12 +2,14 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
+import { useSpeak } from '@/composables/useSpeak.js'
 import { maskSegments } from './mask.js'
 import SpeakButton from './SpeakButton.vue'
 
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
 const { t } = useI18n()
+const { speak } = useSpeak()
 
 const activeSlot = ref(0)
 const input = ref('')
@@ -32,6 +34,8 @@ async function submit() {
 
     feedback.value = out.correct ? 'correct' : 'wrong'
     input.value = ''
+
+    if (out.correct) speak(word)
 
     if (out.correct && !out.completed) {
         // 跳到下一個未解格

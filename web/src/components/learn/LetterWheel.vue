@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLearnStore } from '@/stores/useLearnStore.js'
+import { useSpeak } from '@/composables/useSpeak.js'
 import LetterTray from './LetterTray.vue'
 import HintList from './HintList.vue'
 import SpeakButton from './SpeakButton.vue'
@@ -9,6 +10,7 @@ import SpeakButton from './SpeakButton.vue'
 const emit = defineEmits(['exit'])
 const learn = useLearnStore()
 const { t } = useI18n()
+const { speak } = useSpeak()
 const tray = ref(null)
 
 const done = computed(() => learn.level?.slots.every(s => s.solved))
@@ -25,6 +27,7 @@ async function onSubmit(word) {
     if (!out) return
 
     tray.value.setFeedback(out.correct)
+    if (out.correct) speak(word)
 }
 
 async function onHint(index) {
