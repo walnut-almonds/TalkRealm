@@ -395,6 +395,8 @@ type MockMessageRepository struct {
 	DeleteFn                   func(id uint) error
 	GetByChannelIDFn           func(channelID uint, offset, limit int) ([]*model.Message, error)
 	GetByChannelIDCursorFn     func(channelID, before uint, limit int) ([]*model.Message, error)
+	GetMessagesAroundFn        func(channelID, aroundID uint, limit int) ([]*model.Message, error)
+	GetPostsAroundFn           func(channelID, aroundID uint, limit int) ([]*model.Message, error)
 	GetByUserIDFn              func(userID uint, offset, limit int) ([]*model.Message, error)
 	CountByUserInGuildsSinceFn func(userID uint, guildIDs []uint, since time.Time) (map[uint]int64, error)
 	GetPostsByChannelCursorFn  func(channelID, before uint, limit int) ([]*model.Message, error)
@@ -462,6 +464,28 @@ func (m *MockMessageRepository) GetByChannelIDCursor(
 ) ([]*model.Message, error) {
 	if m.GetByChannelIDCursorFn != nil {
 		return m.GetByChannelIDCursorFn(channelID, before, limit)
+	}
+
+	return nil, nil
+}
+
+func (m *MockMessageRepository) GetMessagesAround(
+	channelID, aroundID uint,
+	limit int,
+) ([]*model.Message, error) {
+	if m.GetMessagesAroundFn != nil {
+		return m.GetMessagesAroundFn(channelID, aroundID, limit)
+	}
+
+	return nil, nil
+}
+
+func (m *MockMessageRepository) GetPostsAround(
+	channelID, aroundID uint,
+	limit int,
+) ([]*model.Message, error) {
+	if m.GetPostsAroundFn != nil {
+		return m.GetPostsAroundFn(channelID, aroundID, limit)
 	}
 
 	return nil, nil

@@ -20,6 +20,8 @@ type MessageRepository interface {
 	GetByUserID(userID uint, offset, limit int) ([]*model.Message, error)
 	// CountByUserInGuildsSince 回傳 userID 在指定 guildIDs 內各 guild 的訊息數量（since 之後）
 	CountByUserInGuildsSince(userID uint, guildIDs []uint, since time.Time) (map[uint]int64, error)
+	GetMessagesAround(channelID, aroundID uint, limit int) ([]*model.Message, error)
+	GetPostsAround(channelID, aroundID uint, limit int) ([]*model.Message, error)
 	GetPostsByChannelCursor(channelID, before uint, limit int) ([]*model.Message, error)
 	GetCommentsByPostCursor(postID, before uint, limit int) ([]*model.Message, error)
 	CountCommentsByPostIDs(ids []uint) (map[uint]int64, error)
@@ -130,6 +132,62 @@ func (r *messageRepository) GetByChannelIDCursor(
 	}
 
 	return messages, nil
+}
+
+// aroundWindow fetches a page centered on aroundID: ceil(limit/2) messages with
+// id <= aroundID (older side) + floor(limit/2) with id > aroundID (newer side),
+// merged into ascending chronological order. postsOnly adds "parent_id IS NULL" for wall posts.
+func (r *messageRepository) aroundWindow(
+	channelID, aroundID uint,
+	limit int,
+	postsOnly bool,
+) ([]*model.Message, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	older := (limit + 1) / 2
+	newer := limit - older
+
+	base := r.db.Preload("User").Preload("Attachments.File").Where("channel_id = ?", channelID)
+	if postsOnly {
+		base = base.Where("parent_id IS NULL")
+	}
+
+	var olderMsgs []*model.Message
+	if err := base.Session(&gorm.Session{}).
+		Where("id <= ?", aroundID).Order("id DESC").Limit(older).Find(&olderMsgs).Error; err != nil {
+		return nil, err
+	}
+
+	var newerMsgs []*model.Message
+	if err := base.Session(&gorm.Session{}).
+		Where("id > ?", aroundID).Order("id ASC").Limit(newer).Find(&newerMsgs).Error; err != nil {
+		return nil, err
+	}
+
+	// olderMsgs is DESC; reverse to ASC, then append newer (already ASC)
+	for i, j := 0, len(olderMsgs)-1; i < j; i, j = i+1, j-1 {
+		olderMsgs[i], olderMsgs[j] = olderMsgs[j], olderMsgs[i]
+	}
+
+	return append(olderMsgs, newerMsgs...), nil
+}
+
+// GetMessagesAround 取得以 aroundID 為中心的訊息視窗（時間順序），用於 permalink 精準跳轉
+func (r *messageRepository) GetMessagesAround(
+	channelID, aroundID uint,
+	limit int,
+) ([]*model.Message, error) {
+	return r.aroundWindow(channelID, aroundID, limit, false)
+}
+
+// GetPostsAround 取得以 aroundID 為中心的貼文視窗（parent_id IS NULL，時間順序）
+func (r *messageRepository) GetPostsAround(
+	channelID, aroundID uint,
+	limit int,
+) ([]*model.Message, error) {
+	return r.aroundWindow(channelID, aroundID, limit, true)
 }
 
 // GetByUserID 取得使用者的訊息（分頁）
