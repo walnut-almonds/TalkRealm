@@ -8,6 +8,7 @@ import { renderMarkdown, setMentionResolver } from '@/utils/markdown.js'
 import { formatTimestamp, formatFullTimestamp, formatFileSize, IMAGE_TYPES } from '@/utils/format.js'
 import { api } from '@/api/index.js'
 import LinkPreview from '@/components/LinkPreview.vue'
+import MessagePermalinkCard from '@/components/MessagePermalinkCard.vue'
 
 const props = defineProps({
   message: Object,
@@ -29,8 +30,19 @@ const nickname = computed(() => user.value?.nickname || user.value?.username || 
 const avatar = computed(() => user.value?.avatar || null)
 const timestamp = computed(() => formatTimestamp(props.message.created_at))
 const fullTimestamp = computed(() => formatFullTimestamp(props.message.created_at))
-const _rendered = computed(() => renderMarkdown(props.message.content))
+const _rendered = computed(() => renderMarkdown((props.message.content || '').replace(/\S*#\/m\/\d+/g, '').trim()))
 const bodyHtml = computed(() => _rendered.value.html)
+
+// Permalink chips: extract all #/m/<id> refs from the message content (dedup)
+const PERMALINK_RE = /#\/m\/(\d+)/g
+const permalinkIds = computed(() => {
+  const ids = []
+  const s = props.message.content || ''
+  const re = new RegExp(PERMALINK_RE)
+  let m
+  while ((m = re.exec(s)) !== null) ids.push(Number(m[1]))
+  return [...new Set(ids)]
+})
 const bodyUrls = computed(() => _rendered.value.urls)
 const isCurrentUser = computed(() => store.user?.id === props.message.user_id)
 
@@ -240,6 +252,7 @@ async function submitGuess() {
       <!-- Normal / Edit mode -->
       <template v-if="!isEditing">
         <div class="message-text" v-html="bodyHtml"></div>
+        <MessagePermalinkCard v-for="pid in permalinkIds" :key="pid" :messageId="pid" />
         <LinkPreview v-if="bodyUrls.length" :urls="bodyUrls" />
       </template>
       <div v-else class="message-edit-box">
