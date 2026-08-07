@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/useAppStore.js'
 import { useWebSocket } from '@/composables/useWebSocket.js'
 import { useVoice } from '@/composables/useVoice.js'
@@ -11,7 +12,18 @@ import LoadingSpinner from './components/LoadingSpinner.vue'
 import Lightbox from './components/Lightbox.vue'
 
 const store = useAppStore()
+const route = useRoute()
+const router = useRouter()
 const ws = useWebSocket()
+
+// Deep-link: opening /#/m/<id> resolves the permalink then jumps. Needs auth first;
+// the route is replaced with '/' since jumpToPermalink navigates guild/channel itself.
+watch(() => [route.name, store.isAuthenticated], () => {
+  if (route.name !== 'permalink' || !store.isAuthenticated) return
+  const id = Number(route.params.id)
+  router.replace('/')
+  if (id) store.jumpToPermalink(id)
+}, { immediate: true })
 const voice = useVoice(store)
 const friendStore = useFriendStore()
 

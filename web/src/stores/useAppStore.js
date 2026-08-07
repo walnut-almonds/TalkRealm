@@ -25,6 +25,10 @@ export const useAppStore = defineStore('app', () => {
     const pendingFileIds = ref([])
     const lightboxUrl = ref(null)
 
+    // Permalink jump: id currently flashing, and a hand-off target for FeedArea (feed channels)
+    const highlightMessageId = ref(null)
+    const jumpTarget = ref(null)
+
     // Online user IDs (global, populated by presence_update WS events)
     const onlineUserIds = reactive(new Set())
 
@@ -375,6 +379,44 @@ export const useAppStore = defineStore('app', () => {
         }
     }
 
+    // ── Permalink jump ───────────────────────────────────────────
+    function scrollToMessage(id) {
+        requestAnimationFrame(() => {
+            const el = document.getElementById('msg-' + id)
+            if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        })
+    }
+
+    async function loadMessagesAround(channelId, aroundId) {
+        const res = await api.getChannelMessages(channelId, 50, null, aroundId)
+        messages.value = res.messages || []
+    }
+
+    async function jumpToPermalink(messageId) {
+        let info
+        try {
+            info = await api.resolvePermalink(messageId)
+        } catch {
+            showNotification(translate('chat.jumpFailed'), 'error')
+            return
+        }
+        const ch = info.channel
+        if (currentGuild.value?.id !== ch.guild_id) await selectGuild(ch.guild_id)
+        highlightMessageId.value = messageId
+        if (ch.type === 'feed') {
+            // Hand off to FeedArea: set target first, then make the feed channel current.
+            // FeedArea consumes jumpTarget once its currentChannel matches (around-load + scroll).
+            jumpTarget.value = { channelId: ch.id, messageId }
+            if (currentChannel.value?.id !== ch.id) await selectChannel(ch.id)
+        } else {
+            // Text channel: load a window around the target instead of the latest page.
+            if (currentChannel.value?.id !== ch.id) currentChannel.value = await api.getChannel(ch.id)
+            await loadMessagesAround(ch.id, messageId)
+            scrollToMessage(messageId)
+        }
+        setTimeout(() => { highlightMessageId.value = null }, 2000)
+    }
+
     function handleNewMessage(msg) {
         const channelID = toID(msg?.channel_id)
         if (!channelID) return
@@ -514,7 +556,7 @@ export const useAppStore = defineStore('app', () => {
         // state
         user, guilds, currentGuild, channels, currentChannel,
         currentChannelUnreadCount, members, messages, isLoading, notification, pendingFileIds,
-        lightboxUrl, typingUsers, typingList,
+        lightboxUrl, typingUsers, typingList, highlightMessageId, jumpTarget,
         translationCache, translationLoadingSet, onlineUserIds, unreadGuildIds, mentionGuildIds, channelUnreadMap,
         // computed
         textChannels, voiceChannels, isAuthenticated, currentUserRole,
@@ -522,6 +564,7 @@ export const useAppStore = defineStore('app', () => {
         showNotification, setLoading, cacheUser, resolveMessageUser, getImageUrl,
         checkAuth, loadUserData, handleLogout, loadGuilds, selectGuild,
         selectChannel, loadMessages,
+        scrollToMessage, loadMessagesAround, jumpToPermalink,
         handleNewMessage, handleMessageUpdate, handleMessageDelete,
         handleTyping, handleUserStatus,
         handleTranslationReady, handleMentionCreate,

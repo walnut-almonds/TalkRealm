@@ -75,12 +75,12 @@ async function submitPost() {
 }
 
 // ── Load posts ────────────────────────────────────────────────
-async function loadPosts() {
+async function loadPosts(around = null) {
   const ch = store.currentChannel
   if (!ch) return
   loading.value = true
   try {
-    const res = await api.getPosts(ch.id)
+    const res = await api.getPosts(ch.id, 20, null, around)
     posts.value = res.posts || []
     hasMore.value = !!res.has_more
   } catch (e) {
@@ -88,6 +88,17 @@ async function loadPosts() {
   } finally {
     loading.value = false
   }
+}
+
+// Permalink jump hand-off: when store.jumpTarget points at THIS channel, load the
+// window around the post and scroll to it. Cleared synchronously so the channel-change
+// and jumpTarget watchers can't both consume it (avoids a latest-load clobbering it).
+function consumeJump() {
+  const jt = store.jumpTarget
+  if (!jt || jt.channelId !== store.currentChannel?.id) return false
+  store.jumpTarget = null
+  loadPosts(jt.messageId).then(() => store.scrollToMessage(jt.messageId))
+  return true
 }
 
 async function loadOlder() {
@@ -214,7 +225,7 @@ function onWSMessage(type, data) {
 
 onMounted(() => {
   ws.onMessage(onWSMessage)
-  loadPosts()
+  if (!consumeJump()) loadPosts()
 })
 
 onUnmounted(() => {
@@ -224,8 +235,11 @@ onUnmounted(() => {
 watch(() => store.currentChannel?.id, () => {
   posts.value = []
   hasMore.value = false
-  loadPosts()
+  if (!consumeJump()) loadPosts()
 })
+
+// Same-channel jump (channel didn't change, so the watcher above won't fire).
+watch(() => store.jumpTarget, () => { consumeJump() })
 </script>
 
 <template>

@@ -233,7 +233,10 @@ async function submitGuess() {
 </script>
 
 <template>
-  <div :class="['message', { 'message--pending': message._pending, 'message-group-start': !grouped, 'message--mentioned': isMentioned }]">
+  <div
+    :id="'msg-' + message.id"
+    :class="['message', { 'message--pending': message._pending, 'message-group-start': !grouped, 'message--mentioned': isMentioned, 'msg-highlight': store.highlightMessageId === message.id }]"
+  >
     <!-- Avatar -->
     <div v-if="!grouped" class="message-avatar" :class="{ 'avatar-speaking': isSpeaking }">
       <img v-if="avatar" :src="avatar" :alt="nickname" />
@@ -401,3 +404,12 @@ async function submitGuess() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.msg-highlight { animation: msgFlash 2s ease-out; border-radius: 6px; }
+@keyframes msgFlash {
+  0% { background: var(--accent, #5865f2); }
+  30% { background: color-mix(in srgb, var(--accent, #5865f2) 25%, transparent); }
+  100% { background: transparent; }
+}
+</style>
