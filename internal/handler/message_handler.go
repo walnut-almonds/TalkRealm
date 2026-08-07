@@ -83,6 +83,40 @@ func (h *MessageHandler) CreateMessage(c *gin.Context) {
 	c.JSON(http.StatusCreated, message)
 }
 
+// ResolvePermalink 解析訊息永久連結（跨頻道引用預覽）
+//
+//	@Summary		解析訊息永久連結
+//	@Description	驗證存取權後回傳訊息+頻道摘要，供跨頻道引用預覽使用
+//	@Tags			messages
+//	@Produce		json
+//	@Param			id	path		int	true	"訊息 ID"
+//	@Success		200	{object}	service.PermalinkResponse
+//	@Failure		403	{object}	map[string]string
+//	@Router			/api/v1/messages/{id}/permalink [get]
+func (h *MessageHandler) ResolvePermalink(c *gin.Context) {
+	// 從 context 取得使用者 ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	// 取得訊息 ID
+	messageID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message id"})
+		return
+	}
+
+	resp, err := h.messageService.ResolvePermalink(uint(messageID), userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 // GetMessage 取得訊息
 //
 //	@Summary		取得訊息

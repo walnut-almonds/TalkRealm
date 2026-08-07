@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
@@ -68,6 +69,7 @@ type MessageService interface {
 	UnlikePost(messageID, userID uint) (int64, error)
 	ListPosts(channelID, userID uint, limit int, before uint) (*PostListResponse, error)
 	ListComments(postID, userID uint, limit int, before uint) (*WallCommentListResponse, error)
+	ResolvePermalink(messageID, viewerID uint) (*PermalinkResponse, error)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
 	CreateMessageWS(
 		userID, channelID uint,
@@ -223,6 +225,25 @@ type MessageListResponse struct {
 	HasMore  bool             `json:"has_more"`
 }
 
+// PermalinkResponse 跨頻道永久連結解析結果
+type PermalinkResponse struct {
+	Message PermalinkMessage `json:"message"`
+	Channel PermalinkChannel `json:"channel"`
+}
+
+type PermalinkMessage struct {
+	ID      uint       `json:"id"`
+	Content string     `json:"content"`
+	Author  model.User `json:"author"`
+}
+
+type PermalinkChannel struct {
+	ID      uint   `json:"id"`
+	Name    string `json:"name"`
+	GuildID *uint  `json:"guild_id"`
+	Type    string `json:"type"`
+}
+
 // PostResponse 貼文（含讚數、留言數、我是否讚過）
 type PostResponse struct {
 	*model.Message
@@ -371,6 +392,38 @@ func (s *messageService) ListComments(
 	}
 
 	return &WallCommentListResponse{Comments: out, HasMore: hasMore}, nil
+}
+
+// ResolvePermalink 解析訊息永久連結：驗證存取權後回傳預覽用的訊息+頻道摘要
+func (s *messageService) ResolvePermalink(messageID, viewerID uint) (*PermalinkResponse, error) {
+	msg, err := s.messageRepo.GetByID(messageID)
+	if err != nil {
+		return nil, ErrMessageNotFound
+	}
+
+	channel, err := s.channelRepo.GetByID(msg.ChannelID)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+
+	if err := s.ensureChannelAccess(channel, msg.ChannelID, viewerID); err != nil {
+		return nil, err
+	}
+
+	content := msg.Content
+	if len(content) > 100 {
+		content = strings.ToValidUTF8(content[:100], "")
+	}
+
+	return &PermalinkResponse{
+		Message: PermalinkMessage{ID: msg.ID, Content: content, Author: msg.User},
+		Channel: PermalinkChannel{
+			ID:      channel.ID,
+			Name:    channel.Name,
+			GuildID: channel.GuildID,
+			Type:    channel.Type,
+		},
+	}, nil
 }
 
 // CreateMessage 建立訊息

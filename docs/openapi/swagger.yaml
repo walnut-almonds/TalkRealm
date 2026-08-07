@@ -767,6 +767,33 @@ definitions:
           $ref: '#/definitions/model.Message'
         type: array
     type: object
+  service.PermalinkChannel:
+    properties:
+      guild_id:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  service.PermalinkMessage:
+    properties:
+      author:
+        $ref: '#/definitions/model.User'
+      content:
+        type: string
+      id:
+        type: integer
+    type: object
+  service.PermalinkResponse:
+    properties:
+      channel:
+        $ref: '#/definitions/service.PermalinkChannel'
+      message:
+        $ref: '#/definitions/service.PermalinkMessage'
+    type: object
   service.PostListResponse:
     properties:
       has_more:
@@ -3479,6 +3506,31 @@ paths:
               type: string
             type: object
       summary: 按讚
+      tags:
+      - messages
+  /api/v1/messages/{id}/permalink:
+    get:
+      description: 驗證存取權後回傳訊息+頻道摘要，供跨頻道引用預覽使用
+      parameters:
+      - description: 訊息 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.PermalinkResponse'
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 解析訊息永久連結
       tags:
       - messages
   /api/v1/messages/{id}/translation:

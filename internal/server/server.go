@@ -395,6 +395,7 @@ func (s *Server) setupRoutes() {
 			messages := protected.Group("/messages")
 			{
 				messages.GET("/:id", s.messageHandler.GetMessage)
+				messages.GET("/:id/permalink", s.messageHandler.ResolvePermalink)
 				messages.PUT("/:id", s.messageHandler.UpdateMessage)
 				messages.PATCH("/:id", s.messageHandler.UpdateMessage)
 				messages.DELETE("/:id", s.messageHandler.DeleteMessage)

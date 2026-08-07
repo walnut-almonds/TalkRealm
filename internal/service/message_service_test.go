@@ -625,3 +625,47 @@ func TestMessageService_ListPosts_EnrichesCounts(t *testing.T) {
 	assert.True(t, resp.Posts[0].LikedByMe)
 	assert.Equal(t, int64(0), resp.Posts[1].LikeCount)
 }
+
+func TestMessageService_ResolvePermalink_ChecksAccess(t *testing.T) {
+	msg := &model.Message{
+		ID:        5,
+		ChannelID: 1,
+		Content:   "hello world",
+		User:      model.User{ID: 9, Username: "bob"},
+	}
+	channel := &model.Channel{
+		ID:      1,
+		GuildID: testutil.PtrUint(10),
+		Type:    "text",
+		Name:    "general",
+	}
+	mockMsg := &testutil.MockMessageRepository{
+		GetByIDFn: func(id uint) (*model.Message, error) { return msg, nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
+	}
+
+	// member → resolves
+	member := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(g, u uint) (*model.GuildMember, error) {
+			return &model.GuildMember{UserID: u}, nil
+		},
+	}
+	svc := service.NewMessageService(mockMsg, mockCh, member, nil)
+	resp, err := svc.ResolvePermalink(5, 7)
+	require.NoError(t, err)
+	assert.Equal(t, uint(1), resp.Channel.ID)
+	assert.Equal(t, "general", resp.Channel.Name)
+	assert.Equal(t, uint(9), resp.Message.Author.ID)
+
+	// non-member → error
+	nonMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(g, u uint) (*model.GuildMember, error) {
+			return nil, errors.New("not found")
+		},
+	}
+	svc2 := service.NewMessageService(mockMsg, mockCh, nonMember, nil)
+	_, err = svc2.ResolvePermalink(5, 7)
+	require.Error(t, err)
+}

@@ -3633,6 +3633,44 @@
                 }
             }
         },
+        "/api/v1/messages/{id}/permalink": {
+            "get": {
+                "description": "驗證存取權後回傳訊息+頻道摘要，供跨頻道引用預覽使用",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "messages"
+                ],
+                "summary": "解析訊息永久連結",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "訊息 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.PermalinkResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/messages/{id}/translation": {
             "get": {
                 "description": "取得指定訊息的翻譯結果（三語）",
@@ -5027,6 +5065,48 @@
                     "items": {
                         "$ref": "#/definitions/model.Message"
                     }
+                }
+            }
+        },
+        "service.PermalinkChannel": {
+            "type": "object",
+            "properties": {
+                "guild_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PermalinkMessage": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "$ref": "#/definitions/model.User"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.PermalinkResponse": {
+            "type": "object",
+            "properties": {
+                "channel": {
+                    "$ref": "#/definitions/service.PermalinkChannel"
+                },
+                "message": {
+                    "$ref": "#/definitions/service.PermalinkMessage"
                 }
             }
         },
