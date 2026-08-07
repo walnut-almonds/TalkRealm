@@ -70,6 +70,8 @@ type MessageService interface {
 	ListPosts(channelID, userID uint, limit int, before uint) (*PostListResponse, error)
 	ListComments(postID, userID uint, limit int, before uint) (*WallCommentListResponse, error)
 	ResolvePermalink(messageID, viewerID uint) (*PermalinkResponse, error)
+	MessagesAround(channelID, userID, aroundID uint, limit int) (*MessageListResponse, error)
+	PostsAround(channelID, userID, aroundID uint, limit int) (*PostListResponse, error)
 	// CreateMessageWS 提供給 WebSocket send_message op 的薄包裝
 	CreateMessageWS(
 		userID, channelID uint,
@@ -304,6 +306,11 @@ func (s *messageService) ListPosts(
 		posts = posts[:limit]
 	}
 
+	return &PostListResponse{Posts: s.enrichPosts(posts, userID), HasMore: hasMore}, nil
+}
+
+// enrichPosts 為貼文批次補上讚數/留言數/我是否讚過，供 ListPosts 與 PostsAround 共用。
+func (s *messageService) enrichPosts(posts []*model.Message, userID uint) []*PostResponse {
 	ids := make([]uint, len(posts))
 	for i, p := range posts {
 		ids[i] = p.ID
@@ -330,7 +337,7 @@ func (s *messageService) ListPosts(
 		}
 	}
 
-	return &PostListResponse{Posts: out, HasMore: hasMore}, nil
+	return out
 }
 
 // ListComments 回傳某貼文的留言（時間順序）
@@ -424,6 +431,58 @@ func (s *messageService) ResolvePermalink(messageID, viewerID uint) (*PermalinkR
 			Type:    channel.Type,
 		},
 	}, nil
+}
+
+// MessagesAround 回傳以 aroundID 為中心的訊息視窗（時間順序），供永久連結精準跳轉使用
+func (s *messageService) MessagesAround(
+	channelID, userID, aroundID uint,
+	limit int,
+) (*MessageListResponse, error) {
+	channel, err := s.channelRepo.GetByID(channelID)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+
+	if err := s.ensureChannelAccess(channel, channelID, userID); err != nil {
+		return nil, err
+	}
+
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	msgs, err := s.messageRepo.GetMessagesAround(channelID, aroundID, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MessageListResponse{Messages: msgs, HasMore: false}, nil
+}
+
+// PostsAround 回傳以 aroundID 為中心的貼文視窗（時間順序，含讚數/留言數/我是否讚過）
+func (s *messageService) PostsAround(
+	channelID, userID, aroundID uint,
+	limit int,
+) (*PostListResponse, error) {
+	channel, err := s.channelRepo.GetByID(channelID)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+
+	if err := s.ensureChannelAccess(channel, channelID, userID); err != nil {
+		return nil, err
+	}
+
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	posts, err := s.messageRepo.GetPostsAround(channelID, aroundID, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PostListResponse{Posts: s.enrichPosts(posts, userID), HasMore: false}, nil
 }
 
 // CreateMessage 建立訊息

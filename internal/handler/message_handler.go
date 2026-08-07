@@ -208,12 +208,33 @@ func (h *MessageHandler) ListChannelMessages(c *gin.Context) {
 		}
 	}
 
-	response, err := h.messageService.ListChannelMessages(
-		uint(channelID),
-		userID.(uint),
-		limit,
-		before,
-	)
+	// around: 以某訊息為中心載入視窗（永久連結精準跳轉），取代 before-cursor 路徑
+	var around uint
+
+	if aroundStr := c.Query("around"); aroundStr != "" {
+		if a, err := strconv.ParseUint(aroundStr, 10, 32); err == nil {
+			around = uint(a)
+		}
+	}
+
+	var response *service.MessageListResponse
+
+	if around > 0 {
+		response, err = h.messageService.MessagesAround(
+			uint(channelID),
+			userID.(uint),
+			around,
+			limit,
+		)
+	} else {
+		response, err = h.messageService.ListChannelMessages(
+			uint(channelID),
+			userID.(uint),
+			limit,
+			before,
+		)
+	}
+
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrNotChannelMemberMsg):
@@ -278,7 +299,23 @@ func (h *MessageHandler) ListPosts(c *gin.Context) {
 
 	limit, before := parseListQuery(c, 20)
 
-	response, err := h.messageService.ListPosts(uint(channelID), userID.(uint), limit, before)
+	// around: 以某貼文為中心載入視窗（永久連結精準跳轉），取代 before-cursor 路徑
+	var around uint
+
+	if aroundStr := c.Query("around"); aroundStr != "" {
+		if a, err := strconv.ParseUint(aroundStr, 10, 32); err == nil {
+			around = uint(a)
+		}
+	}
+
+	var response *service.PostListResponse
+
+	if around > 0 {
+		response, err = h.messageService.PostsAround(uint(channelID), userID.(uint), around, limit)
+	} else {
+		response, err = h.messageService.ListPosts(uint(channelID), userID.(uint), limit, before)
+	}
+
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrNotChannelMemberMsg):

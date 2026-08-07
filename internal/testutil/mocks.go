@@ -1544,6 +1544,8 @@ type MockMessageService struct {
 	ListPostsFn           func(channelID, userID uint, limit int, before uint) (*service.PostListResponse, error)
 	ListCommentsFn        func(postID, userID uint, limit int, before uint) (*service.WallCommentListResponse, error)
 	ResolvePermalinkFn    func(messageID, viewerID uint) (*service.PermalinkResponse, error)
+	MessagesAroundFn      func(channelID, userID, aroundID uint, limit int) (*service.MessageListResponse, error)
+	PostsAroundFn         func(channelID, userID, aroundID uint, limit int) (*service.PostListResponse, error)
 }
 
 var _ service.MessageService = (*MockMessageService)(nil)
@@ -1572,6 +1574,28 @@ func (m *MockMessageService) ResolvePermalink(
 ) (*service.PermalinkResponse, error) {
 	if m.ResolvePermalinkFn != nil {
 		return m.ResolvePermalinkFn(messageID, viewerID)
+	}
+
+	return nil, nil //nolint:nilnil
+}
+
+func (m *MockMessageService) MessagesAround(
+	channelID, userID, aroundID uint,
+	limit int,
+) (*service.MessageListResponse, error) {
+	if m.MessagesAroundFn != nil {
+		return m.MessagesAroundFn(channelID, userID, aroundID, limit)
+	}
+
+	return nil, nil //nolint:nilnil
+}
+
+func (m *MockMessageService) PostsAround(
+	channelID, userID, aroundID uint,
+	limit int,
+) (*service.PostListResponse, error) {
+	if m.PostsAroundFn != nil {
+		return m.PostsAroundFn(channelID, userID, aroundID, limit)
 	}
 
 	return nil, nil //nolint:nilnil

@@ -669,3 +669,23 @@ func TestMessageService_ResolvePermalink_ChecksAccess(t *testing.T) {
 	_, err = svc2.ResolvePermalink(5, 7)
 	require.Error(t, err)
 }
+
+func TestMessageService_MessagesAround(t *testing.T) {
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "text"}
+	win := []*model.Message{{ID: 9, ChannelID: 1}, {ID: 10, ChannelID: 1}, {ID: 11, ChannelID: 1}}
+	mockMsg := &testutil.MockMessageRepository{
+		GetMessagesAroundFn: func(cid, around uint, limit int) ([]*model.Message, error) { return win, nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
+	}
+	member := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(g, u uint) (*model.GuildMember, error) { return &model.GuildMember{UserID: u}, nil },
+	}
+	svc := service.NewMessageService(mockMsg, mockCh, member, nil)
+
+	resp, err := svc.MessagesAround(1, 7, 10, 6)
+	require.NoError(t, err)
+	require.Len(t, resp.Messages, 3)
+	assert.Equal(t, uint(10), resp.Messages[1].ID)
+}
