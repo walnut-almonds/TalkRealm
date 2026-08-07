@@ -105,7 +105,12 @@ export default {
         translate: '翻譯',
         edit: '編輯',
         delete: '刪除',
-        deleteConfirm: '確定要刪除此訊息？'
+        deleteConfirm: '確定要刪除此訊息？',
+        copyLink: '複製連結',
+        linkCopied: '連結已複製',
+        linkCopyFailed: '複製連結失敗',
+        permalinkUnavailable: '無法存取的引用訊息',
+        jumpFailed: '跳轉到訊息失敗'
     },
     notifications: {
         ...en.notifications,

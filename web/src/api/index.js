@@ -24,6 +24,7 @@ export const EP = {
     CHANNEL: (channelId) => `/api/v1/channels/${channelId}`,
     CHANNEL_MESSAGES: (channelId) => `/api/v1/channels/${channelId}/messages`,
     MESSAGE: (messageId) => `/api/v1/messages/${messageId}`,
+    MESSAGE_PERMALINK: (id) => `/api/v1/messages/${id}/permalink`,
     CHANNEL_POSTS: (channelId) => `/api/v1/channels/${channelId}/posts`,
     MESSAGE_COMMENTS: (id) => `/api/v1/messages/${id}/comments`,
     MESSAGE_LIKE: (id) => `/api/v1/messages/${id}/like`,
@@ -218,11 +219,13 @@ class ApiClient {
     deleteChannel(channelId) { return this.del(EP.CHANNEL(channelId)) }
 
     // ── Message ──
-    getChannelMessages(channelId, limit = 50, before = null) {
+    getChannelMessages(channelId, limit = 50, before = null, around = null) {
         let url = `${EP.CHANNEL_MESSAGES(channelId)}?limit=${limit}`
         if (before) url += `&before=${before}`
+        if (around) url += `&around=${around}`
         return this.get(url)
     }
+    resolvePermalink(id) { return this.get(EP.MESSAGE_PERMALINK(id)) }
     sendMessage(channelId, content, type = 'text', nonce = null, fileIds = []) {
         const body = { content, type }
         if (nonce) body.nonce = nonce
@@ -233,9 +236,10 @@ class ApiClient {
     deleteMessage(messageId) { return this.del(EP.MESSAGE(messageId)) }
 
     // ── Feed / Wall ──
-    getPosts(channelId, limit = 20, before = null) {
+    getPosts(channelId, limit = 20, before = null, around = null) {
         const q = new URLSearchParams({ limit })
         if (before) q.set('before', before)
+        if (around) q.set('around', around)
         return this.get(`${EP.CHANNEL_POSTS(channelId)}?${q}`)
     }
     createPost(channelId, content, fileIds = []) {

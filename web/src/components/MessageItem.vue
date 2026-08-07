@@ -93,6 +93,17 @@ async function deleteMessage() {
   }
 }
 
+// ── Copy permalink ────────────────────────────────────────────
+async function copyPermalink() {
+  const url = `${location.origin}${location.pathname}#/m/${props.message.id}`
+  try {
+    await navigator.clipboard.writeText(url)
+    store.showNotification(t('chat.linkCopied'), 'success')
+  } catch {
+    store.showNotification(t('chat.linkCopyFailed'), 'error')
+  }
+}
+
 // ── Image loading ─────────────────────────────────────────────
 async function loadImage(fileId, imgEl) {
   const url = await store.getImageUrl(fileId)
@@ -352,9 +363,12 @@ async function submitGuess() {
 
     <!-- Hover action bar (right side) -->
     <div
-      v-if="message.id && !isEditing && (isCurrentUser || (showTranslationSection && (!translation || translationDismissed) && !isTranslationLoading))"
+      v-if="message.id && !isEditing"
       class="message-actions-bar"
     >
+      <button class="msg-action-btn" :title="t('chat.copyLink')" @click="copyPermalink">
+        <i class="fas fa-link"></i>
+      </button>
       <button
         v-if="showTranslationSection && (!translation || translationDismissed) && !isTranslationLoading"
         class="msg-action-btn"

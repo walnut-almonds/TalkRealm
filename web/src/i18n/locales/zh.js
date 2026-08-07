@@ -105,7 +105,12 @@ export default {
         translate: '翻译',
         edit: '编辑',
         delete: '删除',
-        deleteConfirm: '确定要删除此讯息？'
+        deleteConfirm: '确定要删除此讯息？',
+        copyLink: '复制链接',
+        linkCopied: '链接已复制',
+        linkCopyFailed: '复制链接失败',
+        permalinkUnavailable: '无法存取的引用讯息',
+        jumpFailed: '跳转到讯息失败'
     },
     notifications: {
         ...en.notifications,

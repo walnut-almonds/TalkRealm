@@ -129,7 +129,12 @@ export default {
         translate: 'Translate',
         edit: 'Edit',
         delete: 'Delete',
-        deleteConfirm: 'Delete this message?'
+        deleteConfirm: 'Delete this message?',
+        copyLink: 'Copy link',
+        linkCopied: 'Link copied',
+        linkCopyFailed: 'Failed to copy link',
+        permalinkUnavailable: 'Referenced message unavailable',
+        jumpFailed: 'Failed to jump to message'
     },
     notifications: {
         mentionYou: '{author} mentioned you',

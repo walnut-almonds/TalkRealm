@@ -105,7 +105,12 @@ export default {
         translate: '翻訳',
         edit: '編集',
         delete: '削除',
-        deleteConfirm: 'このメッセージを削除しますか？'
+        deleteConfirm: 'このメッセージを削除しますか？',
+        copyLink: 'リンクをコピー',
+        linkCopied: 'リンクをコピーしました',
+        linkCopyFailed: 'リンクのコピーに失敗しました',
+        permalinkUnavailable: '参照メッセージにアクセスできません',
+        jumpFailed: 'メッセージへの移動に失敗しました'
     },
     notifications: {
         ...en.notifications,
