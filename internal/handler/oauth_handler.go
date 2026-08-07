@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/walnut-almonds/talkrealm/internal/service"
@@ -123,16 +125,21 @@ func (h *OAuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	// 重導向前端並帶上 token（前端可以從 query string 讀取後存入 localStorage）
+	// Redirect tokens in the URL fragment so they are never sent to the server,
+	// proxies, or Referer headers. The SPA consumes and immediately clears it.
 	frontendURL := h.frontendURL
 	if frontendURL == "" {
 		frontendURL = getRequestOrigin(c.Request)
 	}
 
-	redirectURL := fmt.Sprintf("%s/?access_token=%s&refresh_token=%s",
-		frontendURL,
-		resp.AccessToken,
-		resp.RefreshToken,
+	params := url.Values{
+		"access_token":  {resp.AccessToken},
+		"refresh_token": {resp.RefreshToken},
+	}
+	redirectURL := fmt.Sprintf(
+		"%s/#/oauth/callback?%s",
+		strings.TrimRight(frontendURL, "/"),
+		params.Encode(),
 	)
 	c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }

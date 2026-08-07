@@ -37,7 +37,7 @@ function resetHeight() {
 }
 const { pendingChips, uploadFile, removeChip, clearChips } = useFileUpload({
   checkReady: () => !!store.currentChannel,
-  onNotReady: () => store.showNotification(t('chat.selectChannelFirst'), 'error'),
+  onNotReady: () => store.showNotification(t('messageInput.selectChannelFirst'), 'error'),
   addFileId: (id) => composeFileIds.value.push(id),
   removeFileId: (id) => {
     const i = composeFileIds.value.indexOf(id)

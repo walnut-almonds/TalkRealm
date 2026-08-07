@@ -80,9 +80,13 @@ async function toggleFollow() {
     if (was) {
       await api.unfollow(props.userId)
       followersCount.value = Math.max(0, followersCount.value - 1)
+      followersList.value = followersList.value.filter(user => user.id !== store.user?.id)
     } else {
       await api.follow(props.userId)
       followersCount.value += 1
+      if (store.user && !followersList.value.some(user => user.id === store.user.id)) {
+        followersList.value.unshift(store.user)
+      }
     }
     isFollowing.value = !was
   } catch (e) {

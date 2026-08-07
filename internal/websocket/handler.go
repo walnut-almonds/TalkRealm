@@ -3,6 +3,8 @@ package websocket
 import (
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -13,9 +15,17 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// 在生產環境中，應該檢查來源
-		// TODO: 實現適當的 CORS 檢查
-		return true
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // Non-browser clients do not send an Origin header.
+		}
+
+		parsed, err := url.Parse(origin)
+		if err != nil || parsed.Host == "" {
+			return false
+		}
+
+		return strings.EqualFold(parsed.Host, r.Host)
 	},
 }
 

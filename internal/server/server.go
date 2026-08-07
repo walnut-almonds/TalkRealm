@@ -90,6 +90,8 @@ func New(cfg *config.Config) (*Server, error) {
 	wsManager := websocket.NewManager(jwtManager)
 	// GuildLookup 讓 WS manager 在 identify 時訂閱使用者的所有 guild（Redis 可選）
 	wsManager.SetGuildLookup(guildMemberRepo)
+	// ChannelAccessLookup 驗證 identify、subscribe 與 typing 事件的頻道存取權限。
+	wsManager.SetChannelAccessLookup(channelRepo)
 	// UserLookup 讓 WS manager 在 identify 時判斷自選狀態（invisible 不廣播上線）
 	wsManager.SetUserLookup(userRepo)
 
@@ -139,11 +141,12 @@ func New(cfg *config.Config) (*Server, error) {
 	// 初始化 File Service（Minio 可選，失敗時記錄 warning）
 	var fileHandler *handler.FileHandler
 
+	fileRepo := repository.NewFileRepository(db)
+
 	minioClient, minioErr := storage.NewClient(&cfg.Minio)
 	if minioErr != nil {
 		logger.Warn("Minio init failed, file service disabled", "error", minioErr)
 	} else {
-		fileRepo := repository.NewFileRepository(db)
 		fileService := service.NewFileService(fileRepo, minioClient, rdb, &cfg.Minio)
 		fileHandler = handler.NewFileHandler(fileService)
 		// 設定 FileService 到 MessageService（用於附件關聯）
@@ -206,6 +209,7 @@ func New(cfg *config.Config) (*Server, error) {
 		friendshipRepo,
 	)
 	feedService.SetCommentLikeRepo(repository.NewFeedCommentLikeRepository(db))
+	feedService.SetFileLookup(fileRepo)
 	feedService.SetWebSocketManager(wsManager)
 	feedHandler := handler.NewFeedHandler(feedService)
 

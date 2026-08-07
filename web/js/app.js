@@ -33,9 +33,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // 檢查認證狀態
 async function checkAuth() {
-    // OAuth callback：後端將 token 帶在 query string 或 fragment 中
-    const rawSearch = window.location.search || window.location.hash.replace(/^#/, '?');
-    const params = new URLSearchParams(rawSearch);
+    // OAuth callback uses a fragment so tokens never reach servers or proxies.
+    const callbackPrefix = '#/oauth/callback?';
+    const hash = window.location.hash;
+    const params = hash.startsWith(callbackPrefix)
+        ? new URLSearchParams(hash.slice(callbackPrefix.length))
+        : new URLSearchParams(window.location.search);
     const oauthAccessToken = params.get('access_token');
     const oauthRefreshToken = params.get('refresh_token');
 
@@ -47,7 +50,7 @@ async function checkAuth() {
             localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, oauthRefreshToken);
         }
         // 清除 URL 中的 token 參數
-        window.history.replaceState({}, document.title, window.location.pathname);
+        window.history.replaceState({}, document.title, `${window.location.pathname}#/`);
         try {
             await loadUserData();
             return;

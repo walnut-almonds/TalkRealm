@@ -18,6 +18,13 @@ type GuildMemberLookup interface {
 	GetUserGuildIDs(userID uint) ([]uint, error)
 }
 
+// ChannelAccessLookup resolves a channel and verifies DM participants without
+// coupling the WebSocket package to repository implementations.
+type ChannelAccessLookup interface {
+	GetByID(id uint) (*model.Channel, error)
+	IsDMParticipant(channelID, userID uint) (bool, error)
+}
+
 // UserLookup 提供查詢使用者資料的介面（identify 時判斷 invisible / 自選狀態用；
 // 由 repository.UserRepository 隱式實作）
 type UserLookup interface {
@@ -69,6 +76,9 @@ type Manager struct {
 	// guildLookup 用於查詢使用者所屬 guild IDs
 	guildLookup GuildMemberLookup
 
+	// channelAccessLookup 用於驗證使用者可存取的 guild 或 DM 頻道
+	channelAccessLookup ChannelAccessLookup
+
 	// userLookup 用於 identify 時查詢使用者自選狀態（invisible 不廣播上線）
 	userLookup UserLookup
 
@@ -115,7 +125,7 @@ func (m *Manager) Run() {
 			m.handleUnregister(client)
 
 		case message := <-m.broadcast:
-			m.mu.RLock()
+			m.mu.Lock()
 
 			for client := range m.clients {
 				select {
@@ -126,7 +136,7 @@ func (m *Manager) Run() {
 				}
 			}
 
-			m.mu.RUnlock()
+			m.mu.Unlock()
 		}
 	}
 }
@@ -223,18 +233,39 @@ func (m *Manager) RegisterClient(client *Client) {
 	go client.readPump()
 }
 
-// SubscribeToChannel 將 client 加入頻道訂閱索引
-func (m *Manager) SubscribeToChannel(client *Client, channelID uint) {
+// SubscribeToChannel 將 client 加入頻道訂閱索引。
+// 未通過頻道存取驗證的 client 不會被加入索引。
+func (m *Manager) SubscribeToChannel(client *Client, channelID uint) bool {
+	channel := m.resolveAccessibleChannel(client.userID, channelID)
+	if channel == nil {
+		log.Printf(
+			"ws: denied channel subscription for user %d to channel %d",
+			client.userID,
+			channelID,
+		)
+
+		return false
+	}
+
+	guildID := uint(0)
+	if channel.GuildID != nil {
+		guildID = *channel.GuildID
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	client.channels[channelID] = true
+
+	client.channelGuilds[channelID] = guildID
 	if m.channelSubscriptions[channelID] == nil {
 		m.channelSubscriptions[channelID] = make(map[*Client]bool)
 	}
 
 	m.channelSubscriptions[channelID][client] = true
 	log.Printf("User %s subscribed to channel %d", client.username, channelID)
+
+	return true
 }
 
 // UnsubscribeFromChannel 將 client 從頻道訂閱索引中移除
@@ -243,6 +274,7 @@ func (m *Manager) UnsubscribeFromChannel(client *Client, channelID uint) {
 	defer m.mu.Unlock()
 
 	delete(client.channels, channelID)
+	delete(client.channelGuilds, channelID)
 
 	if subscribers, ok := m.channelSubscriptions[channelID]; ok {
 		delete(subscribers, client)
@@ -450,6 +482,110 @@ func (m *Manager) SetRedis(rdb *goredis.Client) {
 // SetGuildLookup 注入 guild 成員查詢介面
 func (m *Manager) SetGuildLookup(l GuildMemberLookup) {
 	m.guildLookup = l
+}
+
+// SetChannelAccessLookup 注入頻道存取查詢介面。
+func (m *Manager) SetChannelAccessLookup(l ChannelAccessLookup) {
+	m.channelAccessLookup = l
+}
+
+// RevokeGuildAccess removes a user's live subscriptions to one guild after
+// their membership is removed. DM subscriptions are intentionally preserved.
+func (m *Manager) RevokeGuildAccess(userID, guildID uint) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for client := range m.clients {
+		if !client.identified || client.userID != userID {
+			continue
+		}
+
+		delete(client.guilds, guildID)
+
+		if subscribers, ok := m.guildSubscriptions[guildID]; ok {
+			delete(subscribers, client)
+		}
+
+		for channelID, channelGuildID := range client.channelGuilds {
+			if channelGuildID != guildID {
+				continue
+			}
+
+			delete(client.channels, channelID)
+			delete(client.channelGuilds, channelID)
+
+			if subscribers, ok := m.channelSubscriptions[channelID]; ok {
+				delete(subscribers, client)
+			}
+		}
+
+		// 語音頻道不走 subscribe，得另外清，否則被踢的人會留在成員列表裡。
+		// 這裡已持有 m.mu，不能呼叫同樣要鎖的 RemoveVoiceParticipant。
+		if client.currentVoiceChannelID != 0 && client.currentVoiceGuildID == guildID {
+			if participants, ok := m.voiceParticipants[client.currentVoiceChannelID]; ok {
+				delete(participants, userID)
+			}
+
+			client.currentVoiceChannelID = 0
+			client.currentVoiceGuildID = 0
+		}
+	}
+}
+
+// CanAccessChannel verifies access to guild and DM channels. It fails closed
+// when dependencies are unavailable or a lookup fails.
+func (m *Manager) CanAccessChannel(userID, channelID uint) bool {
+	return m.resolveAccessibleChannel(userID, channelID) != nil
+}
+
+// resolveAccessibleChannel 回傳使用者有權存取的頻道，否則回 nil。
+// 呼叫端多半還需要 channel 的 GuildID，一併回傳可省掉第二次查詢。
+// 依賴缺失或查詢失敗時一律 fail closed。
+func (m *Manager) resolveAccessibleChannel(userID, channelID uint) *model.Channel {
+	if m.channelAccessLookup == nil {
+		return nil
+	}
+
+	channel, err := m.channelAccessLookup.GetByID(channelID)
+	if err != nil || channel == nil {
+		return nil
+	}
+
+	if channel.Type == "dm" {
+		participant, err := m.channelAccessLookup.IsDMParticipant(channelID, userID)
+		if err != nil || !participant {
+			return nil
+		}
+
+		return channel
+	}
+
+	if channel.GuildID == nil || m.guildLookup == nil {
+		return nil
+	}
+
+	guildIDs, err := m.guildLookup.GetUserGuildIDs(userID)
+	if err != nil {
+		return nil
+	}
+
+	for _, guildID := range guildIDs {
+		if guildID == *channel.GuildID {
+			return channel
+		}
+	}
+
+	return nil
+}
+
+// IsSubscribedToChannel 回報 client 是否持有已驗證的頻道訂閱。
+// 訂閱時已驗過存取權、leave/kick 時由 RevokeGuildAccess 撤除，
+// 因此 typing 這類高頻事件不需要每次回查 DB。
+func (m *Manager) IsSubscribedToChannel(client *Client, channelID uint) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return client.channels[channelID]
 }
 
 // SetUserLookup 注入使用者查詢介面（identify 時判斷自選狀態用）

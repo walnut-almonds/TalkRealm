@@ -14,6 +14,13 @@ var (
 	ErrInvalidChannelType = errors.New("invalid channel type")
 )
 
+// 可建立的頻道類型（dm 由 DM 服務單獨建立，不走 CreateChannel）。
+const (
+	channelTypeText  = "text"
+	channelTypeVoice = "voice"
+	channelTypeFeed  = "feed"
+)
+
 // CreateChannelRequest 建立頻道請求
 type CreateChannelRequest struct {
 	GuildID  uint   `json:"guild_id"`
@@ -93,7 +100,7 @@ func (s *channelService) CreateChannel(
 
 	// 驗證頻道類型
 
-	if req.Type != "text" && req.Type != "voice" && req.Type != "feed" {
+	if req.Type != channelTypeText && req.Type != channelTypeVoice && req.Type != channelTypeFeed {
 		return nil, ErrInvalidChannelType
 	}
 
@@ -204,7 +211,8 @@ func (s *channelService) UpdateChannel(
 	}
 
 	if req.Type != "" {
-		if req.Type != "text" && req.Type != "voice" && req.Type != "feed" {
+		if req.Type != channelTypeText && req.Type != channelTypeVoice &&
+			req.Type != channelTypeFeed {
 			return nil, ErrInvalidChannelType
 		}
 

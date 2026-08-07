@@ -71,6 +71,8 @@ func (h *MessageHandler) CreateMessage(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "message content cannot be empty"})
 		case errors.Is(err, service.ErrInvalidMessageType):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message type"})
+		case errors.Is(err, service.ErrFileNotAttachable):
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}

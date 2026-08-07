@@ -65,6 +65,9 @@ type Client struct {
 	// 訂閱的頻道 ID 集合
 	channels map[uint]bool
 
+	// 已驗證訂閱頻道所屬 guild；DM channel 的 guild ID 為 0
+	channelGuilds map[uint]uint
+
 	// 訂閱的 guild ID 集合
 	guilds map[uint]bool
 
@@ -81,11 +84,12 @@ type Client struct {
 // NewClient 創建新的客戶端（連線建立時不需傳入使用者資訊，待 identify 後設定）
 func NewClient(conn *websocket.Conn, manager *Manager) *Client {
 	return &Client{
-		conn:     conn,
-		manager:  manager,
-		channels: make(map[uint]bool),
-		guilds:   make(map[uint]bool),
-		send:     make(chan []byte, 256),
+		conn:          conn,
+		manager:       manager,
+		channels:      make(map[uint]bool),
+		channelGuilds: make(map[uint]uint),
+		guilds:        make(map[uint]bool),
+		send:          make(chan []byte, 256),
 	}
 }
 
@@ -215,7 +219,13 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 			return
 		}
 
-		c.manager.SubscribeToChannel(c, payload.ChannelID)
+		if !c.manager.SubscribeToChannel(c, payload.ChannelID) {
+			c.sendJSON(OutgoingMessage{
+				Op:        "error",
+				Data:      map[string]string{"message": "not authorized for channel"},
+				Timestamp: time.Now().UnixMilli(),
+			})
+		}
 
 	case "unsubscribe":
 		var payload struct {
@@ -238,6 +248,16 @@ func (c *Client) handleMessage(msg *IncomingMessage) {
 			ChannelID uint `json:"channel_id"`
 		}
 		if err := json.Unmarshal(msg.Data, &payload); err != nil || payload.ChannelID == 0 {
+			return
+		}
+
+		if !c.manager.IsSubscribedToChannel(c, payload.ChannelID) {
+			c.sendJSON(OutgoingMessage{
+				Op:        "error",
+				Data:      map[string]string{"message": "not authorized for channel"},
+				Timestamp: time.Now().UnixMilli(),
+			})
+
 			return
 		}
 
@@ -334,6 +354,30 @@ func (c *Client) handleVoiceStateUpdate(raw json.RawMessage) {
 		return
 	}
 
+	// 語音頻道不走 subscribe，只能回查；guild ID 必須由 server 推導，不可信任 payload。
+	channel := c.manager.resolveAccessibleChannel(c.userID, payload.ChannelID)
+	if channel == nil {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "not authorized for channel"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	if channel.GuildID == nil {
+		c.sendJSON(OutgoingMessage{
+			Op:        "error",
+			Data:      map[string]string{"message": "voice state requires a guild channel"},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		return
+	}
+
+	payload.GuildID = *channel.GuildID
+
 	if payload.Action != voiceActionJoin && payload.Action != voiceActionLeave {
 		payload.Action = voiceActionJoin
 	}
@@ -363,11 +407,7 @@ func (c *Client) handleVoiceStateUpdate(raw json.RawMessage) {
 		"username":   c.username,
 		"action":     payload.Action,
 	}
-	if payload.GuildID != 0 {
-		c.manager.BroadcastToGuild(payload.GuildID, "voice_state_update", data)
-	} else {
-		c.manager.BroadcastToChannel(payload.ChannelID, "voice_state_update", data)
-	}
+	c.manager.BroadcastToGuild(payload.GuildID, "voice_state_update", data)
 }
 
 // handleIdentify 處理 identify op：驗證 JWT 並回應 ready

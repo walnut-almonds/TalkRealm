@@ -11,6 +11,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	wordCSVFields     = 8
+	sentenceCSVFields = 6
+)
+
 // SeedWords 從 CSV upsert 單字表（依 word 欄位衝突更新，保留既有 id，可重複執行；
 // 呼叫端可安全地每次開機都跑一次，不需要判斷 CSV 是否變更）。
 func SeedWords(csvPath string) (int, error) {
@@ -23,8 +28,14 @@ func SeedWords(csvPath string) (int, error) {
 
 	r := csv.NewReader(f)
 
-	if _, err := r.Read(); err != nil { // skip header
+	if header, err := r.Read(); err != nil { // skip header
 		return 0, fmt.Errorf("read header: %w", err)
+	} else if len(header) != wordCSVFields {
+		return 0, fmt.Errorf(
+			"invalid words CSV header: expected %d fields, got %d",
+			wordCSVFields,
+			len(header),
+		)
 	}
 
 	batch := make([]model.Word, 0, 1000)
@@ -63,6 +74,14 @@ func SeedWords(csvPath string) (int, error) {
 			return total, fmt.Errorf("read csv: %w", err)
 		}
 
+		if len(rec) != wordCSVFields {
+			return total, fmt.Errorf(
+				"invalid words CSV row: expected %d fields, got %d",
+				wordCSVFields,
+				len(rec),
+			)
+		}
+
 		tier, _ := strconv.Atoi(rec[2])
 		frq, _ := strconv.Atoi(rec[3])
 
@@ -98,6 +117,18 @@ func SeedSentences(csvPath string) (imported, skipped int, err error) {
 
 	defer func() { _ = f.Close() }()
 
+	r := csv.NewReader(f)
+
+	if header, err := r.Read(); err != nil { // skip header
+		return 0, 0, fmt.Errorf("read header: %w", err)
+	} else if len(header) != sentenceCSVFields {
+		return 0, 0, fmt.Errorf(
+			"invalid sentences CSV header: expected %d fields, got %d",
+			sentenceCSVFields,
+			len(header),
+		)
+	}
+
 	// 先把 words 全表的 word→id 讀進記憶體，避免每列一次 query
 	wordID := map[string]uint{}
 
@@ -110,12 +141,6 @@ func SeedSentences(csvPath string) (imported, skipped int, err error) {
 		wordID[w.Word] = w.ID
 	}
 
-	r := csv.NewReader(f)
-
-	if _, err := r.Read(); err != nil { // skip header
-		return 0, 0, fmt.Errorf("read header: %w", err)
-	}
-
 	for {
 		rec, err := r.Read()
 		if err == io.EOF {
@@ -124,6 +149,14 @@ func SeedSentences(csvPath string) (imported, skipped int, err error) {
 
 		if err != nil {
 			return imported, skipped, fmt.Errorf("read csv: %w", err)
+		}
+
+		if len(rec) != sentenceCSVFields {
+			return imported, skipped, fmt.Errorf(
+				"invalid sentences CSV row: expected %d fields, got %d",
+				sentenceCSVFields,
+				len(rec),
+			)
 		}
 
 		id, ok := wordID[rec[0]]

@@ -171,6 +171,79 @@ func TestMessageService_CreateMessage_NotMember(t *testing.T) {
 	assert.ErrorIs(t, err, service.ErrNotChannelMemberMsg)
 }
 
+// errUnusedStub 標記這些測試用不到的 FileService 方法，被呼叫到就是測試寫錯了。
+var errUnusedStub = errors.New("file service method not stubbed for this test")
+
+type messageFileServiceStub struct {
+	file      *model.File
+	getErr    error
+	attachErr error
+}
+
+func (s messageFileServiceStub) PresignUpload(
+	uint,
+	service.PresignUploadRequest,
+) (*service.PresignUploadResponse, error) {
+	return nil, errUnusedStub
+}
+
+func (s messageFileServiceStub) ConfirmUpload(uint, uint) (*model.File, error) {
+	return nil, errUnusedStub
+}
+
+func (s messageFileServiceStub) GetFile(uint, uint) (*model.File, error) { return s.file, s.getErr }
+
+func (s messageFileServiceStub) GetDownloadURL(
+	uint,
+	uint,
+) (string, int, error) {
+	return "", 0, nil
+}
+
+func (s messageFileServiceStub) DeleteFile(uint, uint) error { return nil }
+
+func (s messageFileServiceStub) AttachToMessage(
+	uint,
+	uint,
+	uint,
+) (*model.MessageAttachment, error) {
+	return nil, s.attachErr
+}
+
+func (s messageFileServiceStub) GetAttachmentsByMessage(uint) ([]*model.MessageAttachment, error) {
+	return nil, nil
+}
+
+func (s messageFileServiceStub) CleanupExpired() error { return nil }
+
+func TestMessageService_CreateMessageRejectsUnavailableFileBeforeCreatingMessage(t *testing.T) {
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "text"}
+	created := false
+	mockMsg := &testutil.MockMessageRepository{
+		CreateFn: func(*model.Message) error {
+			created = true
+
+			return nil
+		},
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(uint) (*model.Channel, error) { return channel, nil },
+	}
+	mockMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(uint, uint) (*model.GuildMember, error) { return &model.GuildMember{}, nil },
+	}
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
+	svc.SetFileService(messageFileServiceStub{file: &model.File{UserID: 5, Status: "pending"}})
+
+	_, err := svc.CreateMessage(5, &service.CreateMessageRequest{
+		ChannelID: 1,
+		Content:   "hello",
+		FileIDs:   []uint{3},
+	})
+	require.ErrorIs(t, err, service.ErrFileNotAttachable)
+	assert.False(t, created)
+}
+
 func TestMessageService_CreateMessage_WithWSManager(t *testing.T) {
 	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10)}
 	member := &model.GuildMember{ID: 1, GuildID: 10, UserID: 5}
@@ -502,6 +575,25 @@ func TestMessageService_LikePost_ReturnsCountAndBroadcasts(t *testing.T) {
 	require.Len(t, ws.ChannelBroadcasts, 1)
 	assert.Equal(t, "post_like", ws.ChannelBroadcasts[0].MsgType)
 	assert.Equal(t, uint(1), ws.ChannelBroadcasts[0].ID)
+}
+
+func TestMessageService_LikePost_RejectsNonParticipantDM(t *testing.T) {
+	msg := &model.Message{ID: 7, ChannelID: 3}
+	mockMsg := &testutil.MockMessageRepository{
+		GetByIDFn: func(uint) (*model.Message, error) { return msg, nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn:         func(uint) (*model.Channel, error) { return &model.Channel{ID: 3, Type: "dm"}, nil },
+		IsDMParticipantFn: func(uint, uint) (bool, error) { return false, nil },
+	}
+	mockLike := &testutil.MockMessageLikeRepository{
+		CreateFn: func(*model.MessageLike) error { t.Fatal("like must not be created"); return nil },
+	}
+	svc := service.NewMessageService(mockMsg, mockCh, &testutil.MockGuildMemberRepository{}, nil)
+	svc.SetLikeRepo(mockLike)
+
+	_, err := svc.LikePost(7, 42)
+	assert.ErrorIs(t, err, service.ErrNotChannelMemberMsg)
 }
 
 func TestMessageService_ListPosts_EnrichesCounts(t *testing.T) {

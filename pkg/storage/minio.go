@@ -67,18 +67,21 @@ func NewClient(cfg *config.MinioConfig) (*Client, error) {
 	// public endpoint we ensure the signed host always matches the incoming Host
 	// header, making MINIO_SERVER_URL unnecessary for presign correctness.
 	presignMC := mc // fallback: reuse internal client when no public endpoint
+
 	if cfg.PublicEndpoint != "" {
 		pub, parseErr := url.Parse(cfg.PublicEndpoint)
 		if parseErr == nil {
 			useSSL := strings.EqualFold(pub.Scheme, "https")
-			pmс, newErr := minio.New(pub.Host, &minio.Options{
+
+			presignClient, newErr := minio.New(pub.Host, &minio.Options{
 				Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 				Secure:       useSSL,
 				Region:       "us-east-1",
 				BucketLookup: minio.BucketLookupPath,
 			})
 			if newErr == nil {
-				presignMC = pmс
+				presignMC = presignClient
+
 				logger.Info("Minio presign client using public endpoint", "endpoint", pub.Host)
 			} else {
 				logger.Warn(
@@ -101,6 +104,7 @@ func applyPublicReadPolicy(ctx context.Context, mc *minio.Client, bucket string)
 		Action    []string `json:"Action"`
 		Resource  []string `json:"Resource"`
 	}
+
 	type policy struct {
 		Version   string      `json:"Version"`
 		Statement []statement `json:"Statement"`

@@ -6,6 +6,7 @@ import (
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"github.com/walnut-almonds/talkrealm/internal/repository"
+	"github.com/walnut-almonds/talkrealm/pkg/logger"
 )
 
 var (
@@ -20,6 +21,29 @@ var (
 // GuildEventBroadcaster WebSocket guild 廣播介面（避免循環相依）
 type GuildEventBroadcaster interface {
 	BroadcastToGuild(guildID uint, msgType string, data any)
+}
+
+// GuildSubscriptionRevoker is implemented by the WebSocket manager to remove
+// stale channel subscriptions after a membership is deleted.
+type GuildSubscriptionRevoker interface {
+	RevokeGuildAccess(userID, guildID uint)
+}
+
+// revokeGuildAccess 撤除使用者對該 guild 的即時訂閱。
+// 斷言失敗代表撤銷機制沒生效、舊訂閱會繼續收廣播，必須留下紀錄而非靜默略過。
+func (s *guildMemberService) revokeGuildAccess(userID, guildID uint) {
+	revoker, ok := s.wsManager.(GuildSubscriptionRevoker)
+	if !ok {
+		logger.Warn(
+			"ws manager cannot revoke guild subscriptions",
+			"user_id", userID,
+			"guild_id", guildID,
+		)
+
+		return
+	}
+
+	revoker.RevokeGuildAccess(userID, guildID)
 }
 
 // guildRoleLevel 角色層級（數字越大權限越高）
@@ -327,6 +351,8 @@ func (s *guildMemberService) LeaveGuild(guildID, userID uint) error {
 			"guild_id": guildID,
 			"user_id":  userID,
 		})
+
+		s.revokeGuildAccess(userID, guildID)
 	}
 
 	return nil
@@ -371,6 +397,8 @@ func (s *guildMemberService) KickMember(guildID, targetUserID, operatorUserID ui
 			"guild_id": guildID,
 			"user_id":  targetUserID,
 		})
+
+		s.revokeGuildAccess(targetUserID, guildID)
 	}
 
 	return nil

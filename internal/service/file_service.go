@@ -53,6 +53,12 @@ var ErrFileForbidden = errors.New("forbidden")
 // ErrUploadNotConfirmed 檔案尚未上傳確認
 var ErrUploadNotConfirmed = errors.New("upload not confirmed in minio")
 
+// 檔案生命週期狀態：presign 後為 pending，確認上傳完成後轉 active。
+const (
+	fileStatusPending = "pending"
+	fileStatusActive  = "active"
+)
+
 // PresignUploadRequest 請求上傳 Pre-signed URL
 type PresignUploadRequest struct {
 	Filename    string `json:"filename"     binding:"required"`
@@ -80,8 +86,8 @@ type FileService interface {
 	GetDownloadURL(userID, fileID uint) (string, int, error)
 	// DeleteFile 刪除檔案（Minio + DB）
 	DeleteFile(userID, fileID uint) error
-	// AttachToMessage 將已確認的檔案關聯到訊息
-	AttachToMessage(messageID, fileID uint) (*model.MessageAttachment, error)
+	// AttachToMessage 將使用者擁有且已確認的檔案關聯到訊息
+	AttachToMessage(userID, messageID, fileID uint) (*model.MessageAttachment, error)
 	// GetAttachmentsByMessage 取得訊息的附件清單
 	GetAttachmentsByMessage(messageID uint) ([]*model.MessageAttachment, error)
 	// CleanupExpired 刪除 TTL 到期的檔案（由 background job 呼叫）
@@ -149,7 +155,7 @@ func (s *fileService) PresignUpload(
 		StorageKey:     key,
 		ContentType:    req.ContentType,
 		Size:           req.Size,
-		Status:         "pending",
+		Status:         fileStatusPending,
 		ExpiresAt:      expiresAt,
 		LastAccessedAt: time.Now().UTC(),
 	}
@@ -188,7 +194,7 @@ func (s *fileService) ConfirmUpload(userID, fileID uint) (*model.File, error) {
 		return nil, ErrFileForbidden
 	}
 
-	if file.Status != "pending" {
+	if file.Status != fileStatusPending {
 		return file, nil // 已確認，冪等
 	}
 
@@ -204,7 +210,7 @@ func (s *fileService) ConfirmUpload(userID, fileID uint) (*model.File, error) {
 
 	// 以 Minio 回報的實際大小為準
 	file.Size = actualSize
-	file.Status = "active"
+	file.Status = fileStatusActive
 
 	if err = s.fileRepo.Update(file); err != nil {
 		return nil, err
@@ -247,7 +253,7 @@ func (s *fileService) GetDownloadURL(userID, fileID uint) (string, int, error) {
 		return "", 0, err
 	}
 
-	if file.Status != "active" {
+	if file.Status != fileStatusActive {
 		return "", 0, ErrFileNotFound
 	}
 
@@ -326,7 +332,26 @@ func (s *fileService) DeleteFile(userID, fileID uint) error {
 	return s.fileRepo.Delete(fileID)
 }
 
-func (s *fileService) AttachToMessage(messageID, fileID uint) (*model.MessageAttachment, error) {
+func (s *fileService) AttachToMessage(
+	userID, messageID, fileID uint,
+) (*model.MessageAttachment, error) {
+	file, err := s.fileRepo.GetByID(fileID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrFileNotFound
+		}
+
+		return nil, err
+	}
+
+	if file.UserID != userID {
+		return nil, ErrFileForbidden
+	}
+
+	if file.Status != fileStatusActive {
+		return nil, ErrUploadNotConfirmed
+	}
+
 	attachment := &model.MessageAttachment{
 		MessageID: messageID,
 		FileID:    fileID,

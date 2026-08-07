@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -119,6 +120,58 @@ func TestFeedService_LikeComment_ReturnsCount(t *testing.T) {
 	assert.Equal(t, int64(3), n)
 }
 
+type feedFileLookupStub struct {
+	file *model.File
+	err  error
+}
+
+func (s feedFileLookupStub) GetByID(uint) (*model.File, error) { return s.file, s.err }
+
+func TestFeedService_CreatePostRejectsUnavailableFiles(t *testing.T) {
+	tests := []struct {
+		name string
+		file *model.File
+	}{
+		{name: "another user's file", file: &model.File{ID: 3, UserID: 9, Status: "active"}},
+		{name: "pending file", file: &model.File{ID: 3, UserID: 5, Status: "pending"}},
+		{name: "missing file", file: nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			posts := &testutil.MockFeedPostRepository{
+				CreateFn: func(*model.FeedPost) error {
+					t.Fatal("post must not be created")
+
+					return nil
+				},
+			}
+			svc := service.NewFeedService(nil, posts, nil, nil, nil)
+			svc.SetFileLookup(feedFileLookupStub{file: test.file})
+
+			_, err := svc.CreatePost(5, "", []uint{3})
+			assert.ErrorIs(t, err, service.ErrFeedFileForbidden)
+		})
+	}
+}
+
+func TestFeedService_ListCommentsKeepsCurrentCursorPage(t *testing.T) {
+	comments := &testutil.MockFeedCommentRepository{
+		ByPostCursorFn: func(uint, uint, int) ([]*model.FeedComment, error) {
+			// Repository returns the requested newest records in chronological order.
+			return []*model.FeedComment{{ID: 7}, {ID: 8}, {ID: 9}}, nil
+		},
+	}
+	svc := service.NewFeedService(nil, nil, nil, comments, nil)
+
+	resp, err := svc.ListComments(1, 5, 10, 2)
+	require.NoError(t, err)
+	require.Len(t, resp.Comments, 2)
+	assert.Equal(t, uint(7), resp.Comments[0].ID)
+	assert.Equal(t, uint(8), resp.Comments[1].ID)
+	assert.True(t, resp.HasMore)
+}
+
 func TestFeedService_DiscoverTimeline_RanksAndPaginates(t *testing.T) {
 	now := time.Now()
 	// two candidates: post 8 by author 3 (high affinity), post 9 by author 2 (no affinity)
@@ -166,6 +219,102 @@ func TestFeedService_DiscoverTimeline_RanksAndPaginates(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, page2.Posts, 1)
 	assert.Equal(t, uint(9), page2.Posts[0].ID)
+}
+
+func TestFeedService_DiscoverTimelineReturnsLookupErrors(t *testing.T) {
+	expectedErr := errors.New("lookup failed")
+
+	tests := []struct {
+		name  string
+		stage string
+	}{
+		{name: "like counts", stage: "like-counts"},
+		{name: "comment counts", stage: "comment-counts"},
+		{name: "liked posts", stage: "liked-posts"},
+		{name: "second degree authors", stage: "second-degree"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			posts := &testutil.MockFeedPostRepository{
+				RecentCandidatesFn: func(uint, time.Time, int) ([]*model.FeedPost, error) {
+					return []*model.FeedPost{{ID: 7, AuthorID: 3, CreatedAt: time.Now()}}, nil
+				},
+				AuthorAffinityFn: func(uint) (map[uint]int64, error) {
+					return map[uint]int64{}, nil
+				},
+			}
+			likes := &testutil.MockFeedPostLikeRepository{
+				CountByPostIDsFn: func([]uint) (map[uint]int64, error) {
+					if test.stage == "like-counts" {
+						return nil, expectedErr
+					}
+
+					return map[uint]int64{}, nil
+				},
+				LikedPostIDsFn: func(uint, []uint) (map[uint]bool, error) {
+					if test.stage == "liked-posts" {
+						return nil, expectedErr
+					}
+
+					return map[uint]bool{}, nil
+				},
+			}
+			comments := &testutil.MockFeedCommentRepository{
+				CountByPostIDsFn: func([]uint) (map[uint]int64, error) {
+					if test.stage == "comment-counts" {
+						return nil, expectedErr
+					}
+
+					return map[uint]int64{}, nil
+				},
+			}
+			follow := &testutil.MockFollowRepository{
+				SecondDegreeAuthorIDsFn: func(uint) (map[uint]bool, error) {
+					if test.stage == "second-degree" {
+						return nil, expectedErr
+					}
+
+					return map[uint]bool{}, nil
+				},
+			}
+			svc := service.NewFeedService(follow, posts, likes, comments, nil)
+
+			_, err := svc.DiscoverTimeline(5, 0, 20)
+			require.ErrorIs(t, err, expectedErr)
+		})
+	}
+}
+
+func TestFeedService_AddCommentSkipsCountBroadcastWhenLookupFails(t *testing.T) {
+	countErr := errors.New("count unavailable")
+	posts := &testutil.MockFeedPostRepository{
+		GetByIDFn: func(uint) (*model.FeedPost, error) {
+			return &model.FeedPost{ID: 7, AuthorID: 5}, nil
+		},
+	}
+	comments := &testutil.MockFeedCommentRepository{
+		CreateFn: func(comment *model.FeedComment) error {
+			comment.ID = 11
+			return nil
+		},
+		GetByIDFn: func(uint) (*model.FeedComment, error) {
+			return &model.FeedComment{ID: 11, PostID: 7, AuthorID: 9, Content: "hello"}, nil
+		},
+		CountByPostIDsFn: func([]uint) (map[uint]int64, error) {
+			return nil, countErr
+		},
+	}
+	follow := &testutil.MockFollowRepository{
+		FollowerIDsFn: func(uint) ([]uint, error) { return []uint{2}, nil },
+	}
+	ws := &testutil.MockWebSocketManager{}
+	svc := service.NewFeedService(follow, posts, nil, comments, nil)
+	svc.SetWebSocketManager(ws)
+
+	_, err := svc.AddComment(7, 9, "hello")
+	require.NoError(t, err)
+	assert.Empty(t, ws.UserBroadcasts)
 }
 
 func TestFeedService_CreatePost_BroadcastsNewPostToFollowersNotAuthor(t *testing.T) {

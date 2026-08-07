@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, reactive } from 'vue'
 import { api, STORAGE_KEYS, guildLastChannel } from '@/api/index.js'
+import router from '@/router/index.js'
 import { getLocale, setLocale, translate } from '@/i18n/index.js'
 import { useVoiceStore } from './useVoiceStore.js'
 
@@ -132,15 +133,19 @@ export const useAppStore = defineStore('app', () => {
 
     // ── Auth ────────────────────────────────────────────────────
     async function checkAuth() {
-        // OAuth callback
-        const rawSearch = window.location.search || window.location.hash.replace(/^#/, '?')
-        const params = new URLSearchParams(rawSearch)
+        const callbackPrefix = '#/oauth/callback?'
+        const hash = window.location.hash
+        const params = hash.startsWith(callbackPrefix)
+            ? new URLSearchParams(hash.slice(callbackPrefix.length))
+            : new URLSearchParams(window.location.search)
         const oauthToken = params.get('access_token')
         const oauthRefresh = params.get('refresh_token')
         if (oauthToken) {
             api.setToken(oauthToken)
             if (oauthRefresh) api.setRefreshToken(oauthRefresh)
-            window.history.replaceState({}, '', window.location.pathname)
+            // hash 路由下 token 就在 router 的 query 裡，必須用 router 清掉；
+            // 直接 replaceState 只改網址列，router 的 currentRoute 會停在 oauth-callback。
+            await router.replace({ name: 'chat' })
             await loadUserData()
             return
         }

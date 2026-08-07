@@ -12,9 +12,13 @@ import (
 
 func TestFeedPostRepository_DeleteCascade(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
+
 	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectBegin()
+	mock.ExpectExec(`DELETE FROM "feed_comment_likes" WHERE comment_id IN \(SELECT id FROM feed_comments WHERE post_id = \$1\)`).
+		WithArgs(7).
+		WillReturnResult(sqlmock.NewResult(0, 4))
 	mock.ExpectExec(`DELETE FROM "feed_comments" WHERE post_id = \$1`).
 		WithArgs(7).WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectExec(`DELETE FROM "feed_post_likes" WHERE post_id = \$1`).
@@ -32,6 +36,7 @@ func TestFeedPostRepository_DeleteCascade(t *testing.T) {
 
 func TestFeedPostRepository_TimelineCursor(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
+
 	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "feed_posts" WHERE author_id IN`).
@@ -54,6 +59,7 @@ func TestFeedPostRepository_TimelineCursor(t *testing.T) {
 
 func TestFeedPostRepository_RecentCandidates(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
+
 	defer func() { _ = sqlDB.Close() }()
 
 	mock.ExpectQuery(`SELECT \* FROM "feed_posts" WHERE`).
@@ -76,6 +82,7 @@ func TestFeedPostRepository_RecentCandidates(t *testing.T) {
 
 func TestFeedPostRepository_AuthorAffinity(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
+
 	defer func() { _ = sqlDB.Close() }()
 
 	// likes grouped by post author.

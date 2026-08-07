@@ -25,6 +25,7 @@ var (
 	ErrEmptyMessageContent = errors.New("message content cannot be empty")
 	ErrInvalidMessageType  = errors.New("invalid message type")
 	ErrDuplicateNonce      = errors.New("duplicate nonce: message already exists")
+	ErrFileNotAttachable   = errors.New("file is not available for this message")
 )
 
 // WebSocketManager 定義 WebSocket 管理器的介面（避免循環依賴）
@@ -121,7 +122,7 @@ func (s *messageService) SetTranslationService(ts TranslationService) {
 // SetLikeRepo 設定按讚 repository（動態牆功能所需）
 func (s *messageService) SetLikeRepo(r repository.MessageLikeRepository) { s.likeRepo = r }
 
-// likeAccessCheck 確認訊息存在、使用者是該頻道所屬 guild 的成員，回傳訊息
+// likeAccessCheck 確認訊息存在且使用者可存取其 guild 或 DM 頻道，回傳訊息。
 func (s *messageService) likeAccessCheck(messageID, userID uint) (*model.Message, error) {
 	msg, err := s.messageRepo.GetByID(messageID)
 	if err != nil {
@@ -133,11 +134,8 @@ func (s *messageService) likeAccessCheck(messageID, userID uint) (*model.Message
 		return nil, errors.New("channel not found")
 	}
 
-	if channel.GuildID != nil {
-		if member, merr := s.guildMemberRepo.GetMember(*channel.GuildID, userID); merr != nil ||
-			member == nil {
-			return nil, ErrNotChannelMemberMsg
-		}
+	if err := s.ensureChannelAccess(channel, msg.ChannelID, userID); err != nil {
+		return nil, err
 	}
 
 	return msg, nil
@@ -420,6 +418,10 @@ func (s *messageService) CreateMessage(
 		}
 	}
 
+	if err := s.validateFileAttachments(userID, req.FileIDs); err != nil {
+		return nil, err
+	}
+
 	// 建立訊息
 	message := &model.Message{
 		ChannelID: req.ChannelID,
@@ -436,8 +438,13 @@ func (s *messageService) CreateMessage(
 		return nil, err
 	}
 
-	// 建立附件關聯
-	s.attachFiles(message.ID, req.FileIDs)
+	// 建立附件關聯。附件已在建立訊息前驗過，走到這裡代表期間檔案被刪或改狀態，
+	// 此時整筆訊息回滾，避免留下沒有附件卻也沒廣播出去的孤兒訊息。
+	if err := s.attachFiles(userID, message.ID, req.FileIDs); err != nil {
+		_ = s.messageRepo.Delete(message.ID)
+
+		return nil, err
+	}
 
 	// 重新取得訊息（包含關聯資料）
 	fullMessage, err := s.messageRepo.GetByID(message.ID)
@@ -522,16 +529,35 @@ func (s *messageService) ensureChannelAccess(channel *model.Channel, channelID, 
 	return nil
 }
 
-func (s *messageService) attachFiles(messageID uint, fileIDs []uint) {
-	if s.fileService == nil || len(fileIDs) == 0 {
-		return
+func (s *messageService) validateFileAttachments(userID uint, fileIDs []uint) error {
+	if s.fileService == nil && len(fileIDs) > 0 {
+		return ErrFileNotAttachable
 	}
 
-	for _, fid := range fileIDs {
-		if _, err := s.fileService.AttachToMessage(messageID, fid); err != nil {
-			_ = err
+	for _, fileID := range fileIDs {
+		file, err := s.fileService.GetFile(userID, fileID)
+		if err != nil || file.Status != fileStatusActive {
+			return ErrFileNotAttachable
 		}
 	}
+
+	return nil
+}
+
+func (s *messageService) attachFiles(userID, messageID uint, fileIDs []uint) error {
+	if s.fileService == nil || len(fileIDs) == 0 {
+		return nil
+	}
+
+	for _, fileID := range fileIDs {
+		if _, err := s.fileService.AttachToMessage(userID, messageID, fileID); err != nil {
+			// 包成 ErrFileNotAttachable，handler 才會回 403 而不是把
+			// ErrFileForbidden／ErrUploadNotConfirmed 落到 default 變成 500。
+			return fmt.Errorf("%w: %w", ErrFileNotAttachable, err)
+		}
+	}
+
+	return nil
 }
 
 // GetMessage 取得訊息
@@ -702,7 +728,7 @@ func (s *messageService) DeleteMessage(messageID, userID uint) error {
 	}
 
 	// feed 頻道的貼文（parent_id = nil）→ cascade 刪留言與所有讚
-	if channel != nil && channel.Type == "feed" && message.ParentID == nil {
+	if channel != nil && channel.Type == channelTypeFeed && message.ParentID == nil {
 		if err := s.messageRepo.DeletePostCascade(messageID); err != nil {
 			return err
 		}

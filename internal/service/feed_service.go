@@ -10,10 +10,17 @@ import (
 )
 
 var (
-	ErrCannotFollowSelf = errors.New("cannot follow yourself")
-	ErrFeedPostNotFound = errors.New("feed post not found")
-	ErrNotFeedOwner     = errors.New("not the owner")
+	ErrCannotFollowSelf  = errors.New("cannot follow yourself")
+	ErrFeedPostNotFound  = errors.New("feed post not found")
+	ErrNotFeedOwner      = errors.New("not the owner")
+	ErrFeedFileForbidden = errors.New("file is not available for this post")
 )
+
+// FeedFileLookup verifies feed-post attachments without coupling this service
+// to file storage or upload operations.
+type FeedFileLookup interface {
+	GetByID(id uint) (*model.File, error)
+}
 
 // FollowListResponse 追蹤者/被追蹤者列表回應
 type FollowListResponse struct {
@@ -53,6 +60,7 @@ type FeedService interface {
 	LikeComment(commentID, userID uint) (int64, error)
 	UnlikeComment(commentID, userID uint) (int64, error)
 	SetCommentLikeRepo(r repository.FeedCommentLikeRepository)
+	SetFileLookup(l FeedFileLookup)
 	SetWebSocketManager(m WebSocketManager)
 	ListComments(postID, viewerID, before uint, limit int) (*CommentListResponse, error)
 	AddComment(postID, authorID uint, content string) (*model.FeedComment, error)
@@ -67,6 +75,7 @@ type feedService struct {
 	commentRepo     repository.FeedCommentRepository
 	friendRepo      repository.FriendshipRepository
 	commentLikeRepo repository.FeedCommentLikeRepository
+	fileLookup      FeedFileLookup
 	wsManager       WebSocketManager
 }
 
@@ -74,6 +83,9 @@ type feedService struct {
 func (s *feedService) SetCommentLikeRepo(r repository.FeedCommentLikeRepository) {
 	s.commentLikeRepo = r
 }
+
+// SetFileLookup injects file metadata lookup for feed attachment validation.
+func (s *feedService) SetFileLookup(l FeedFileLookup) { s.fileLookup = l }
 
 func (s *feedService) SetWebSocketManager(m WebSocketManager) { s.wsManager = m }
 
@@ -217,6 +229,20 @@ func (s *feedService) CreatePost(
 		return nil, errors.New("empty post")
 	}
 
+	if len(fileIDs) > 0 {
+		if s.fileLookup == nil {
+			return nil, ErrFeedFileForbidden
+		}
+
+		for _, fileID := range fileIDs {
+			file, err := s.fileLookup.GetByID(fileID)
+			if err != nil || file == nil || file.UserID != authorID ||
+				file.Status != fileStatusActive {
+				return nil, ErrFeedFileForbidden
+			}
+		}
+	}
+
 	p := &model.FeedPost{AuthorID: authorID, Content: content}
 	if err := s.postRepo.Create(p); err != nil {
 		return nil, err
@@ -292,12 +318,25 @@ func (s *feedService) DiscoverTimeline(
 		ids[i] = p.ID
 	}
 
-	likeCounts, _ := s.likeRepo.CountByPostIDs(ids)
+	likeCounts, err := s.likeRepo.CountByPostIDs(ids)
+	if err != nil {
+		return nil, err
+	}
 
-	commentCounts, _ := s.commentRepo.CountByPostIDs(ids)
+	commentCounts, err := s.commentRepo.CountByPostIDs(ids)
+	if err != nil {
+		return nil, err
+	}
 
-	likedSet, _ := s.likeRepo.LikedPostIDs(viewerID, ids)
-	secondSet, _ := s.followRepo.SecondDegreeAuthorIDs(viewerID)
+	likedSet, err := s.likeRepo.LikedPostIDs(viewerID, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	secondSet, err := s.followRepo.SecondDegreeAuthorIDs(viewerID)
+	if err != nil {
+		return nil, err
+	}
 
 	now := time.Now()
 
@@ -519,7 +558,7 @@ func (s *feedService) ListComments(
 	hasMore := false
 	if len(cs) > limit {
 		hasMore = true
-		cs = cs[len(cs)-limit:]
+		cs = cs[:limit]
 	}
 
 	return &CommentListResponse{Comments: s.enrichComments(cs, viewerID), HasMore: hasMore}, nil
@@ -602,17 +641,15 @@ func (s *feedService) AddComment(
 		return nil, err
 	}
 
-	cnt := int64(0)
-	if counts, cerr := s.commentRepo.CountByPostIDs([]uint{postID}); cerr == nil {
-		cnt = counts[postID]
+	counts, err := s.commentRepo.CountByPostIDs([]uint{postID})
+	if err == nil {
+		s.broadcastToFollowers(
+			post.AuthorID,
+			true,
+			"feed_comment_count",
+			map[string]any{"post_id": postID, "comment_count": counts[postID]},
+		)
 	}
-
-	s.broadcastToFollowers(
-		post.AuthorID,
-		true,
-		"feed_comment_count",
-		map[string]any{"post_id": postID, "comment_count": cnt},
-	)
 
 	return full, nil
 }

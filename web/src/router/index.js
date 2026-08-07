@@ -8,6 +8,7 @@ const LiveView = () => import('@/views/LiveView.vue')
 
 export const routes = [
     { path: '/', name: 'chat', component: ChatView, meta: { section: 'chat' } },
+    { path: '/oauth/callback', name: 'oauth-callback', component: ChatView, meta: { section: 'chat' } },
     { path: '/feed', name: 'feed', component: FeedView, meta: { section: 'feed' } },
     { path: '/learn', name: 'learn', component: LearnView, meta: { section: 'learn' } },
     { path: '/live', name: 'live', component: LiveView, meta: { section: 'live' } },
