@@ -53,10 +53,19 @@ func New(cfg *config.Config) (*Server, error) {
 
 	router := gin.New()
 
+	// gin 預設信任所有代理，ClientIP() 會直接採信 X-Forwarded-For；
+	// 那等於任何人都能每次請求換一個假來源 IP，把下面的 IPRateLimit 完全繞開。
+	// 預設只信私有網段（見 config.setDefaults）：nginx / ingress 轉進來的真實
+	// client IP 照樣還原，公網直連偽造的標頭則被忽略。
+	if err := router.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+		return nil, err
+	}
+
 	// 全局中介軟體
 	router.Use(gin.Recovery())
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
+	router.Use(middleware.MaxBodySize(middleware.MaxBodyBytes))
 
 	// 初始化 JWT 管理器
 	jwtManager := auth.NewJWTManager(
@@ -70,8 +79,8 @@ func New(cfg *config.Config) (*Server, error) {
 	// 初始化 Redis client（失敗時記錄 warning 但繼續啟動）
 	rdb, redisErr := pkgredis.NewClient(&cfg.Redis)
 	if redisErr != nil {
-		// 非致命錯誤：Redis 不可用時降級運行
-		_ = redisErr
+		// 非致命錯誤：Redis 不可用時降級運行（速率限制、關卡快取、presence 都會退化）
+		logger.Warn("Redis init failed, running in degraded mode", "error", redisErr)
 	}
 
 	// 初始化 Repository
@@ -283,9 +292,19 @@ func (s *Server) setupRoutes() {
 		// 公開路由 - 認證相關
 		auth := v1.Group("/auth")
 		{
-			auth.POST("/register", s.userHandler.Register)
-			auth.POST("/login", s.userHandler.Login)
-			auth.POST("/refresh", s.userHandler.RefreshToken)
+			// 未認證端點按 IP 限流：擋密碼暴力破解與大量開帳號
+			auth.POST("/register",
+				middleware.IPRateLimit(s.rdb, "register", 10, time.Hour),
+				s.userHandler.Register,
+			)
+			auth.POST("/login",
+				middleware.IPRateLimit(s.rdb, "login", 20, time.Minute),
+				s.userHandler.Login,
+			)
+			auth.POST("/refresh",
+				middleware.IPRateLimit(s.rdb, "refresh", 60, time.Minute),
+				s.userHandler.RefreshToken,
+			)
 			auth.POST("/logout", s.userHandler.Logout)
 
 			// Google OAuth
@@ -374,15 +393,11 @@ func (s *Server) setupRoutes() {
 				channels.GET("/:id/messages", s.messageHandler.ListChannelMessages)
 				// 動態牆貼文列表
 				channels.GET("/:id/posts", s.messageHandler.ListPosts)
-				// 訊息發送套用 rate limit：每秒最多 10 則
-				if s.rdb != nil {
-					channels.POST("/:id/messages",
-						middleware.MessageRateLimit(s.rdb, 10),
-						s.messageHandler.CreateMessage,
-					)
-				} else {
-					channels.POST("/:id/messages", s.messageHandler.CreateMessage)
-				}
+				// 訊息發送套用 rate limit：每秒最多 10 則（無 Redis 時中介軟體自動放行）
+				channels.POST("/:id/messages",
+					middleware.MessageRateLimit(s.rdb, 10),
+					s.messageHandler.CreateMessage,
+				)
 
 				// 語音 Token（LiveKit）
 				channels.GET("/:id/voice/token", s.voiceHandler.GetVoiceToken)

@@ -2,7 +2,11 @@ package handler
 
 import (
 	"context"
+	"errors"
+	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -21,8 +25,18 @@ type OGData struct {
 	URL         string `json:"url"`
 }
 
+// ogMaxBodyBytes 限制解析的回應大小，避免惡意連結拖著伺服器讀無上限的 body。
+const ogMaxBodyBytes = 2 << 20 // 2MB
+
+// errBlockedHost URL 解析到內網／loopback 位址時回傳。
+var errBlockedHost = errors.New("blocked host")
+
 var ogHTTPClient = &http.Client{
 	Timeout: 8 * time.Second,
+	// 位址檢查放在 dial 階段：redirect 目標、DNS 名稱與各種 IP 編碼
+	// （127.1、十進位 IP、::ffff:127.0.0.1 …）一次全涵蓋，
+	// 只比對 URL 字串擋不住這些。
+	Transport: &http.Transport{DialContext: safeDialContext},
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 3 {
 			return http.ErrUseLastResponse
@@ -31,6 +45,63 @@ var ogHTTPClient = &http.Client{
 		return nil
 	},
 }
+
+// safeDialContext 先解析 host，再只對公開位址建立連線。
+func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+
+	var dialer net.Dialer
+
+	for _, ip := range ips {
+		if isPrivateIP(ip.IP) {
+			continue
+		}
+
+		conn, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+		if dialErr == nil {
+			return conn, nil
+		}
+
+		err = dialErr
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, errBlockedHost
+}
+
+// isPrivateIP 判斷位址是否屬於不該對外代訪的範圍（loopback / 私有網段 / link-local / multicast）。
+func isPrivateIP(ip net.IP) bool {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return true
+	}
+
+	addr = addr.Unmap()
+
+	// IsPrivate 只涵蓋 RFC1918 / ULA，不含 CGNAT（100.64.0.0/10）——
+	// 雲端與電信業者的內部網段常落在那裡。
+	if cgnat.Contains(addr) {
+		return true
+	}
+
+	return !addr.IsValid() || addr.IsLoopback() || addr.IsPrivate() ||
+		addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() ||
+		addr.IsInterfaceLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified()
+}
+
+// cgnat RFC 6598 shared address space。
+var cgnat = netip.MustParsePrefix("100.64.0.0/10")
 
 // GetOGPreview fetches Open Graph metadata for a given URL.
 //
@@ -99,7 +170,7 @@ func GetOGPreview(c *gin.Context) {
 func parseOGTags(resp *http.Response, originalURL string) OGData {
 	og := OGData{URL: originalURL}
 
-	doc, err := html.Parse(resp.Body)
+	doc, err := html.Parse(io.LimitReader(resp.Body, ogMaxBodyBytes))
 	if err != nil {
 		return og
 	}

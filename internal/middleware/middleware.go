@@ -50,6 +50,20 @@ func Logger() gin.HandlerFunc {
 	}
 }
 
+// MaxBodyBytes 請求 body 上限。訊息／貼文的 4000 字元檢查發生在 gin 已經把整個
+// body 讀進記憶體之後：那道檢查保住 DB，保不住記憶體。檔案走 pre-signed URL
+// 直傳 Minio、不經過本服務，所以這裡的上限可以壓得很低。
+// WebSocket 另有 SetReadLimit(512KB)，不受此中介軟體影響。
+const MaxBodyBytes = 1 << 20 // 1MB
+
+// MaxBodySize 限制請求 body 大小，超過時後續的 bind 會失敗並回 400。
+func MaxBodySize(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
+}
+
 // CORS 跨域資源共享中介軟體
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -111,19 +125,6 @@ func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 		c.Set("username", claims.Username)
 		c.Set("email", claims.Email)
 
-		c.Next()
-	}
-}
-
-// Auth 舊版相容 - 使用預設配置
-func Auth() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// TODO: 實作 JWT 驗證邏輯
-		// 1. 從 Authorization header 取得 token
-		// 2. 驗證 token
-		// 3. 將使用者資訊放入 context
-
-		// 目前先放行
 		c.Next()
 	}
 }

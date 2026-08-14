@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"github.com/walnut-almonds/talkrealm/internal/repository"
@@ -17,6 +18,14 @@ const (
 	messageTypeText = "text"
 	roleOwner       = "owner"
 	roleAdmin       = "admin"
+
+	// MaxMessageContentLen 單則訊息內容上限（rune 數）。
+	// 沒有上限時任何使用者都能塞爆 DB 與所有訂閱者的 WS buffer。
+	MaxMessageContentLen = 4000
+
+	// maxMentionsPerMessage 單則訊息最多處理幾個相異 <@id>，
+	// 用來限制成員驗證的查詢次數上界。
+	maxMentionsPerMessage = 50
 )
 
 var (
@@ -24,9 +33,13 @@ var (
 	ErrNotChannelMemberMsg = errors.New("not a member of this channel's guild")
 	ErrNotMessageOwner     = errors.New("not the owner of this message")
 	ErrEmptyMessageContent = errors.New("message content cannot be empty")
-	ErrInvalidMessageType  = errors.New("invalid message type")
-	ErrDuplicateNonce      = errors.New("duplicate nonce: message already exists")
-	ErrFileNotAttachable   = errors.New("file is not available for this message")
+	ErrMessageTooLong      = fmt.Errorf(
+		"message content exceeds %d characters",
+		MaxMessageContentLen,
+	)
+	ErrInvalidMessageType = errors.New("invalid message type")
+	ErrDuplicateNonce     = errors.New("duplicate nonce: message already exists")
+	ErrFileNotAttachable  = errors.New("file is not available for this message")
 )
 
 // WebSocketManager 定義 WebSocket 管理器的介面（避免循環依賴）
@@ -47,8 +60,13 @@ type MentionCreatePayload struct {
 	Content   string `json:"content"`
 }
 
-// mentionRe 解析 <@123> 格式的 user mention
-var mentionRe = regexp.MustCompile(`<@(\d+)>`)
+// mentionRe 解析 <@123> 格式的 user mention；hereRe/everyoneRe 解析廣播提及。
+// 每則訊息都會跑到，故一律在 package 層編譯一次。
+var (
+	mentionRe  = regexp.MustCompile(`<@(\d+)>`)
+	hereRe     = regexp.MustCompile(`(?i)@here\b`)
+	everyoneRe = regexp.MustCompile(`(?i)@everyone\b`)
+)
 
 // MessageService 訊息服務介面
 type MessageService interface {
@@ -587,6 +605,10 @@ func validateCreateRequest(req *CreateMessageRequest) (string, error) {
 		return "", ErrEmptyMessageContent
 	}
 
+	if utf8.RuneCountInString(req.Content) > MaxMessageContentLen {
+		return "", ErrMessageTooLong
+	}
+
 	msgType := req.Type
 	if msgType == "" {
 		msgType = messageTypeText
@@ -767,6 +789,10 @@ func (s *messageService) UpdateMessage(
 		return nil, ErrEmptyMessageContent
 	}
 
+	if utf8.RuneCountInString(req.Content) > MaxMessageContentLen {
+		return nil, ErrMessageTooLong
+	}
+
 	// 取得訊息
 	message, err := s.messageRepo.GetByID(messageID)
 	if err != nil {
@@ -915,6 +941,14 @@ func (s *messageService) parseMentions(
 ) []*model.MessageMention {
 	content := msg.Content
 
+	matches := mentionRe.FindAllStringSubmatch(content, -1)
+	hasHere := hereRe.MatchString(content)
+	hasEveryone := everyoneRe.MatchString(content)
+
+	if len(matches) == 0 && !hasHere && !hasEveryone {
+		return nil
+	}
+
 	mentions := make([]*model.MessageMention, 0, 8)
 	mentionIndexByUser := make(map[uint]int, 8)
 
@@ -935,32 +969,14 @@ func (s *messageService) parseMentions(
 		})
 	}
 
-	// 解析 <@123> 格式
-	matches := mentionRe.FindAllStringSubmatch(content, -1)
-	for _, m := range matches {
-		uid, err := strconv.ParseUint(m[1], 10, 64)
-		if err != nil {
-			continue
-		}
-
-		upsertMention(uint(uid), "user")
+	// 解析 <@123> 格式。<@id> 的數字是使用者自由輸入的，沒有這道過濾等於任何人
+	// 都能對站上任意 user 推播含任意內容的 mention_create。
+	for _, uid := range s.visibleMentionTargets(msg.ChannelID, channel, matches) {
+		upsertMention(uid, "user")
 	}
 
-	// 解析 @here 和 @everyone（僅 guild 頻道）
-	if channel.GuildID == nil {
-		return mentions
-	}
-
-	hasHere := containsMentionKeyword(content, "here")
-	hasEveryone := containsMentionKeyword(content, "everyone")
-
-	if !hasHere && !hasEveryone {
-		return mentions
-	}
-
-	// 取得 guild 所有成員
-	members, err := s.guildMemberRepo.GetByGuildID(*channel.GuildID)
-	if err != nil {
+	//	@here	/ @everyone 僅限 guild 頻道
+	if channel.GuildID == nil || (!hasHere && !hasEveryone) {
 		return mentions
 	}
 
@@ -969,20 +985,103 @@ func (s *messageService) parseMentions(
 		mentionType = "here"
 	}
 
-	for _, member := range members {
-		if member.UserID == msg.UserID {
+	for _, userID := range s.guildRoster(*channel.GuildID) {
+		if userID == msg.UserID {
 			continue // 跳過發送者自己
 		}
 
 		//	@here	只通知在線成員；@everyone 通知所有成員
-		if hasHere && s.wsManager != nil && !s.wsManager.IsUserOnline(member.UserID) {
+		if hasHere && s.wsManager != nil && !s.wsManager.IsUserOnline(userID) {
 			continue
 		}
 
-		upsertMention(member.UserID, mentionType)
+		upsertMention(userID, mentionType)
 	}
 
 	return mentions
+}
+
+// visibleMentionTargets 從 <@id> 比對結果篩出「真的看得到這個頻道」的使用者。
+// 刻意不整份載入 guild 成員來做比對：GetByGuildID 會 Preload("User") 撈出整張
+// 成員表，掛在每一則含 mention 的訊息上等於把 mention spam 變成 DB 壓力測試。
+// 內容本身已有 MaxMessageContentLen 上限，這裡再限 maxMentionsPerMessage 個
+// 相異 ID，查詢次數就有上界。
+func (s *messageService) visibleMentionTargets(
+	channelID uint,
+	channel *model.Channel,
+	matches [][]string,
+) []uint {
+	ids := make([]uint, 0, len(matches))
+	seen := make(map[uint]bool, len(matches))
+
+	for _, m := range matches {
+		uid, err := strconv.ParseUint(m[1], 10, 64)
+		if err != nil || seen[uint(uid)] {
+			continue
+		}
+
+		seen[uint(uid)] = true
+
+		ids = append(ids, uint(uid))
+		if len(ids) >= maxMentionsPerMessage {
+			break
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	if channel.Type == "dm" {
+		participants, err := s.channelRepo.GetDMParticipants(channelID)
+		if err != nil {
+			return nil
+		}
+
+		inDM := make(map[uint]bool, len(participants))
+		for _, p := range participants {
+			inDM[p.UserID] = true
+		}
+
+		return filterUint(ids, func(uid uint) bool { return inDM[uid] })
+	}
+
+	if channel.GuildID == nil {
+		return nil
+	}
+
+	return filterUint(ids, func(uid uint) bool {
+		member, err := s.guildMemberRepo.GetMember(*channel.GuildID, uid)
+
+		return err == nil && member != nil
+	})
+}
+
+// guildRoster 回傳 guild 全體成員 ID（僅 @here / @everyone 展開時才需要）。
+func (s *messageService) guildRoster(guildID uint) []uint {
+	members, err := s.guildMemberRepo.GetByGuildID(guildID)
+	if err != nil {
+		return nil
+	}
+
+	ids := make([]uint, 0, len(members))
+	for _, m := range members {
+		ids = append(ids, m.UserID)
+	}
+
+	return ids
+}
+
+func filterUint(ids []uint, keep func(uint) bool) []uint {
+	out := ids[:0]
+
+	for _, id := range ids {
+		if keep(id) {
+			out = append(out, id)
+		}
+	}
+
+	return out
 }
 
 func mentionTypePriority(mentionType string) int {
@@ -994,10 +1093,4 @@ func mentionTypePriority(mentionType string) int {
 	default:
 		return 1
 	}
-}
-
-// containsMentionKeyword 檢查內容中是否包含 @keyword（不區分大小寫，詞邊界匹配）
-func containsMentionKeyword(content, keyword string) bool {
-	re := regexp.MustCompile(fmt.Sprintf(`(?i)@%s\b`, keyword))
-	return re.MatchString(content)
 }

@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ func newGuildMemberRouter(h *handler.GuildHandler) *gin.Engine {
 	r.POST("/guilds/:id/invites", auth, h.CreateInvite)
 	r.GET("/invites/:code", h.GetInvite)
 	r.POST("/guilds/join-by-invite", auth, h.JoinByInvite)
+
 	return r
 }
 
@@ -32,10 +34,19 @@ func TestGuildHandler_JoinGuild_Success(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberService{
 		JoinGuildFn: func(guildID, userID uint) error { return nil },
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, mockMember, &testutil.MockGuildInviteService{})
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		mockMember,
+		&testutil.MockGuildInviteService{},
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("POST", "/guilds/1/join", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/guilds/1/join",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -46,10 +57,19 @@ func TestGuildHandler_JoinGuild_AlreadyInGuild(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberService{
 		JoinGuildFn: func(guildID, userID uint) error { return service.ErrAlreadyInGuild },
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, mockMember, &testutil.MockGuildInviteService{})
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		mockMember,
+		&testutil.MockGuildInviteService{},
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("POST", "/guilds/1/join", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/guilds/1/join",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -60,10 +80,19 @@ func TestGuildHandler_LeaveGuild_Success(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberService{
 		LeaveGuildFn: func(guildID, userID uint) error { return nil },
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, mockMember, &testutil.MockGuildInviteService{})
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		mockMember,
+		&testutil.MockGuildInviteService{},
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("POST", "/guilds/1/leave", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/guilds/1/leave",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -74,10 +103,19 @@ func TestGuildHandler_LeaveGuild_OwnerCannotLeave(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberService{
 		LeaveGuildFn: func(guildID, userID uint) error { return service.ErrCannotLeaveAsOwner },
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, mockMember, &testutil.MockGuildInviteService{})
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		mockMember,
+		&testutil.MockGuildInviteService{},
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("POST", "/guilds/1/leave", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/guilds/1/leave",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -88,10 +126,19 @@ func TestGuildHandler_KickMember_Success(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberService{
 		KickMemberFn: func(guildID, targetUserID, operatorUserID uint) error { return nil },
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, mockMember, &testutil.MockGuildInviteService{})
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		mockMember,
+		&testutil.MockGuildInviteService{},
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("DELETE", "/guilds/1/members/2", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodDelete,
+		"/guilds/1/members/2",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -104,10 +151,19 @@ func TestGuildHandler_KickMember_Forbidden(t *testing.T) {
 			return service.ErrNotGuildOwner
 		},
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, mockMember, &testutil.MockGuildInviteService{})
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		mockMember,
+		&testutil.MockGuildInviteService{},
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("DELETE", "/guilds/1/members/2", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodDelete,
+		"/guilds/1/members/2",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -118,12 +174,22 @@ func TestGuildHandler_UpdateMemberRole_Success(t *testing.T) {
 	mockMember := &testutil.MockGuildMemberService{
 		UpdateMemberRoleFn: func(guildID, targetUserID, operatorUserID uint, role string) error { return nil },
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, mockMember, &testutil.MockGuildInviteService{})
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		mockMember,
+		&testutil.MockGuildInviteService{},
+	)
 	r := newGuildMemberRouter(h)
 
 	body, _ := json.Marshal(map[string]string{"role": "admin"})
-	req, _ := http.NewRequest("PUT", "/guilds/1/members/2/role", bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPut,
+		"/guilds/1/members/2/role",
+		bytes.NewReader(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -136,10 +202,19 @@ func TestGuildHandler_CreateInvite_Success(t *testing.T) {
 			return &model.GuildInvite{Code: "ABC123"}, nil
 		},
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, &testutil.MockGuildMemberService{}, mockInvite)
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		&testutil.MockGuildMemberService{},
+		mockInvite,
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("POST", "/guilds/1/invites", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/guilds/1/invites",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -152,10 +227,19 @@ func TestGuildHandler_GetInvite_Success(t *testing.T) {
 			return &model.GuildInvite{Code: code}, nil
 		},
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, &testutil.MockGuildMemberService{}, mockInvite)
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		&testutil.MockGuildMemberService{},
+		mockInvite,
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("GET", "/invites/ABC123", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/invites/ABC123",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -168,10 +252,19 @@ func TestGuildHandler_GetInvite_NotFound(t *testing.T) {
 			return nil, service.ErrInviteNotFound
 		},
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, &testutil.MockGuildMemberService{}, mockInvite)
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		&testutil.MockGuildMemberService{},
+		mockInvite,
+	)
 	r := newGuildMemberRouter(h)
 
-	req, _ := http.NewRequest("GET", "/invites/NOTEXIST", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/invites/NOTEXIST",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -182,12 +275,22 @@ func TestGuildHandler_JoinByInvite_Success(t *testing.T) {
 	mockInvite := &testutil.MockGuildInviteService{
 		JoinByInviteFn: func(code string, userID uint) error { return nil },
 	}
-	h := handler.NewGuildHandler(&testutil.MockGuildService{}, &testutil.MockGuildMemberService{}, mockInvite)
+	h := handler.NewGuildHandler(
+		&testutil.MockGuildService{},
+		&testutil.MockGuildMemberService{},
+		mockInvite,
+	)
 	r := newGuildMemberRouter(h)
 
 	body, _ := json.Marshal(map[string]string{"code": "ABC123"})
-	req, _ := http.NewRequest("POST", "/guilds/join-by-invite", bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/guilds/join-by-invite",
+		bytes.NewReader(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -201,7 +304,8 @@ func TestGuildHandler_JoinByInvite_Success(t *testing.T) {
 func TestHandler_HealthCheck(t *testing.T) {
 	r := gin.New()
 	r.GET("/health", handler.HealthCheck)
-	req, _ := http.NewRequest("GET", "/health", nil)
+
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -210,51 +314,9 @@ func TestHandler_HealthCheck(t *testing.T) {
 func TestHandler_Ping(t *testing.T) {
 	r := gin.New()
 	r.GET("/ping", handler.Ping)
-	req, _ := http.NewRequest("GET", "/ping", nil)
+
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/ping", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestHandler_StubEndpoints(t *testing.T) {
-	r := gin.New()
-	r.POST("/register", handler.Register)
-	r.POST("/login", handler.Login)
-	r.GET("/me", handler.GetCurrentUser)
-	r.PUT("/me", handler.UpdateCurrentUser)
-	r.GET("/ws", handler.WebSocketHandler)
-	r.POST("/guilds", handler.CreateGuild)
-	r.GET("/guilds", handler.ListGuilds)
-	r.GET("/guilds/:id", handler.GetGuild)
-	r.PUT("/guilds/:id", handler.UpdateGuild)
-	r.DELETE("/guilds/:id", handler.DeleteGuild)
-	r.POST("/channels", handler.CreateChannel)
-	r.GET("/channels/:id", handler.GetChannel)
-	r.PUT("/channels/:id", handler.UpdateChannel)
-	r.DELETE("/channels/:id", handler.DeleteChannel)
-
-	for _, tc := range []struct {
-		method string
-		path   string
-	}{
-		{"POST", "/register"},
-		{"POST", "/login"},
-		{"GET", "/me"},
-		{"PUT", "/me"},
-		{"GET", "/ws"},
-		{"POST", "/guilds"},
-		{"GET", "/guilds"},
-		{"GET", "/guilds/1"},
-		{"PUT", "/guilds/1"},
-		{"DELETE", "/guilds/1"},
-		{"POST", "/channels"},
-		{"GET", "/channels/1"},
-		{"PUT", "/channels/1"},
-		{"DELETE", "/channels/1"},
-	} {
-		req, _ := http.NewRequest(tc.method, tc.path, nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
-	}
 }

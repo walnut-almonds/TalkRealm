@@ -58,6 +58,10 @@ type ServerConfig struct {
 	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
 	WriteTimeout time.Duration `mapstructure:"write_timeout"`
 	IdleTimeout  time.Duration `mapstructure:"idle_timeout"`
+	// TrustedProxies 反向代理的 CIDR 清單。空值＝只信 RemoteAddr。
+	// 千萬別填 0.0.0.0/0：ClientIP() 會改讀 X-Forwarded-For，
+	// 任何人都能偽造來源 IP 繞過 IP 限流。
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 // DatabaseConfig 資料庫配置
@@ -119,6 +123,23 @@ type LogConfig struct {
 	Level string `mapstructure:"level"`
 }
 
+// defaultJWTSecret 僅供本機開發；release 模式下必須覆寫（見 Load）。
+const (
+	defaultJWTSecret = "your-secret-key-change-this-in-production"
+	minJWTSecretLen  = 32
+)
+
+// usableJWTSecret 判斷 secret 是否真的被設過。
+// 正常部署路徑不會走到這裡失敗：deploy.yml 先 `test -n "$JWT_SECRET"` 再
+// envsubst 展開 configs/config.prod.yaml，viper 讀到的已是實際值。
+// 這道檢查擋的是繞過該流程的情況——envsubst 把未設定的變數展成空字串、
+// 或有人直接把 `secret: ${JWT_SECRET}` 原樣餵給 viper（viper 不展開 ${}）。
+func usableJWTSecret(secret string) bool {
+	return secret != defaultJWTSecret &&
+		!strings.Contains(secret, "${") &&
+		len(secret) >= minJWTSecretLen
+}
+
 // Load 載入配置檔案
 func Load() (*Config, error) {
 	viper.SetConfigName("config")
@@ -146,6 +167,11 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	// 開發預設值一旦被帶進正式環境，等於任何人都能自簽 token；寧可開不起來。
+	if config.Server.Mode == "release" && !usableJWTSecret(config.JWT.Secret) {
+		return nil, errors.New("config: jwt.secret must be overridden when server.mode=release")
+	}
+
 	return &config, nil
 }
 
@@ -157,6 +183,13 @@ func setDefaults() {
 	viper.SetDefault("server.read_timeout", 10*time.Second)
 	viper.SetDefault("server.write_timeout", 10*time.Second)
 	viper.SetDefault("server.idle_timeout", 60*time.Second)
+	// 只信任私有網段的代理（nginx / k8s ingress 都在這些網段內）。
+	// 從公網直連的請求 RemoteAddr 不在其中，偽造的 X-Forwarded-For 會被忽略；
+	// 走 nginx 進來的則正常還原真實 client IP，IP 限流才不會全站共用一個桶子。
+	viper.SetDefault("server.trusted_proxies", []string{
+		"127.0.0.1/32", "::1/128",
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7",
+	})
 
 	// Database 預設值
 	viper.SetDefault("database.host", "localhost")
@@ -177,8 +210,9 @@ func setDefaults() {
 	viper.SetDefault("redis.db", 0)
 
 	// JWT 預設值
-	viper.SetDefault("jwt.secret", "your-secret-key-change-this-in-production")
-	viper.SetDefault("jwt.expiration_hours", 24*time.Hour)
+	viper.SetDefault("jwt.secret", defaultJWTSecret)
+	// 單位是「小時」，不是 Duration：填 24*time.Hour 會變成 864 億小時。
+	viper.SetDefault("jwt.expiration_hours", 24)
 
 	// Log 預設值
 	viper.SetDefault("log.level", "info")

@@ -2,19 +2,34 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"time"
+	"unicode/utf8"
 
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"github.com/walnut-almonds/talkrealm/internal/repository"
 )
 
 var (
-	ErrCannotFollowSelf  = errors.New("cannot follow yourself")
-	ErrFeedPostNotFound  = errors.New("feed post not found")
-	ErrNotFeedOwner      = errors.New("not the owner")
-	ErrFeedFileForbidden = errors.New("file is not available for this post")
+	ErrCannotFollowSelf   = errors.New("cannot follow yourself")
+	ErrFeedPostNotFound   = errors.New("feed post not found")
+	ErrNotFeedOwner       = errors.New("not the owner")
+	ErrFeedFileForbidden  = errors.New("file is not available for this post")
+	ErrFeedContentTooLong = fmt.Errorf(
+		"content exceeds %d characters",
+		MaxMessageContentLen,
+	)
 )
+
+// checkFeedContentLen 與訊息共用長度上限；沒有上限時貼文／留言可無限撐大 DB。
+func checkFeedContentLen(content string) error {
+	if utf8.RuneCountInString(content) > MaxMessageContentLen {
+		return ErrFeedContentTooLong
+	}
+
+	return nil
+}
 
 // FeedFileLookup verifies feed-post attachments without coupling this service
 // to file storage or upload operations.
@@ -227,6 +242,10 @@ func (s *feedService) CreatePost(
 ) (*FeedPostResponse, error) {
 	if content == "" && len(fileIDs) == 0 {
 		return nil, errors.New("empty post")
+	}
+
+	if err := checkFeedContentLen(content); err != nil {
+		return nil, err
 	}
 
 	if len(fileIDs) > 0 {
@@ -465,6 +484,10 @@ func (s *feedService) getOwnedPost(postID, userID uint) (*model.FeedPost, error)
 }
 
 func (s *feedService) UpdatePost(postID, userID uint, content string) (*FeedPostResponse, error) {
+	if err := checkFeedContentLen(content); err != nil {
+		return nil, err
+	}
+
 	p, err := s.getOwnedPost(postID, userID)
 	if err != nil {
 		return nil, err
@@ -626,6 +649,10 @@ func (s *feedService) AddComment(
 		return nil, errors.New("empty comment")
 	}
 
+	if err := checkFeedContentLen(content); err != nil {
+		return nil, err
+	}
+
 	post, err := s.postRepo.GetByID(postID)
 	if err != nil {
 		return nil, ErrFeedPostNotFound
@@ -658,6 +685,10 @@ func (s *feedService) UpdateComment(
 	commentID, userID uint,
 	content string,
 ) (*model.FeedComment, error) {
+	if err := checkFeedContentLen(content); err != nil {
+		return nil, err
+	}
+
 	c, err := s.commentRepo.GetByID(commentID)
 	if err != nil {
 		return nil, errors.New("comment not found")

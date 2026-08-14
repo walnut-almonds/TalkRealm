@@ -209,6 +209,7 @@ func (s *fileService) ConfirmUpload(userID, fileID uint) (*model.File, error) {
 	}
 
 	// 以 Minio 回報的實際大小為準
+	declaredSize := file.Size
 	file.Size = actualSize
 	file.Status = fileStatusActive
 
@@ -216,10 +217,31 @@ func (s *fileService) ConfirmUpload(userID, fileID uint) (*model.File, error) {
 		return nil, err
 	}
 
-	// 確認後計入 Redis quota
-	s.incrRedisQuota(userID, actualSize)
+	// 配額的「次數」已在 PresignUpload 計過（那才是需要擋下來的時機點），
+	// 這裡再 INCR 一次會讓每個檔案吃掉兩份額度。但位元組數不能不管：
+	// presign 記的是 client 自己宣告的大小，而 Minio 的 presigned PUT
+	// 不強制 Content-Length，宣告 1 byte 上傳 1GB 就繞開了每日總量上限。
+	// 所以次數不重計，位元組只補上實際與宣告的差額。
+	s.reconcileRedisBytes(userID, actualSize-declaredSize)
 
 	return file, nil
+}
+
+// reconcileRedisBytes 以差額修正每日位元組計數（正負皆可），不動次數計數。
+func (s *fileService) reconcileRedisBytes(userID uint, delta int64) {
+	if s.rdb == nil || delta == 0 {
+		return
+	}
+
+	ctx := context.Background()
+	bytesKey := fmt.Sprintf("upload_quota:%d:daily_bytes", userID)
+
+	// 只在 key 還在（今天已有計數）時修正；key 已過期就讓它留在下一個視窗歸零。
+	if s.rdb.Exists(ctx, bytesKey).Val() == 0 {
+		return
+	}
+
+	s.rdb.IncrBy(ctx, bytesKey, delta)
 }
 
 func (s *fileService) GetFile(userID, fileID uint) (*model.File, error) {
@@ -452,25 +474,4 @@ func (s *fileService) checkDailyQuotaDB(userID uint, size int64) error {
 	}
 
 	return nil
-}
-
-// incrRedisQuota 在確認上傳後補記 Redis 計數（PresignUpload 時已計過 pending，此處同步 active）
-func (s *fileService) incrRedisQuota(userID uint, size int64) {
-	if s.rdb == nil {
-		return
-	}
-
-	ctx := context.Background()
-	now := time.Now().UTC()
-	ttl := time.Until(now.Truncate(24 * time.Hour).Add(24 * time.Hour))
-
-	countKey := fmt.Sprintf("upload_quota:%d:daily_count", userID)
-	bytesKey := fmt.Sprintf("upload_quota:%d:daily_bytes", userID)
-
-	pipe := s.rdb.Pipeline()
-	pipe.Incr(ctx, countKey)
-	pipe.Expire(ctx, countKey, ttl)
-	pipe.IncrBy(ctx, bytesKey, size)
-	pipe.Expire(ctx, bytesKey, ttl)
-	_, _ = pipe.Exec(ctx)
 }

@@ -382,21 +382,21 @@ func (c *Client) handleVoiceStateUpdate(raw json.RawMessage) {
 		payload.Action = voiceActionJoin
 	}
 
+	currentVoiceChannelID, _ := c.manager.voiceState(c)
+
 	if payload.Action == voiceActionJoin {
 		// 若使用者已在另一個語音頻道，先從舊頻道移除（防止跨頻道殘留）
-		if c.currentVoiceChannelID != 0 && c.currentVoiceChannelID != payload.ChannelID {
-			c.manager.RemoveVoiceParticipant(c.currentVoiceChannelID, c.userID)
+		if currentVoiceChannelID != 0 && currentVoiceChannelID != payload.ChannelID {
+			c.manager.RemoveVoiceParticipant(currentVoiceChannelID, c.userID)
 		}
 
 		c.manager.UpsertVoiceParticipant(payload.ChannelID, c.userID, c.username)
-		c.currentVoiceChannelID = payload.ChannelID
-		c.currentVoiceGuildID = payload.GuildID
+		c.manager.setVoiceState(c, payload.ChannelID, payload.GuildID)
 	} else {
 		c.manager.RemoveVoiceParticipant(payload.ChannelID, c.userID)
 
-		if c.currentVoiceChannelID == payload.ChannelID {
-			c.currentVoiceChannelID = 0
-			c.currentVoiceGuildID = 0
+		if currentVoiceChannelID == payload.ChannelID {
+			c.manager.setVoiceState(c, 0, 0)
 		}
 	}
 
@@ -441,10 +441,8 @@ func (c *Client) handleIdentify(raw json.RawMessage) {
 		return
 	}
 
-	// 設定 client 身份
-	c.userID = claims.UserID
-	c.username = claims.Username
-	c.identified = true
+	// 設定 client 身份，並加入使用者訂閱索引（用於 DM／mention 推播）
+	c.manager.markIdentified(c, claims.UserID, claims.Username)
 
 	log.Printf("Client identified: User %s (ID: %d)", c.username, c.userID)
 
@@ -455,9 +453,6 @@ func (c *Client) handleIdentify(raw json.RawMessage) {
 
 	// 訂閱所屬的所有 guild（非同步 DB 查詢，不阻塞 readPump）
 	go c.manager.SubscribeClientToUserGuilds(c)
-
-	// 將 client 加入使用者訂閱索引（用於 DM 推播）
-	c.manager.RegisterUserClient(c)
 
 	// 回應 ready
 	c.sendJSON(OutgoingMessage{
@@ -516,22 +511,6 @@ func (c *Client) sendJSON(msg OutgoingMessage) {
 	default:
 		log.Printf("send buffer full for client %s, dropping message", c.username)
 	}
-}
-
-// SendMessage 發送原始位元組給客戶端
-func (c *Client) SendMessage(data []byte) {
-	select {
-	case c.send <- data:
-	default:
-		close(c.send)
-
-		c.manager.unregister <- c
-	}
-}
-
-// IsSubscribed 檢查客戶端是否訂閱了指定頻道
-func (c *Client) IsSubscribed(channelID uint) bool {
-	return c.channels[channelID]
 }
 
 // handleSendDM 處理 send_dm op：建立私訊並廣播給雙方

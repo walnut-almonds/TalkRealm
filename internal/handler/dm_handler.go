@@ -141,7 +141,8 @@ func (h *DMHandler) SendDMMessage(c *gin.Context) {
 		switch {
 		case errors.Is(err, service.ErrNotChannelMemberMsg):
 			c.JSON(http.StatusForbidden, gin.H{"error": "not a participant of this dm channel"})
-		case errors.Is(err, service.ErrEmptyMessageContent):
+		case errors.Is(err, service.ErrEmptyMessageContent),
+			errors.Is(err, service.ErrMessageTooLong):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		case errors.Is(err, service.ErrDuplicateNonce):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})

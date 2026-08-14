@@ -86,6 +86,13 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - **本機驗證埠衝突**：5432/8080 可能被同機其他專案容器（infra-postgres/lobby）占用；smoke test 可用臨時容器（如 5433）+ `configs/config.yaml`（gitignored）改埠。
 - **`AllWordsForIndex()` 輕量 SELECT 誤用陷阱**：`internal/repository/learn_repository.go` 的 `AllWordsForIndex()` 為了 anagram 索引效能故意只 `Select("id","word","tier","frequency","length")`，回傳的 `model.Word` 沒有 `Phonetic`/`Definition*`。`buildWheelLevel`/`buildCrosswordLevel` 曾直接拿這份輕量物件當最終答案資料，導致 wheel/crossword 所有非底字答案的音標/釋義自上線起就一直是空字串（fill 模式與底字沒事，因為底字另外用 `RandomWordsByTier` 全欄位查）。修法：`picked` 選定後再用 `s.repo.WordsByIDs(pickedIDs)` 換回全欄位（`internal/service/learn_service.go`/`learn_crossword.go`）。`fakeLearnRepo.AllWordsForIndex()`（`learn_service_test.go`）原本直接回傳完整 fixture，等於白盒測試也測不出來——已改成如實剝掉 phonetic/definition 欄位以誠實模擬正式環境；日後改 `AllWordsForIndex` 相關邏輯前，先確認 fake 是否仍誠實反映真實 SELECT 範圍。
 - **`crosswordGrid.js` 的 `buildCells` 曾只認 `solved`**：交叉字謎前端只在單字整個解開（`word.solved && word.word`）時才把字母畫進網格格子，導致對網格字下「揭字母」提示時，提示清單顯示揭露字母、但網格格子仍是空的——兩處呈現不同步。後端 `masked` 欄位其實已經把提示揭露的字母也算進去（`maskWithHint`，底線代表未揭露）；修法是網格改吃 `masked` 逐格取非底線字元（不論是否 `solved`），而非只看 `solved`。
+- **`.golangci.yaml` 是 `new: true` + `new-from-rev: HEAD~`**：lint 只回報「相對於前一 commit 有變動的行」。刪掉一個函式會讓後面所有行都算「新行」，於是同檔案裡原本就存在、一直被略過的問題（例如 test 檔滿滿的 `noctx`）會整批冒出來——不是你改壞的，但 CI（`only-new-issues: true`）也會看到，順手修掉即可。跑 `golangci-lint run --fix` 可自動處理 gci/golines/wsl。
+- **`AllowFixedWindow` 依賴 Redis 6.2+**：`pkg/redis/redis.go` 用 `EXPIRE key ttl NX`（go-redis `ExpireNX`）。6.2 以下的 Redis 會讓 pipeline `Exec` 回錯，而該函式是 fail-open 設計 → **所有限流靜默失效**，不會有任何錯誤浮上來。compose 目前釘 `redis:7-alpine`，換版本前先確認。
+- **訊息與貼文長度上限只有一處**：`service.MaxMessageContentLen`（4000 runes）。訊息端在 `validateCreateRequest`／`UpdateMessage` 檢查（REST、WS `send_message`/`send_dm`、DM handler 全部匯流於此）；feed 端走 `checkFeedContentLen`。新增任何寫入內容的路徑時要接上其中一條，否則又會出現沒有上限的入口。
+- **`@` 提及必須先過 `mentionAudience`**：`<@id>` 是使用者自由輸入的數字，不做過濾等於任何人都能對站上任意 user 推播含任意內容的 `mention_create`。`parseMentions` 一律先取「guild 成員或 DM 參與者」名單再比對；`@here`/`@everyone` 也共用這份名單。
+- **IP 限流的前提是 `SetTrustedProxies`**：gin 預設信任所有代理，`ClientIP()` 直接採信 `X-Forwarded-For`，任何人每次換一個假 IP 就能繞開 `middleware.IPRateLimit`。但也不能改成完全不信——本專案跑在 nginx／k8s ingress 後面，那樣所有人會塌成同一個代理 IP，登入限流變成全站共用一個桶子。預設值設在 `config.setDefaults` 的 `server.trusted_proxies`：只信私有網段。
+- **Redis 固定視窗限流用 `EXPIRE NX`**：`pkgredis.AllowFixedWindow`（`pkg/redis/redis.go`）是唯一實作，REST 與 WS 都走它。每次無條件 `EXPIRE` 會讓持續打的人一直把 TTL 往後推、視窗永不重置；「只在 `hits==1` 時 EXPIRE」則是那一次掉了（Redis 抖動／行程剛好掛）key 就永久沒 TTL，該 IP 被永遠鎖死。`INCR`+`ExpireNX` 同一個 pipeline，兩個問題都沒有。
+
 
 ## Decisions
 - **設定架構：齒輪只有一顆**。全站唯一設定入口在 NavRail 底部（`nav-foot`，呼叫 MainLayout `provide('openModal')` 開 `UserSettingsModal`）；modal 內用 section 分區（帳號/GIF/學習/密碼），新功能設定加 section、不新增齒輪。「改了立刻想看效果」的偏好做成功能內 inline 控制項（如 Learn 困難模式 toggle，hub 與遊戲中各一顆，同一份狀態）。純本機顯示偏好存 localStorage（`talkrealm_learn_hard`，state 在 `useLearnStore.hardMode`），需跨裝置/影響計分時才升級後端。困難模式渲染：`components/learn/mask.js` 的 `maskSegments()` 把連續 `_` 收成單一 gap 格。
@@ -140,3 +147,7 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
  — i18n 規則：未設定 `ui_locale` 時，前端以 `navigator.languages` 順序決定初始語言（中文依繁簡/地區判斷：`hant|tw|hk|mo -> zh-tw`，`hans|cn|sg -> zh`，其餘 zh 預設簡體）；缺少翻譯 key 時 fallback 到英文
 
 2026-06-09 — 整理 MEMORY.md 與 AGENTS.md 格式；移除逐次 changelog（技術要點已收入 Pitfalls / Architecture Notes）
+
+2026-08-14 — 階段性全專案檢查：修 WS 廣播殘留訂閱導致的 send-on-closed-channel、client 欄位跨 goroutine 競態、OG 預覽 SSRF（改在 dial 階段擋內網 IP，涵蓋 redirect/DNS）、訊息與貼文長度上限、mention 授權、檔案配額重複計數、`jwt.expiration_hours` 預設值單位錯誤、登入/註冊 IP 限流；刪除 handler/middleware 的 TODO stub 死碼。
+
+2026-08-14（續）— 二輪 review 補強：gin `SetTrustedProxies`（否則 X-Forwarded-For 可偽造、IP 限流形同虛設）、限流改 `ExpireNX` 單趟 pipeline、檔案配額改「次數不重計／位元組補實際差額」（presign 記的是 client 宣告值，presigned PUT 不強制 Content-Length）、JWT secret 檢查加上空值與長度、`MaxBodySize` 1MB 全域中介軟體（長度檢查發生在 body 已進記憶體之後）、`isPrivateIP` 補 CGNAT 100.64.0.0/10。

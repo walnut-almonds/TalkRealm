@@ -67,8 +67,9 @@ func (h *MessageHandler) CreateMessage(c *gin.Context) {
 				http.StatusForbidden,
 				gin.H{"error": "you are not a member of this channel's guild"},
 			)
-		case errors.Is(err, service.ErrEmptyMessageContent):
-			c.JSON(http.StatusBadRequest, gin.H{"error": "message content cannot be empty"})
+		case errors.Is(err, service.ErrEmptyMessageContent),
+			errors.Is(err, service.ErrMessageTooLong):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		case errors.Is(err, service.ErrInvalidMessageType):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message type"})
 		case errors.Is(err, service.ErrFileNotAttachable):
@@ -514,8 +515,9 @@ func (h *MessageHandler) UpdateMessage(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
 		case errors.Is(err, service.ErrNotMessageOwner):
 			c.JSON(http.StatusForbidden, gin.H{"error": "you are not the owner of this message"})
-		case errors.Is(err, service.ErrEmptyMessageContent):
-			c.JSON(http.StatusBadRequest, gin.H{"error": "message content cannot be empty"})
+		case errors.Is(err, service.ErrEmptyMessageContent),
+			errors.Is(err, service.ErrMessageTooLong):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}

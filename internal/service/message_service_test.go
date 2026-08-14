@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -688,4 +689,88 @@ func TestMessageService_MessagesAround(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Messages, 3)
 	assert.Equal(t, uint(10), resp.Messages[1].ID)
+}
+
+func TestMessageService_CreateMessage_RejectsOverlongContent(t *testing.T) {
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "text"}
+
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
+	}
+	mockMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) {
+			return &model.GuildMember{GuildID: 10, UserID: 5}, nil
+		},
+	}
+	mockMsg := &testutil.MockMessageRepository{
+		CreateFn: func(m *model.Message) error {
+			t.Fatal("over-length message must not reach the repository")
+			return nil
+		},
+	}
+
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, nil)
+
+	_, err := svc.CreateMessage(5, &service.CreateMessageRequest{
+		ChannelID: 1,
+		Content:   strings.Repeat("あ", service.MaxMessageContentLen+1),
+	})
+	require.ErrorIs(t, err, service.ErrMessageTooLong)
+}
+
+func TestMessageService_CreateMessage_SkipsMentionsOutsideChannel(t *testing.T) {
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "text"}
+	fullMsg := &model.Message{
+		ID:        1,
+		ChannelID: 1,
+		UserID:    5,
+		Content:   "hi <@2> and <@99>", // 99 不是本 guild 成員
+		User:      model.User{ID: 5, Username: "author"},
+	}
+
+	done := make(chan []*model.MessageMention, 1)
+
+	mockMsg := &testutil.MockMessageRepository{
+		CreateFn:  func(m *model.Message) error { m.ID = 1; return nil },
+		GetByIDFn: func(id uint) (*model.Message, error) { return fullMsg, nil },
+	}
+	mockCh := &testutil.MockChannelRepository{
+		GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
+	}
+	// guild 10 的成員只有 2 與 5；mock 必須誠實反映這點，否則 mention 過濾等於沒測到
+	members := map[uint]bool{2: true, 5: true}
+	mockMember := &testutil.MockGuildMemberRepository{
+		GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) {
+			if !members[userID] {
+				return nil, errors.New("guild member not found")
+			}
+
+			return &model.GuildMember{GuildID: guildID, UserID: userID}, nil
+		},
+		GetByGuildIDFn: func(guildID uint) ([]*model.GuildMember, error) {
+			return []*model.GuildMember{{UserID: 2}, {UserID: 5}}, nil
+		},
+	}
+	mockMention := &testutil.MockMessageMentionRepository{
+		BulkCreateFn: func(mentions []*model.MessageMention) error {
+			done <- mentions
+			return nil
+		},
+	}
+
+	svc := service.NewMessageService(mockMsg, mockCh, mockMember, mockMention)
+
+	_, err := svc.CreateMessage(
+		5,
+		&service.CreateMessageRequest{ChannelID: 1, Content: fullMsg.Content},
+	)
+	require.NoError(t, err)
+
+	select {
+	case mentions := <-done:
+		require.Len(t, mentions, 1)
+		assert.Equal(t, uint(2), mentions[0].UserID)
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("mention processing did not complete in time")
+	}
 }

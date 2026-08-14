@@ -50,7 +50,8 @@ func feedError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, service.ErrFeedFileForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-	case errors.Is(err, service.ErrCannotFollowSelf):
+	case errors.Is(err, service.ErrCannotFollowSelf),
+		errors.Is(err, service.ErrFeedContentTooLong):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

@@ -11,6 +11,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/walnut-almonds/talkrealm/internal/model"
 	"github.com/walnut-almonds/talkrealm/pkg/auth"
+	pkgredis "github.com/walnut-almonds/talkrealm/pkg/redis"
 )
 
 // GuildMemberLookup 提供查詢使用者所屬 guild IDs 的介面（避免 websocket package 直接相依 repository）
@@ -55,9 +56,6 @@ type Manager struct {
 	// guildSubscriptions guild 訂閱索引：guildID -> 訂閱該 guild 的 clients（O(1) 廣播 guild 事件）
 	guildSubscriptions map[uint]map[*Client]bool
 
-	// 從客戶端接收的廣播消息
-	broadcast chan []byte
-
 	// 從客戶端註冊請求
 	register chan *Client
 
@@ -99,7 +97,6 @@ func NewManager(jwtManager *auth.JWTManager) *Manager {
 		channelSubscriptions: make(map[uint]map[*Client]bool),
 		guildSubscriptions:   make(map[uint]map[*Client]bool),
 		userSubscriptions:    make(map[uint]map[*Client]bool),
-		broadcast:            make(chan []byte, 256),
 		register:             make(chan *Client),
 		unregister:           make(chan *Client),
 		jwtManager:           jwtManager,
@@ -116,27 +113,14 @@ func (m *Manager) Run() {
 		case client := <-m.register:
 			m.mu.Lock()
 			m.clients[client] = true
+			total := len(m.clients)
 			m.mu.Unlock()
-			log.Printf("Client connected (pending identify). Total clients: %d", len(m.clients))
+			log.Printf("Client connected (pending identify). Total clients: %d", total)
 			// 發送 hello，告知 client 心跳間隔
 			client.sendHello()
 
 		case client := <-m.unregister:
 			m.handleUnregister(client)
-
-		case message := <-m.broadcast:
-			m.mu.Lock()
-
-			for client := range m.clients {
-				select {
-				case client.send <- message:
-				default:
-					close(client.send)
-					delete(m.clients, client)
-				}
-			}
-
-			m.mu.Unlock()
 		}
 	}
 }
@@ -598,16 +582,39 @@ func (m *Manager) SetMessageSender(s MessageSender) {
 	m.msgSender = s
 }
 
-// RegisterUserClient 將 client 加入使用者訂閱索引（identify 後呼叫）
-func (m *Manager) RegisterUserClient(client *Client) {
+// markIdentified 設定 client 身份並加入使用者訂閱索引。
+// identified/userID/username 由 readPump goroutine 寫入、由 Manager 的廣播與
+// unregister 路徑讀取，因此一律在 m.mu 內變更。
+func (m *Manager) markIdentified(client *Client, userID uint, username string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.userSubscriptions[client.userID] == nil {
-		m.userSubscriptions[client.userID] = make(map[*Client]bool)
+	client.userID = userID
+	client.username = username
+	client.identified = true
+
+	if m.userSubscriptions[userID] == nil {
+		m.userSubscriptions[userID] = make(map[*Client]bool)
 	}
 
-	m.userSubscriptions[client.userID][client] = true
+	m.userSubscriptions[userID][client] = true
+}
+
+// voiceState 讀取 client 目前的語音頻道／guild（同 markIdentified，跨 goroutine 需鎖）
+func (m *Manager) voiceState(client *Client) (channelID, guildID uint) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return client.currentVoiceChannelID, client.currentVoiceGuildID
+}
+
+// setVoiceState 更新 client 目前的語音頻道／guild
+func (m *Manager) setVoiceState(client *Client, channelID, guildID uint) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	client.currentVoiceChannelID = channelID
+	client.currentVoiceGuildID = guildID
 }
 
 // unregisterUserClient 將 client 從使用者訂閱索引中移除（handleUnregister 呼叫）
@@ -659,17 +666,9 @@ func (m *Manager) CheckRateLimit(userID uint, maxMsg int) bool {
 		return true // 無 Redis 時放行
 	}
 
-	ctx := context.Background()
 	key := fmt.Sprintf("ratelimit:%d:ws_msg", userID)
-	pipe := m.redisClient.Pipeline()
-	incr := pipe.Incr(ctx, key)
-	pipe.Expire(ctx, key, time.Second)
 
-	if _, err := pipe.Exec(ctx); err != nil {
-		return true // Redis 錯誤時放行
-	}
-
-	return incr.Val() <= int64(maxMsg)
+	return pkgredis.AllowFixedWindow(m.redisClient, key, maxMsg, time.Second)
 }
 
 // redisOnIdentify 使用者上線時寫入 Redis：user server mapping + guild online set
@@ -782,23 +781,6 @@ func (m *Manager) IsUserOnline(userID uint) bool {
 	}
 
 	return exists > 0
-}
-
-// BroadcastToAll 向所有連接的客戶端廣播消息
-func (m *Manager) BroadcastToAll(msgType string, data any) {
-	message := OutgoingMessage{
-		Op:        msgType,
-		Data:      data,
-		Timestamp: time.Now().UnixMilli(),
-	}
-
-	messageBytes, err := json.Marshal(message)
-	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
-		return
-	}
-
-	m.broadcast <- messageBytes
 }
 
 // UpsertVoiceParticipant 記錄使用者加入語音頻道
