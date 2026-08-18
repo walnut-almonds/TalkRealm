@@ -308,7 +308,7 @@ watch(() => store.jumpTarget, () => { consumeJump() })
 
       <!-- Posts -->
       <div v-for="post in posts" :key="post.id" class="feed-post">
-        <MessageItem :message="post" />
+        <MessageItem :message="post" :showReactions="false" />
 
         <!-- Actions -->
         <div class="feed-post-actions">
@@ -330,7 +330,7 @@ watch(() => store.jumpTarget, () => { consumeJump() })
             {{ t('wall.loadingComments') }}
           </div>
           <div v-for="c in (post._comments || [])" :key="c.id" class="feed-comment-row">
-            <MessageItem :message="c" />
+            <MessageItem :message="c" :showReactions="false" />
             <button
               class="feed-action feed-comment-like"
               :class="{ liked: c.liked_by_me }"

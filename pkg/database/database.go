@@ -95,6 +95,7 @@ func AutoMigrate() error {
 		&model.File{},
 		&model.MessageAttachment{},
 		&model.MessageLike{},
+		&model.MessageReaction{},
 		&model.MessageTranslation{},
 		&model.GameState{},
 		&model.Friendship{},

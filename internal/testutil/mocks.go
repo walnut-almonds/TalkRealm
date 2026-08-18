@@ -898,7 +898,7 @@ func (m *MockFeedPostRepository) GetByID(id uint) (*model.FeedPost, error) {
 		return m.GetByIDFn(id)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil // 測試替身未設定 Fn 時的預設回傳
 }
 
 func (m *MockFeedPostRepository) Update(p *model.FeedPost) error {
@@ -1176,7 +1176,7 @@ func (m *MockFriendshipRepository) Create(
 		return m.CreateFn(requesterID, addresseeID)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil // 測試替身未設定 Fn 時的預設回傳
 }
 
 func (m *MockFriendshipRepository) GetBetween(userA, userB uint) (*model.Friendship, error) {
@@ -1184,7 +1184,7 @@ func (m *MockFriendshipRepository) GetBetween(userA, userB uint) (*model.Friends
 		return m.GetBetweenFn(userA, userB)
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil // 測試替身未設定 Fn 時的預設回傳
 }
 
 func (m *MockFriendshipRepository) UpdateStatus(
@@ -1537,6 +1537,7 @@ type MockMessageService struct {
 	ListChannelMessagesFn func(channelID, userID uint, limit int, before uint) (*service.MessageListResponse, error)
 	UpdateMessageFn       func(messageID, userID uint, req *service.UpdateMessageRequest) (*model.Message, error)
 	DeleteMessageFn       func(messageID, userID uint) error
+	ToggleReactionFn      func(messageID, userID uint, emoji string) (bool, error)
 	SetWebSocketManagerFn func(manager service.WebSocketManager)
 	CreateMessageWSFn     func(userID, channelID uint, content, contentType, nonce string, fileIDs []uint) (any, error)
 	LikePostFn            func(messageID, userID uint) (int64, error)
@@ -1643,6 +1644,16 @@ func (m *MockMessageService) SetFileService(_ service.FileService) {}
 func (m *MockMessageService) SetTranslationService(_ service.TranslationService) {}
 
 func (m *MockMessageService) SetLikeRepo(_ repository.MessageLikeRepository) {}
+
+func (m *MockMessageService) SetReactionRepo(_ repository.MessageReactionRepository) {}
+
+func (m *MockMessageService) ToggleReaction(messageID, userID uint, emoji string) (bool, error) {
+	if m.ToggleReactionFn != nil {
+		return m.ToggleReactionFn(messageID, userID, emoji)
+	}
+
+	return false, nil
+}
 
 func (m *MockMessageService) LikePost(messageID, userID uint) (int64, error) {
 	if m.LikePostFn != nil {
@@ -1933,4 +1944,35 @@ func (m *MockUnreadService) GetAllUnread(userID uint) ([]*repository.ChannelUnre
 	}
 
 	return []*repository.ChannelUnreadCount{}, nil
+}
+
+// ---------------------------------------------------------------------------
+// MockMessageReactionRepository
+// ---------------------------------------------------------------------------
+
+// MockMessageReactionRepository is a test double for repository.MessageReactionRepository.
+type MockMessageReactionRepository struct {
+	ToggleFn             func(messageID, userID uint, emoji string) (bool, error)
+	DeleteByMessageIDsFn func(ids []uint) error
+}
+
+var _ repository.MessageReactionRepository = (*MockMessageReactionRepository)(nil)
+
+func (m *MockMessageReactionRepository) Toggle(
+	messageID, userID uint,
+	emoji string,
+) (bool, error) {
+	if m.ToggleFn != nil {
+		return m.ToggleFn(messageID, userID, emoji)
+	}
+
+	return false, nil
+}
+
+func (m *MockMessageReactionRepository) DeleteByMessageIDs(ids []uint) error {
+	if m.DeleteByMessageIDsFn != nil {
+		return m.DeleteByMessageIDsFn(ids)
+	}
+
+	return nil
 }

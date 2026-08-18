@@ -577,3 +577,63 @@ func (h *MessageHandler) DeleteMessage(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "message deleted successfully"})
 }
+
+// ToggleReaction 對訊息加上或收回一個表情回應（同一顆再點一次即收回）
+//
+//	@Summary		切換表情回應
+//	@Description	emoji 必須是後端白名單內的其中一個
+//	@Tags			messages
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int					true	"Message ID"
+//	@Param			request	body		map[string]string	true	"emoji"
+//	@Success		200		{object}	map[string]any
+//	@Failure		400		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Router			/api/v1/messages/{id}/reactions [post]
+func (h *MessageHandler) ToggleReaction(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	messageID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message id"})
+		return
+	}
+
+	var req struct {
+		Emoji string `json:"emoji" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "emoji is required"})
+		return
+	}
+
+	added, err := h.messageService.ToggleReaction(uint(messageID), userID.(uint), req.Emoji)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidReaction):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.Is(err, service.ErrMessageNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		case errors.Is(err, service.ErrNotChannelMemberMsg):
+			c.JSON(
+				http.StatusForbidden,
+				gin.H{"error": "you are not a member of this channel's guild"},
+			)
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message_id": uint(messageID),
+		"emoji":      req.Emoji,
+		"added":      added,
+	})
+}

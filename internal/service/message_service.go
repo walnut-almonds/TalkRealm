@@ -28,6 +28,17 @@ const (
 	maxMentionsPerMessage = 50
 )
 
+// AllowedReactions 可用的表情回應。刻意是固定小集合而非任意 unicode：
+// 白名單比對一行就驗完，也省掉前端的 emoji picker 與後端的 grapheme cluster 判定。
+var AllowedReactions = map[string]bool{
+	"👍":  true,
+	"🎉":  true,
+	"😂":  true,
+	"❤️": true,
+	"😮":  true,
+	"😢":  true,
+}
+
 var (
 	ErrMessageNotFound     = errors.New("message not found")
 	ErrNotChannelMemberMsg = errors.New("not a member of this channel's guild")
@@ -40,6 +51,7 @@ var (
 	ErrInvalidMessageType = errors.New("invalid message type")
 	ErrDuplicateNonce     = errors.New("duplicate nonce: message already exists")
 	ErrFileNotAttachable  = errors.New("file is not available for this message")
+	ErrInvalidReaction    = errors.New("unsupported reaction emoji")
 )
 
 // WebSocketManager 定義 WebSocket 管理器的介面（避免循環依賴）
@@ -83,6 +95,8 @@ type MessageService interface {
 	SetFileService(fs FileService)
 	SetTranslationService(ts TranslationService)
 	SetLikeRepo(r repository.MessageLikeRepository)
+	SetReactionRepo(r repository.MessageReactionRepository)
+	ToggleReaction(messageID, userID uint, emoji string) (bool, error)
 	LikePost(messageID, userID uint) (int64, error)
 	UnlikePost(messageID, userID uint) (int64, error)
 	ListPosts(channelID, userID uint, limit int, before uint) (*PostListResponse, error)
@@ -104,6 +118,7 @@ type messageService struct {
 	guildMemberRepo    repository.GuildMemberRepository
 	mentionRepo        repository.MessageMentionRepository
 	likeRepo           repository.MessageLikeRepository
+	reactionRepo       repository.MessageReactionRepository
 	wsManager          WebSocketManager
 	fileService        FileService        // 可選，用於建立附件關聯
 	translationService TranslationService // 可選，用於非同步翻譯
@@ -144,8 +159,56 @@ func (s *messageService) SetTranslationService(ts TranslationService) {
 // SetLikeRepo 設定按讚 repository（動態牆功能所需）
 func (s *messageService) SetLikeRepo(r repository.MessageLikeRepository) { s.likeRepo = r }
 
-// likeAccessCheck 確認訊息存在且使用者可存取其 guild 或 DM 頻道，回傳訊息。
-func (s *messageService) likeAccessCheck(messageID, userID uint) (*model.Message, error) {
+// SetReactionRepo 設定表情回應 repository
+func (s *messageService) SetReactionRepo(r repository.MessageReactionRepository) {
+	s.reactionRepo = r
+}
+
+// ToggleReaction 對訊息加上或收回一個表情回應，回傳 true 代表這次是新增。
+// 授權與按讚共用 messageAccessCheck：非 guild 成員／非 DM 參與者一律擋下。
+func (s *messageService) ToggleReaction(
+	messageID, userID uint,
+	emoji string,
+) (bool, error) {
+	if !AllowedReactions[emoji] {
+		return false, ErrInvalidReaction
+	}
+
+	if s.reactionRepo == nil {
+		return false, ErrInvalidReaction
+	}
+
+	msg, err := s.messageAccessCheck(messageID, userID)
+	if err != nil {
+		return false, err
+	}
+
+	added, err := s.reactionRepo.Toggle(messageID, userID, emoji)
+	if err != nil {
+		return false, err
+	}
+
+	if s.wsManager != nil {
+		action := "remove"
+		if added {
+			action = "add"
+		}
+
+		s.wsManager.BroadcastToChannel(msg.ChannelID, "message_reaction", map[string]any{
+			"message_id": messageID,
+			"channel_id": msg.ChannelID,
+			"user_id":    userID,
+			"emoji":      emoji,
+			"action":     action,
+		})
+	}
+
+	return added, nil
+}
+
+// messageAccessCheck 確認訊息存在且使用者可存取其 guild 或 DM 頻道，回傳訊息。
+// 按讚與表情回應共用這條授權路徑。
+func (s *messageService) messageAccessCheck(messageID, userID uint) (*model.Message, error) {
 	msg, err := s.messageRepo.GetByID(messageID)
 	if err != nil {
 		return nil, ErrMessageNotFound
@@ -181,7 +244,7 @@ func (s *messageService) broadcastLikeCount(msg *model.Message) (int64, error) {
 
 // LikePost 按讚（idempotent）
 func (s *messageService) LikePost(messageID, userID uint) (int64, error) {
-	msg, err := s.likeAccessCheck(messageID, userID)
+	msg, err := s.messageAccessCheck(messageID, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -197,7 +260,7 @@ func (s *messageService) LikePost(messageID, userID uint) (int64, error) {
 
 // UnlikePost 收回讚
 func (s *messageService) UnlikePost(messageID, userID uint) (int64, error) {
-	msg, err := s.likeAccessCheck(messageID, userID)
+	msg, err := s.messageAccessCheck(messageID, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -873,6 +936,10 @@ func (s *messageService) DeleteMessage(messageID, userID uint) error {
 	} else {
 		if s.likeRepo != nil {
 			_ = s.likeRepo.DeleteByMessageIDs([]uint{messageID})
+		}
+
+		if s.reactionRepo != nil {
+			_ = s.reactionRepo.DeleteByMessageIDs([]uint{messageID})
 		}
 
 		if err := s.messageRepo.Delete(messageID); err != nil {

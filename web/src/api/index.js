@@ -28,6 +28,7 @@ export const EP = {
     CHANNEL_POSTS: (channelId) => `/api/v1/channels/${channelId}/posts`,
     MESSAGE_COMMENTS: (id) => `/api/v1/messages/${id}/comments`,
     MESSAGE_LIKE: (id) => `/api/v1/messages/${id}/like`,
+    MESSAGE_REACTIONS: (id) => `/api/v1/messages/${id}/reactions`,
     CREATE_INVITE: (guildId) => `/api/v1/guilds/${guildId}/invites`,
     GET_INVITE: (code) => `/api/v1/invites/${code}`,
     JOIN_BY_INVITE: '/api/v1/guilds/join-by-invite',
@@ -255,6 +256,7 @@ class ApiClient {
     }
     likePost(id) { return this.put(EP.MESSAGE_LIKE(id), {}) }
     unlikePost(id) { return this.del(EP.MESSAGE_LIKE(id)) }
+    toggleReaction(id, emoji) { return this.post(EP.MESSAGE_REACTIONS(id), { emoji }) }
 
     // ── Feed (cross-community personal feed) ──
     getTimeline(limit = 20, before = null) {

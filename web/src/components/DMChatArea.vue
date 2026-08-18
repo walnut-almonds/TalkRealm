@@ -98,6 +98,7 @@ function onWSMessage(type, data) {
     if ((type === 'message_create' || type === 'dm_message' || type === 'dm_message_create') && isDMChannel(channelId)) dm.pushIncomingDM(data)
     else if ((type === 'message_update' || type === 'dm_message_update') && isDMChannel(channelId)) dm.handleDMMessageUpdate(data)
     else if ((type === 'message_delete' || type === 'dm_message_delete') && channelId && isDMChannel(channelId)) dm.handleDMMessageDelete(data)
+    else if (type === 'message_reaction' && isDMChannel(channelId)) dm.handleDMMessageReaction(data)
     else if ((type === 'translation_ready' || type === 'dm_translation_ready') && data.message_id) dm.handleDMTranslationReady(data)
 }
 

@@ -1651,6 +1651,82 @@ select {
     color: var(--danger);
 }
 
+/* ── Reactions ───────────────────────────────────────────── */
+.message-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.reaction-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 7px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 18px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.reaction-chip:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-muted);
+}
+
+.reaction-chip--mine {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.reaction-emoji {
+    font-size: 13px;
+}
+
+.reaction-count {
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+}
+
+.msg-action-react {
+    position: relative;
+    display: flex;
+}
+
+.reaction-picker {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 4px);
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 11;
+}
+
+.reaction-picker-btn {
+    background: none;
+    border: none;
+    padding: 3px 5px;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background 0.15s;
+}
+
+.reaction-picker-btn:hover {
+    background: var(--bg-hover);
+}
+
 /* ── Inline edit ─────────────────────────────────────────── */
 .message-edit-box {
     display: flex;

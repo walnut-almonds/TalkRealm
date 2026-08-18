@@ -805,6 +805,9 @@ func TestMessageRepository_GetByChannelID_Success(t *testing.T) {
 	// Preload Attachments (GORM executes in reverse preload declaration order)
 	mock.ExpectQuery(`SELECT \* FROM "message_attachments"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	// Preload Reactions
+	mock.ExpectQuery(`SELECT \* FROM "message_reactions"`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	// Preload User
 	mock.ExpectQuery(`SELECT \* FROM "users"`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
 

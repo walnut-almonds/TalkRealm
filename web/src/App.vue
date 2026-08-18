@@ -33,6 +33,7 @@ ws.onMessage((type, data) => {
     case 'message':            store.handleNewMessage(data); break
     case 'message_update':     store.handleMessageUpdate(data); break
     case 'message_delete':     store.handleMessageDelete(data); break
+    case 'message_reaction':   store.handleMessageReaction(data); break
     case 'typing':             store.handleTyping(data); break
     case 'user_status':        store.handleUserStatus(data); break
     case 'channel_create':     store.handleChannelCreate(data); break

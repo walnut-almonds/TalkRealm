@@ -11,6 +11,7 @@ import (
 
 func TestMessageRepository_GetMessagesAround(t *testing.T) {
 	db, mock, sqlDB := newTestDB(t)
+
 	defer func() { _ = sqlDB.Close() }()
 
 	// older-or-equal half (id <= around, DESC)
@@ -20,11 +21,15 @@ func TestMessageRepository_GetMessagesAround(t *testing.T) {
 	// preload is skipped; only Attachments keys off the present id column).
 	mock.ExpectQuery(`SELECT \* FROM "message_attachments"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT \* FROM "message_reactions"`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	// newer half (id > around, ASC)
 	mock.ExpectQuery(`SELECT \* FROM "messages" WHERE channel_id = \$1 AND id > \$2`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "channel_id"}).AddRow(11, 1))
 	// Attachments preload for the newer half
 	mock.ExpectQuery(`SELECT \* FROM "message_attachments"`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT \* FROM "message_reactions"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 	repo := repository.NewMessageRepository(db)
@@ -49,6 +54,10 @@ func TestMessageRepository_DeletePostCascade(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(8).AddRow(9))
 	// delete likes for post + comments
 	mock.ExpectExec(`DELETE FROM "message_likes" WHERE message_id IN`).
+		WillReturnResult(sqlmock.NewResult(0, 3))
+	// delete reactions for post + comments — 漏了這步，刪除會撞 message_reactions
+	// 的外鍵而以 23503 失敗（實際 E2E 打到過）
+	mock.ExpectExec(`DELETE FROM "message_reactions" WHERE message_id IN`).
 		WillReturnResult(sqlmock.NewResult(0, 3))
 	// delete comments
 	mock.ExpectExec(`DELETE FROM "messages" WHERE parent_id = \$1`).

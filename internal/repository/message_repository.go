@@ -46,7 +46,7 @@ func (r *messageRepository) Create(message *model.Message) error {
 func (r *messageRepository) GetByNonce(userID uint, nonce string) (*model.Message, error) {
 	var message model.Message
 
-	err := r.db.Preload("User").Preload("Attachments.File").
+	err := r.db.Preload("User").Preload("Attachments.File").Preload("Reactions").
 		Where("user_id = ? AND nonce = ?", userID, nonce).
 		First(&message).Error
 	if err != nil {
@@ -64,7 +64,11 @@ func (r *messageRepository) GetByNonce(userID uint, nonce string) (*model.Messag
 func (r *messageRepository) GetByID(id uint) (*model.Message, error) {
 	var message model.Message
 
-	err := r.db.Preload("User").Preload("Attachments.File").First(&message, id).Error
+	err := r.db.Preload("User").
+		Preload("Attachments.File").
+		Preload("Reactions").
+		First(&message, id).
+		Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("message not found")
@@ -94,7 +98,7 @@ func (r *messageRepository) GetByChannelID(
 	var messages []*model.Message
 
 	err := r.db.
-		Preload("User").Preload("Attachments.File").
+		Preload("User").Preload("Attachments.File").Preload("Reactions").
 		Where("channel_id = ?", channelID).
 		Order("created_at DESC").
 		Offset(offset).
@@ -113,7 +117,7 @@ func (r *messageRepository) GetByChannelIDCursor(
 	var messages []*model.Message
 
 	q := r.db.
-		Preload("User").Preload("Attachments.File").
+		Preload("User").Preload("Attachments.File").Preload("Reactions").
 		Where("channel_id = ?", channelID).
 		Order("id DESC"). // fetch DESC to apply cursor filter, then reverse
 		Limit(limit)
@@ -149,14 +153,18 @@ func (r *messageRepository) aroundWindow(
 	older := (limit + 1) / 2
 	newer := limit - older
 
-	base := r.db.Preload("User").Preload("Attachments.File").Where("channel_id = ?", channelID)
+	base := r.db.Preload("User").
+		Preload("Attachments.File").
+		Preload("Reactions").
+		Where("channel_id = ?", channelID)
 	if postsOnly {
 		base = base.Where("parent_id IS NULL")
 	}
 
-	var olderMsgs []*model.Message
+	var olderMsgs []*model.Message //nolint:prealloc // GORM Find 會整個覆寫這個 slice
 	if err := base.Session(&gorm.Session{}).
-		Where("id <= ?", aroundID).Order("id DESC").Limit(older).Find(&olderMsgs).Error; err != nil {
+		Where("id <= ?", aroundID).
+		Order("id DESC").Limit(older).Find(&olderMsgs).Error; err != nil {
 		return nil, err
 	}
 
@@ -250,7 +258,7 @@ func (r *messageRepository) GetPostsByChannelCursor(
 	var posts []*model.Message
 
 	q := r.db.
-		Preload("User").Preload("Attachments.File").
+		Preload("User").Preload("Attachments.File").Preload("Reactions").
 		Where("channel_id = ? AND parent_id IS NULL", channelID).
 		Order("id DESC").
 		Limit(limit)
@@ -271,7 +279,7 @@ func (r *messageRepository) GetCommentsByPostCursor(
 	var comments []*model.Message
 
 	q := r.db.
-		Preload("User").Preload("Attachments.File").
+		Preload("User").Preload("Attachments.File").Preload("Reactions").
 		Where("parent_id = ?", postID).
 		Order("id DESC").
 		Limit(limit)
@@ -320,10 +328,11 @@ func (r *messageRepository) CountCommentsByPostIDs(ids []uint) (map[uint]int64, 
 	return out, nil
 }
 
-// DeletePostCascade 於單一 transaction 內刪除貼文、其留言、及全部相關讚
+// DeletePostCascade 於單一 transaction 內刪除貼文、其留言、及全部相關讚與表情回應。
+// message_reactions 有指向 messages 的外鍵，漏刪會讓整個刪除以 23503 失敗。
 func (r *messageRepository) DeletePostCascade(postID uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		var commentIDs []uint
+		var commentIDs []uint //nolint:prealloc // Pluck 會整個覆寫這個 slice
 		if err := tx.Model(&model.Message{}).
 			Where("parent_id = ?", postID).
 			Pluck("id", &commentIDs).Error; err != nil {
@@ -334,6 +343,11 @@ func (r *messageRepository) DeletePostCascade(postID uint) error {
 
 		if err := tx.Where("message_id IN ?", ids).
 			Delete(&model.MessageLike{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("message_id IN ?", ids).
+			Delete(&model.MessageReaction{}).Error; err != nil {
 			return err
 		}
 

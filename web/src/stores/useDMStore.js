@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { applyReaction } from '@/utils/reactions.js'
 import { ref, reactive } from 'vue'
 import { api as apiClient } from '@/api/index.js'
 import { useAppStore } from '@/stores/useAppStore.js'
@@ -91,6 +92,10 @@ export const useDMStore = defineStore('dm', () => {
         }
     }
 
+    function handleDMMessageReaction(data) {
+        applyReaction(dmMessages.value.find(m => m.id === data.message_id), data)
+    }
+
     function handleDMMessageUpdate(data) {
         const idx = dmMessages.value.findIndex(m => m.id === data.id)
         if (idx !== -1) {
@@ -134,6 +139,7 @@ export const useDMStore = defineStore('dm', () => {
         sendDM,
         pushIncomingDM,
         handleDMMessageUpdate,
+        handleDMMessageReaction,
         handleDMMessageDelete,
         handleDMTranslationReady,
         exitDMMode,

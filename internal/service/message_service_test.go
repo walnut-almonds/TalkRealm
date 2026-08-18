@@ -774,3 +774,86 @@ func TestMessageService_CreateMessage_SkipsMentionsOutsideChannel(t *testing.T) 
 		t.Fatal("mention processing did not complete in time")
 	}
 }
+
+// reactionSvc 組出一個掛好 reaction repo 的 message service。
+// members 決定 guild 10 有哪些成員，用來驗授權是真的走 messageAccessCheck。
+func reactionSvc(
+	t *testing.T,
+	members map[uint]bool,
+	toggle func(messageID, userID uint, emoji string) (bool, error),
+) service.MessageService {
+	t.Helper()
+
+	channel := &model.Channel{ID: 1, GuildID: testutil.PtrUint(10), Type: "text"}
+
+	svc := service.NewMessageService(
+		&testutil.MockMessageRepository{
+			GetByIDFn: func(id uint) (*model.Message, error) {
+				return &model.Message{ID: id, ChannelID: 1, UserID: 5}, nil
+			},
+		},
+		&testutil.MockChannelRepository{
+			GetByIDFn: func(id uint) (*model.Channel, error) { return channel, nil },
+		},
+		&testutil.MockGuildMemberRepository{
+			GetMemberFn: func(guildID, userID uint) (*model.GuildMember, error) {
+				if !members[userID] {
+					return nil, errors.New("guild member not found")
+				}
+
+				return &model.GuildMember{GuildID: guildID, UserID: userID}, nil
+			},
+		},
+		nil,
+	)
+	svc.SetReactionRepo(&testutil.MockMessageReactionRepository{ToggleFn: toggle})
+
+	return svc
+}
+
+func TestMessageService_ToggleReaction_AddsThenRemoves(t *testing.T) {
+	// 以一份記憶體狀態模擬唯一索引：同一顆 emoji 再點一次就收回
+	state := map[string]bool{}
+
+	svc := reactionSvc(t, map[uint]bool{5: true}, func(mID, uID uint, emoji string) (bool, error) {
+		key := emoji
+		state[key] = !state[key]
+
+		return state[key], nil
+	})
+
+	added, err := svc.ToggleReaction(1, 5, "👍")
+	require.NoError(t, err)
+	assert.True(t, added, "first toggle should add")
+
+	added, err = svc.ToggleReaction(1, 5, "👍")
+	require.NoError(t, err)
+	assert.False(t, added, "second toggle should remove")
+}
+
+func TestMessageService_ToggleReaction_RejectsEmojiOutsideWhitelist(t *testing.T) {
+	svc := reactionSvc(t, map[uint]bool{5: true}, func(mID, uID uint, emoji string) (bool, error) {
+		t.Fatal("repository must not be reached for a disallowed emoji")
+
+		return false, nil
+	})
+
+	_, err := svc.ToggleReaction(1, 5, "💩")
+	require.ErrorIs(t, err, service.ErrInvalidReaction)
+
+	// 任意文字也不能當成 emoji 塞進來
+	_, err = svc.ToggleReaction(1, 5, "not-an-emoji")
+	require.ErrorIs(t, err, service.ErrInvalidReaction)
+}
+
+func TestMessageService_ToggleReaction_DeniesNonMember(t *testing.T) {
+	// guild 10 只有 5；使用者 99 不是成員
+	svc := reactionSvc(t, map[uint]bool{5: true}, func(mID, uID uint, emoji string) (bool, error) {
+		t.Fatal("repository must not be reached for a non-member")
+
+		return false, nil
+	})
+
+	_, err := svc.ToggleReaction(1, 99, "👍")
+	require.ErrorIs(t, err, service.ErrNotChannelMemberMsg)
+}

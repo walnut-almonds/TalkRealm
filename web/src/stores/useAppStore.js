@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { applyReaction } from '@/utils/reactions.js'
 import { ref, computed, reactive } from 'vue'
 import { api, STORAGE_KEYS, guildLastChannel } from '@/api/index.js'
 import router from '@/router/index.js'
@@ -465,6 +466,10 @@ export const useAppStore = defineStore('app', () => {
         if (idx !== -1) messages.value.splice(idx, 1)
     }
 
+    function handleMessageReaction(data) {
+        applyReaction(messages.value.find(m => m.id === data.message_id), data)
+    }
+
     // ── Typing ───────────────────────────────────────────────────
     function handleTyping(data) {
         const { channel_id, user_id, username } = data
@@ -565,7 +570,7 @@ export const useAppStore = defineStore('app', () => {
         checkAuth, loadUserData, handleLogout, loadGuilds, selectGuild,
         selectChannel, loadMessages,
         scrollToMessage, loadMessagesAround, jumpToPermalink,
-        handleNewMessage, handleMessageUpdate, handleMessageDelete,
+        handleNewMessage, handleMessageUpdate, handleMessageDelete, handleMessageReaction,
         handleTyping, handleUserStatus,
         handleTranslationReady, handleMentionCreate,
         handleGuildUpdate, handleGuildDelete,

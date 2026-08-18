@@ -93,6 +93,11 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 - **IP 限流的前提是 `SetTrustedProxies`**：gin 預設信任所有代理，`ClientIP()` 直接採信 `X-Forwarded-For`，任何人每次換一個假 IP 就能繞開 `middleware.IPRateLimit`。但也不能改成完全不信——本專案跑在 nginx／k8s ingress 後面，那樣所有人會塌成同一個代理 IP，登入限流變成全站共用一個桶子。預設值設在 `config.setDefaults` 的 `server.trusted_proxies`：只信私有網段。
 - **Redis 固定視窗限流用 `EXPIRE NX`**：`pkgredis.AllowFixedWindow`（`pkg/redis/redis.go`）是唯一實作，REST 與 WS 都走它。每次無條件 `EXPIRE` 會讓持續打的人一直把 TTL 往後推、視窗永不重置；「只在 `hits==1` 時 EXPIRE」則是那一次掉了（Redis 抖動／行程剛好掛）key 就永久沒 TTL，該 IP 被永遠鎖死。`INCR`+`ExpireNX` 同一個 pipeline，兩個問題都沒有。
 
+- **改 `model.Message` 的 Preload 會打破 repository 的 sqlmock 測試**：`internal/repository` 那幾支測試用 go-sqlmock 逐條比對 SQL，多一個 Preload 就多一條 `SELECT * FROM "xxx"`，順序不合就整條紅。實測 GORM 的執行順序是 `message_attachments` → `message_reactions` → `users`（不是宣告順序）。改 preload 後記得同步 `message_repository_test.go` 與 `repository_test.go` 的 `ExpectQuery`。
+
+- **`FeedArea.vue` 也渲染 `MessageItem`**（貼文與留言各一處），所以任何加進 `MessageItem` 的新 UI 會自動出現在動態牆上。要限定只在聊天出現，得加 prop 由 FeedArea 關掉（現行：`:showReactions="false"`）。
+- **新增指向 `messages` 的外鍵表時，兩條刪除路徑都要補**：`messageService.DeleteMessage` 的一般訊息分支，以及 repository 的 `DeletePostCascade`（feed 貼文＋其留言）。只補前者的話，刪除有 reaction 的動態牆貼文會以 `23503 foreign key violation` 回 500——單元測試（sqlmock）不會自己抓到，是實際 E2E 打出來的。
+
 
 ## Decisions
 - **設定架構：齒輪只有一顆**。全站唯一設定入口在 NavRail 底部（`nav-foot`，呼叫 MainLayout `provide('openModal')` 開 `UserSettingsModal`）；modal 內用 section 分區（帳號/GIF/學習/密碼），新功能設定加 section、不新增齒輪。「改了立刻想看效果」的偏好做成功能內 inline 控制項（如 Learn 困難模式 toggle，hub 與遊戲中各一顆，同一份狀態）。純本機顯示偏好存 localStorage（`talkrealm_learn_hard`，state 在 `useLearnStore.hardMode`），需跨裝置/影響計分時才升級後端。困難模式渲染：`components/learn/mask.js` 的 `maskSegments()` 把連續 `_` 收成單一 gap 格。
@@ -151,3 +156,7 @@ go run ./scripts/buildwords   # 重建 data/words.csv（需 data/raw/ 原始字�
 2026-08-14 — 階段性全專案檢查：修 WS 廣播殘留訂閱導致的 send-on-closed-channel、client 欄位跨 goroutine 競態、OG 預覽 SSRF（改在 dial 階段擋內網 IP，涵蓋 redirect/DNS）、訊息與貼文長度上限、mention 授權、檔案配額重複計數、`jwt.expiration_hours` 預設值單位錯誤、登入/註冊 IP 限流；刪除 handler/middleware 的 TODO stub 死碼。
 
 2026-08-14（續）— 二輪 review 補強：gin `SetTrustedProxies`（否則 X-Forwarded-For 可偽造、IP 限流形同虛設）、限流改 `ExpireNX` 單趟 pipeline、檔案配額改「次數不重計／位元組補實際差額」（presign 記的是 client 宣告值，presigned PUT 不強制 Content-Length）、JWT secret 檢查加上空值與長度、`MaxBodySize` 1MB 全域中介軟體（長度檢查發生在 body 已進記憶體之後）、`isPrivateIP` 補 CGNAT 100.64.0.0/10。
+
+2026-08-14（續二）— 表情回應（reactions）：新表 `MessageReaction`（不動 `MessageLike` 的唯一索引），6 個 emoji 白名單，單一 toggle 端點 `POST /messages/:id/reactions`，授權共用 `messageAccessCheck`（原 `likeAccessCheck`），前端 `utils/reactions.js` 給兩個 store 共用。只做聊天訊息（guild + DM），wall／feed 未動。
+
+2026-08-17 — reactions 完整 E2E（臨時 docker postgres:5434 + redis:6381、server :8081 serve web/dist）：19 項 HTTP 檢查、7 項 WS 廣播檢查、瀏覽器實際點擊往返全過。抓到並修掉 `DeletePostCascade` 漏刪 reactions 造成的外鍵 500，以及 reaction UI 洩漏到動態牆。順帶驗證了 IP 限流真的會擋（register 第 11 次回 429）且 `ExpireNX` 沒有把視窗往後推（TTL 3438/3600）。

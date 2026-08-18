@@ -128,6 +128,8 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// 動態牆按讚 repository
 	messageService.SetLikeRepo(repository.NewMessageLikeRepository(db))
+	// 訊息表情回應 repository
+	messageService.SetReactionRepo(repository.NewMessageReactionRepository(db))
 
 	// 設定 WebSocket 管理器到各 Service
 	messageService.SetWebSocketManager(wsManager)
@@ -419,6 +421,9 @@ func (s *Server) setupRoutes() {
 				messages.GET("/:id/comments", s.messageHandler.ListComments)
 				messages.PUT("/:id/like", s.messageHandler.LikePost)
 				messages.DELETE("/:id/like", s.messageHandler.UnlikePost)
+
+				// 表情回應：同一顆再點一次即收回，故單一 toggle 端點
+				messages.POST("/:id/reactions", s.messageHandler.ToggleReaction)
 
 				// 翻譯 & 猜測遊戲
 				messages.GET("/:id/translation", s.translationHandler.GetTranslation)

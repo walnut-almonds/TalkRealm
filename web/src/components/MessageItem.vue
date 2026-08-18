@@ -9,12 +9,15 @@ import { formatTimestamp, formatFullTimestamp, formatFileSize, IMAGE_TYPES } fro
 import { api } from '@/api/index.js'
 import LinkPreview from '@/components/LinkPreview.vue'
 import MessagePermalinkCard from '@/components/MessagePermalinkCard.vue'
+import { REACTION_EMOJIS, groupReactions, applyReaction } from '@/utils/reactions.js'
 
 const props = defineProps({
   message: Object,
   grouped: Boolean,
   isSpeaking: Boolean,
   isDM: Boolean,
+  // 動態牆（feed 型頻道）沿用 MessageItem 但不支援表情回應，由 FeedArea 關掉
+  showReactions: { type: Boolean, default: true },
 })
 
 const store = useAppStore()
@@ -45,6 +48,30 @@ const permalinkIds = computed(() => {
 })
 const bodyUrls = computed(() => _rendered.value.urls)
 const isCurrentUser = computed(() => store.user?.id === props.message.user_id)
+
+// ── Reactions ────────────────────────────────────────────────
+const reactionPickerOpen = ref(false)
+const reactionEmojis = REACTION_EMOJIS
+const reactions = computed(() => groupReactions(props.message.reactions, store.user?.id))
+
+async function toggleReaction(emoji) {
+  reactionPickerOpen.value = false
+
+  const me = store.user?.id
+  if (!me || !props.message.id) return
+
+  // 樂觀更新：先動畫面，失敗再還原。WS 廣播回來時是同一份資料，
+  // applyReaction 依 (user_id, emoji) 判斷有無，重放不會疊加。
+  const mine = props.message.reactions?.some(r => r.user_id === me && r.emoji === emoji)
+  const optimistic = { user_id: me, emoji, action: mine ? 'remove' : 'add' }
+  applyReaction(props.message, optimistic)
+
+  try {
+    await api.toggleReaction(props.message.id, emoji)
+  } catch (e) {
+    applyReaction(props.message, { ...optimistic, action: mine ? 'add' : 'remove' })
+  }
+}
 
 // Detect if current user is mentioned in this message
 const isMentioned = computed(() => {
@@ -375,6 +402,21 @@ async function submitGuess() {
         </template>
 
       </div>
+
+      <!-- Reactions -->
+      <div v-if="showReactions && reactions.length" class="message-reactions">
+        <button
+          v-for="r in reactions"
+          :key="r.emoji"
+          class="reaction-chip"
+          :class="{ 'reaction-chip--mine': r.mine }"
+          :title="r.mine ? t('chat.reactionRemove') : t('chat.reactionAdd')"
+          @click="toggleReaction(r.emoji)"
+        >
+          <span class="reaction-emoji">{{ r.emoji }}</span>
+          <span class="reaction-count">{{ r.count }}</span>
+        </button>
+      </div>
     </div>
 
     <!-- Hover action bar (right side) -->
@@ -382,6 +424,24 @@ async function submitGuess() {
       v-if="message.id && !isEditing"
       class="message-actions-bar"
     >
+      <div v-if="showReactions" class="msg-action-react" @mouseleave="reactionPickerOpen = false">
+        <button
+          class="msg-action-btn"
+          :title="t('chat.react')"
+          @click="reactionPickerOpen = !reactionPickerOpen"
+        >
+          <i class="fas fa-face-smile"></i>
+        </button>
+        <div v-if="reactionPickerOpen" class="reaction-picker">
+          <button
+            v-for="e in reactionEmojis"
+            :key="e"
+            class="reaction-picker-btn"
+            :title="e"
+            @click="toggleReaction(e)"
+          >{{ e }}</button>
+        </div>
+      </div>
       <button class="msg-action-btn" :title="t('chat.copyLink')" @click="copyPermalink">
         <i class="fas fa-link"></i>
       </button>

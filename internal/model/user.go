@@ -91,8 +91,20 @@ type Message struct {
 	Nonce       string              `gorm:"uniqueIndex:idx_user_nonce;default:null" json:"nonce"`       // client 產生的冪等 key（可選）
 	ParentID    *uint               `gorm:"index"                                   json:"parent_id"`   // nil = 貼文/一般訊息；有值 = 留言，指向貼文
 	Attachments []MessageAttachment `gorm:"foreignKey:MessageID"                    json:"attachments"` // 附件
+	Reactions   []MessageReaction   `gorm:"foreignKey:MessageID"                    json:"reactions"`   // 表情回應
 	CreatedAt   time.Time           `                                               json:"created_at"`
 	UpdatedAt   time.Time           `                                               json:"updated_at"`
+}
+
+// MessageReaction 訊息的表情回應（一人對一則的同一個 emoji 只能有一次，不同 emoji 可並存）。
+// 刻意不併進 MessageLike：那張表的唯一索引是 (message_id, user_id)，
+// 就地改成三欄索引會動到正在運作的動態牆按讚，風險遠大於多開一張表。
+type MessageReaction struct {
+	ID        uint      `gorm:"primarykey"                                                        json:"id"`
+	MessageID uint      `gorm:"not null;index;uniqueIndex:idx_reaction_msg_user_emoji"            json:"message_id"`
+	UserID    uint      `gorm:"not null;uniqueIndex:idx_reaction_msg_user_emoji"                  json:"user_id"`
+	Emoji     string    `gorm:"type:varchar(16);not null;uniqueIndex:idx_reaction_msg_user_emoji" json:"emoji"`
+	CreatedAt time.Time `                                                                         json:"created_at"`
 }
 
 // File 檔案儲存記錄
