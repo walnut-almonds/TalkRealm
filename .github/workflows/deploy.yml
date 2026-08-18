@@ -130,6 +130,12 @@ jobs:
           script: |
             set -e
             cd /opt/talkrealm
+            # scp-action 保留 runner 的 uid(1001) 與 644 權限上傳，等於把整份明文憑證
+            # 攤在機器上任何帳號面前。收斂到各自唯一的讀取者：config.yaml 由 app 容器
+            # 內的 nonroot(65532) 讀，.env 由 host 上的 docker compose(root) 讀。
+            # 注意 65532 是 distroless 的 nonroot uid，換 base image 要跟著改。
+            chown 65532:65532 config.yaml && chmod 600 config.yaml
+            chown root:root .env && chmod 600 .env
             echo "Pulling latest image..."
             docker pull ghcr.io/walnut-almonds/talkrealm:latest
             echo "Restarting app container..."

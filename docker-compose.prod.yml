@@ -1,5 +1,3 @@
-version: '3.8'
-
 # 任何容器的 log 都不該無上限成長：預設 json-file 不輪替，nginx 曾吃掉 21G/45G 磁碟。
 x-logging: &default-logging
   driver: json-file
