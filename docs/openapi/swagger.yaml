@@ -311,6 +311,11 @@ definitions:
       parent_id:
         description: nil = 貼文/一般訊息；有值 = 留言，指向貼文
         type: integer
+      reactions:
+        description: 表情回應
+        items:
+          $ref: '#/definitions/model.MessageReaction'
+        type: array
       type:
         description: text, image, file
         type: string
@@ -332,6 +337,19 @@ definitions:
       id:
         type: integer
       message_id:
+        type: integer
+    type: object
+  model.MessageReaction:
+    properties:
+      created_at:
+        type: string
+      emoji:
+        type: string
+      id:
+        type: integer
+      message_id:
+        type: integer
+      user_id:
         type: integer
     type: object
   model.MessageTranslation:
@@ -833,6 +851,11 @@ definitions:
       parent_id:
         description: nil = 貼文/一般訊息；有值 = 留言，指向貼文
         type: integer
+      reactions:
+        description: 表情回應
+        items:
+          $ref: '#/definitions/model.MessageReaction'
+        type: array
       type:
         description: text, image, file
         type: string
@@ -1096,6 +1119,11 @@ definitions:
       parent_id:
         description: nil = 貼文/一般訊息；有值 = 留言，指向貼文
         type: integer
+      reactions:
+        description: 表情回應
+        items:
+          $ref: '#/definitions/model.MessageReaction'
+        type: array
       type:
         description: text, image, file
         type: string
@@ -3531,6 +3559,48 @@ paths:
               type: string
             type: object
       summary: 解析訊息永久連結
+      tags:
+      - messages
+  /api/v1/messages/{id}/reactions:
+    post:
+      consumes:
+      - application/json
+      description: emoji 必須是後端白名單內的其中一個
+      parameters:
+      - description: Message ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: emoji
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 切換表情回應
       tags:
       - messages
   /api/v1/messages/{id}/translation:

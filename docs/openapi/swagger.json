@@ -3671,6 +3671,69 @@
                 }
             }
         },
+        "/api/v1/messages/{id}/reactions": {
+            "post": {
+                "description": "emoji 必須是後端白名單內的其中一個",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "messages"
+                ],
+                "summary": "切換表情回應",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Message ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "emoji",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/messages/{id}/translation": {
             "get": {
                 "description": "取得指定訊息的翻譯結果（三語）",
@@ -4381,6 +4444,13 @@
                     "description": "nil = 貼文/一般訊息；有值 = 留言，指向貼文",
                     "type": "integer"
                 },
+                "reactions": {
+                    "description": "表情回應",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MessageReaction"
+                    }
+                },
                 "type": {
                     "description": "text, image, file",
                     "type": "string"
@@ -4412,6 +4482,26 @@
                     "type": "integer"
                 },
                 "message_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.MessageReaction": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "emoji": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "message_id": {
+                    "type": "integer"
+                },
+                "user_id": {
                     "type": "integer"
                 }
             }
@@ -5167,6 +5257,13 @@
                     "description": "nil = 貼文/一般訊息；有值 = 留言，指向貼文",
                     "type": "integer"
                 },
+                "reactions": {
+                    "description": "表情回應",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MessageReaction"
+                    }
+                },
                 "type": {
                     "description": "text, image, file",
                     "type": "string"
@@ -5549,6 +5646,13 @@
                 "parent_id": {
                     "description": "nil = 貼文/一般訊息；有值 = 留言，指向貼文",
                     "type": "integer"
+                },
+                "reactions": {
+                    "description": "表情回應",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MessageReaction"
+                    }
                 },
                 "type": {
                     "description": "text, image, file",

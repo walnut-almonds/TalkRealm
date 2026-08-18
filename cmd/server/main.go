@@ -31,9 +31,9 @@ func main() {
 
 	defer logger.Sync()
 
-	logger.Info("config", "config", cfg)
-
-	logger.Info("Starting TalkRealm", "version", buildinfo.Version)
+	// 不要在這裡印整個 cfg：struct 內含 JWT secret、DB/Redis 密碼、OAuth 與各家 API key，
+	// 進了 log 就等同外洩。只留排查啟動問題真正需要的欄位。
+	logger.Info("Starting TalkRealm", "version", buildinfo.Version, "mode", cfg.Server.Mode)
 
 	// 初始化資料庫
 	if err := database.Init(&cfg.Database); err != nil {
