@@ -1,9 +1,17 @@
 version: '3.8'
 
+# 任何容器的 log 都不該無上限成長：預設 json-file 不輪替，nginx 曾吃掉 21G/45G 磁碟。
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:15-alpine
     container_name: talkrealm-postgres
+    logging: *default-logging
     restart: unless-stopped
     environment:
       POSTGRES_USER: talkrealm
@@ -24,6 +32,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: talkrealm-redis
+    logging: *default-logging
     restart: unless-stopped
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
@@ -39,6 +48,7 @@ services:
   minio:
     image: minio/minio:latest
     container_name: talkrealm-minio
+    logging: *default-logging
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -58,6 +68,7 @@ services:
   livekit:
     image: livekit/livekit-server:latest
     container_name: talkrealm-livekit
+    logging: *default-logging
     restart: unless-stopped
     command: '--bind 0.0.0.0 --keys "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"'
     expose:
@@ -76,6 +87,7 @@ services:
   app:
     image: ghcr.io/walnut-almonds/talkrealm:latest
     container_name: talkrealm-app
+    logging: *default-logging
     restart: unless-stopped
     expose:
       - "8080"
@@ -92,6 +104,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: talkrealm-nginx
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "80:80"
